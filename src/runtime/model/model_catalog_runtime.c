@@ -111,8 +111,19 @@ BongoCatResult bongo_cat_model_catalog_scan(BongoCatApp *app, bool cleanup,
     if (!app) return BONGO_CAT_ERROR_ARGUMENT;
     BongoCatResult result = scan_owned_models(app, cleanup);
     if (result != BONGO_CAT_OK) return result;
-    if (nearby_root && !SDL_getenv("BONGO_CAT_DISABLE_NEARBY_MODEL_SCAN"))
-        return scan_nearby_root(app, nearby_root);
+    if (nearby_root && !SDL_getenv("BONGO_CAT_DISABLE_NEARBY_MODEL_SCAN")) {
+        /* Nearby folders are an optional convenience (the default root is
+           often the folder from which the portable executable was launched).
+           A malformed third-party model must not make the built-in catalog
+           disappear: the scan can add valid entries before it reports the
+           malformed one. Keep those entries and let startup continue. */
+        BongoCatResult nearby = scan_nearby_root(app, nearby_root);
+        if (nearby != BONGO_CAT_OK)
+            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
+                "Nearby model scan was incomplete; continuing with %llu "
+                "usable model(s)",
+                (unsigned long long)app->models.count);
+    }
     return BONGO_CAT_OK;
 }
 
