@@ -207,6 +207,8 @@ void bongo_cat_app_reset_pointer_tracking(BongoCatApp *app) {
     app->pointer_known = false;
     app->mouse_last_ns = 0;
     app->pointer_relative_active = false;
+    app->pointer_cursor_locked = false;
+    app->mouse_button_event_pending = false;
     app->dirty = true;
 }
 

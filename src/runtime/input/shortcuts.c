@@ -102,32 +102,37 @@ static bool behavior_shortcut(BongoCatApp *app, const BongoCatInputEvent *event)
 void bongo_cat_app_shortcuts(BongoCatApp *app, const BongoCatInputEvent *event) {
     if (!app) return;
     if (event->kind == BONGO_CAT_INPUT_GAMEPAD_BUTTON) {
-        behavior_shortcut(app, event);
+        if (behavior_shortcut(app, event)) app->input_shortcuts_triggered++;
         return;
     }
     bool primary = bongo_cat_shortcut_update(&app->shortcut_state, event);
     if (!primary) {
-        behavior_shortcut(app, event);
+        if (behavior_shortcut(app, event)) app->input_shortcuts_triggered++;
         return;
     }
     BongoCatShortcutPreferences *shortcuts = &app->settings.shortcuts;
+    bool handled = false;
     if (bongo_cat_shortcut_matches(&app->shortcut_state, event,
         shortcuts->toggle_pet_visibility)) {
         toggle_pet_visibility(app);
+        handled = true;
     } else if (bongo_cat_shortcut_matches(&app->shortcut_state, event,
         shortcuts->visible_preferences)) {
         bongo_cat_preferences_visible(app->preferences) ?
             bongo_cat_preferences_close(app->preferences) : bongo_cat_preferences_show(app->preferences);
+        handled = true;
     } else if (bongo_cat_shortcut_matches(&app->shortcut_state, event, shortcuts->mirror)) {
         app->settings.model.mirror = !app->settings.model.mirror;
         app->model_pointer_anchor_ready = false;
         app->dirty = true;
         bongo_cat_preferences_invalidate(app->preferences);
+        handled = true;
     } else if (bongo_cat_shortcut_matches(&app->shortcut_state, event, shortcuts->pass_through)) {
         app->settings.window.pass_through = !app->settings.window.pass_through;
         bongo_cat_window_mark_hit_dirty(app);
         bongo_cat_window_sync_click_through(app);
         bongo_cat_preferences_invalidate(app->preferences);
+        handled = true;
     } else if (bongo_cat_shortcut_matches(&app->shortcut_state, event,
         shortcuts->always_on_top)) {
         app->settings.window.always_on_top = !app->settings.window.always_on_top;
@@ -135,7 +140,9 @@ void bongo_cat_app_shortcuts(BongoCatApp *app, const BongoCatInputEvent *event) 
         bongo_cat_window_mark_hit_dirty(app);
         bongo_cat_window_sync_click_through(app);
         bongo_cat_preferences_invalidate(app->preferences);
-    } else behavior_shortcut(app, event);
+        handled = true;
+    } else handled = behavior_shortcut(app, event);
+    if (handled) app->input_shortcuts_triggered++;
 }
 
 static void test_key(BongoCatApp *app, BongoCatInputKind kind, const char *name) {

@@ -157,17 +157,19 @@ bool bongo_cat_platform_relative_pointer(BongoCatPlatform *platform,
     if (!platform || !x || !y) return false;
     uint64_t now_ms = GetTickCount64();
     if (!platform->relative_pointer) {
-        if (platform->relative_pointer_retry_ms > now_ms) return false;
+        if (platform->relative_pointer_retry_ms > now_ms)
+            return bongo_cat_windows_input_take_relative(platform, x, y);
         if (!bongo_cat_windows_direct_input_create(platform,
             native_window(platform))) {
             platform->relative_pointer_retry_ms = now_ms + 5000;
-            return false;
+            return bongo_cat_windows_input_take_relative(platform, x, y);
         }
         platform->relative_pointer_retry_ms = 0;
     }
     return bongo_cat_windows_direct_input_read(platform, x, y);
 }
 void bongo_cat_platform_relative_pointer_reset(BongoCatPlatform *platform) {
+    bongo_cat_windows_input_reset_relative(platform);
     bongo_cat_windows_direct_input_reset(platform);
 }
 void bongo_cat_platform_relative_pointer_release(BongoCatPlatform *platform) {

@@ -66,7 +66,12 @@ static void update_hands(BongoCatApp *app) {
 }
 
 static void apply_key(BongoCatApp *app, const char *name, bool pressed) {
-    if (bongo_cat_overlay_key(app->overlay, name, pressed) < 0) return;
+    int hand = bongo_cat_overlay_key(app->overlay, name, pressed);
+    if (hand < 0) {
+        app->input_key_unsupported++;
+        return;
+    }
+    app->input_key_supported++;
     update_hands(app);
     app->dirty = true;
 }
@@ -139,15 +144,35 @@ void bongo_cat_app_apply_input(BongoCatApp *app, const BongoCatInputEvent *event
     case BONGO_CAT_INPUT_KEY_UP: apply_key(app, event->name, false); break;
     case BONGO_CAT_INPUT_MOUSE_DOWN:
     case BONGO_CAT_INPUT_MOUSE_UP: {
-        if (strcmp(event->name, "Left") != 0 && strcmp(event->name, "Right") != 0)
+        bool left = strcmp(event->name, "Left") == 0;
+        bool right = strcmp(event->name, "Right") == 0;
+        bool side = strcmp(event->name, "Back") == 0 ||
+            strcmp(event->name, "Forward") == 0;
+        if (!left && !right && !side)
             break;
         bool down = event->kind == BONGO_CAT_INPUT_MOUSE_DOWN;
-        if (strcmp(event->name, "Left") == 0) app->left_mouse_down = down;
-        else app->right_mouse_down = down;
+        bool changed;
+        if (left) {
+            changed = app->left_mouse_down != down;
+            app->left_mouse_down = down;
+        } else if (right) {
+            changed = app->right_mouse_down != down;
+            app->right_mouse_down = down;
+        } else {
+            changed = app->side_mouse_down != down;
+            app->side_mouse_down = down;
+        }
+        if (changed) app->mouse_button_event_pending = true;
         if (!down) app->pointer_hit_dirty = true;
-        const char *id = strcmp(event->name, "Left") == 0
+        if (side) {
+            app->input_mouse_applied++;
+            app->dirty = true;
+            break;
+        }
+        const char *id = left
             ? "ParamMouseLeftDown" : "ParamMouseRightDown";
         bongo_cat_live2d_set_parameter(app->live2d, id, down ? 1.0f : 0.0f);
+        app->input_mouse_applied++;
         app->dirty = true;
         break;
     }

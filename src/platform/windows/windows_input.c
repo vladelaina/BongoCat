@@ -10,6 +10,7 @@
 typedef struct WindowsInputState {
     BongoCatPlatform *platform;
     SRWLOCK platform_lock;
+    SRWLOCK relative_lock;
     HANDLE thread;
     HANDLE stop;
     HHOOK keyboard;
@@ -19,6 +20,9 @@ typedef struct WindowsInputState {
     DWORD test_start_delay_ms;
     DWORD keyboard_hook_error, mouse_hook_error;
     unsigned long long keyboard_events, mouse_moves, mouse_buttons;
+    unsigned long long keyboard_emitted, keyboard_ignored;
+    unsigned long long keyboard_queue_failures;
+    unsigned long long mouse_button_queue_failures;
     unsigned long long reported_keyboard_events, reported_mouse_moves;
     unsigned long long reported_mouse_buttons;
     ULONGLONG last_diagnostic_ms;
@@ -26,6 +30,13 @@ typedef struct WindowsInputState {
     POINT last_mouse;
     DWORD last_mouse_flags;
     bool last_mouse_known;
+    DWORD last_key_code, last_key_message, last_key_flags;
+    char last_key_name[16];
+    bool last_key_known;
+    POINT relative_mouse;
+    bool relative_mouse_known;
+    long long relative_x, relative_y;
+    unsigned long long relative_samples, relative_resets;
 } WindowsInputState;
 
 static WindowsInputState *global_state;
@@ -37,37 +48,53 @@ static void wake_main_thread(WindowsInputState *state) {
     SDL_PushEvent(&wake);
 }
 
-static void push_event(BongoCatInputKind kind, const char *name, float value) {
+static bool push_event(BongoCatInputKind kind, const char *name, float value) {
     WindowsInputState *state = global_state;
-    if (!state || !name) return;
+    if (!state || !name) return false;
     AcquireSRWLockShared(&state->platform_lock);
     BongoCatPlatform *platform = state->platform;
     if (!platform) {
         ReleaseSRWLockShared(&state->platform_lock);
-        return;
+        return false;
     }
     BongoCatInputEvent event = {0};
     event.kind = kind;
     event.timestamp_ms = GetTickCount64();
     event.value = value;
     snprintf(event.name, sizeof(event.name), "%s", name);
-    if (bongo_cat_input_push(platform->input, &event)) wake_main_thread(state);
+    bool pushed = bongo_cat_input_push(platform->input, &event);
+    if (pushed) wake_main_thread(state);
     ReleaseSRWLockShared(&state->platform_lock);
+    return pushed;
 }
 
 static void emit_key(bool down, const char *name, void *userdata) {
     (void)userdata;
-    push_event(down ? BONGO_CAT_INPUT_KEY_DOWN : BONGO_CAT_INPUT_KEY_UP,
-        name, down ? 1.0f : 0.0f);
+    WindowsInputState *state = global_state;
+    bool pushed = push_event(down ? BONGO_CAT_INPUT_KEY_DOWN :
+        BONGO_CAT_INPUT_KEY_UP, name, down ? 1.0f : 0.0f);
+    if (!state) return;
+    if (pushed) state->keyboard_emitted++;
+    else state->keyboard_queue_failures++;
 }
 
 static LRESULT CALLBACK keyboard_hook(int code, WPARAM message, LPARAM data) {
     WindowsInputState *state = global_state;
-    if (code == HC_ACTION && state) {
+    if (code == HC_ACTION && state && data) {
+        const KBDLLHOOKSTRUCT *key = (const KBDLLHOOKSTRUCT *)data;
         state->keyboard_events++;
-        bongo_cat_windows_keyboard_event(&state->keyboard_state,
-            (const KBDLLHOOKSTRUCT *)data, message,
+        char key_name[16];
+        const char *mapped_name = bongo_cat_windows_key_name(key, key_name);
+        state->last_key_code = key->vkCode;
+        state->last_key_message = (DWORD)message;
+        state->last_key_flags = key->flags;
+        state->last_key_known = mapped_name != NULL;
+        snprintf(state->last_key_name, sizeof(state->last_key_name), "%s",
+            mapped_name ? mapped_name : "none");
+        bool emitted = bongo_cat_windows_keyboard_event(&state->keyboard_state,
+            key, message,
             &state->test_drop_key_up, emit_key, NULL);
+        if (!emitted) state->keyboard_ignored++;
     }
     return CallNextHookEx(NULL, code, message, data);
 }
@@ -85,10 +112,24 @@ static const char *mouse_button(WPARAM message, DWORD mouse_data) {
 
 static LRESULT CALLBACK mouse_hook(int code, WPARAM message, LPARAM data) {
     WindowsInputState *state = global_state;
-    if (code == HC_ACTION && state) {
+    if (code == HC_ACTION && state && data) {
         const MSLLHOOKSTRUCT *mouse = (const MSLLHOOKSTRUCT *)data;
-        state->last_mouse = mouse->pt; state->last_mouse_flags = mouse->flags;
+        AcquireSRWLockExclusive(&state->relative_lock);
+        if (message == WM_MOUSEMOVE) {
+            if (state->relative_mouse_known) {
+                state->relative_x += (long long)mouse->pt.x -
+                    (long long)state->relative_mouse.x;
+                state->relative_y += (long long)mouse->pt.y -
+                    (long long)state->relative_mouse.y;
+                state->relative_samples++;
+            }
+            state->relative_mouse = mouse->pt;
+            state->relative_mouse_known = true;
+        }
+        state->last_mouse = mouse->pt;
+        state->last_mouse_flags = mouse->flags;
         state->last_mouse_known = true;
+        ReleaseSRWLockExclusive(&state->relative_lock);
         if (message == WM_MOUSEMOVE) {
             state->mouse_moves++;
             AcquireSRWLockShared(&state->platform_lock);
@@ -102,8 +143,9 @@ static LRESULT CALLBACK mouse_hook(int code, WPARAM message, LPARAM data) {
                 message == WM_MBUTTONDOWN || message == WM_XBUTTONDOWN;
             if (name) {
                 state->mouse_buttons++;
-                push_event(down ? BONGO_CAT_INPUT_MOUSE_DOWN :
-                    BONGO_CAT_INPUT_MOUSE_UP, name, down ? 1.0f : 0.0f);
+                if (!push_event(down ? BONGO_CAT_INPUT_MOUSE_DOWN :
+                    BONGO_CAT_INPUT_MOUSE_UP, name, down ? 1.0f : 0.0f))
+                    state->mouse_button_queue_failures++;
             }
         }
     }
@@ -150,9 +192,20 @@ static void log_input_summary(WindowsInputState *state, ULONGLONG now_ms) {
     ULONGLONG interval_ms = active ? 30000 : 60000;
     if (state->diagnostic_ready &&
         now_ms - state->last_diagnostic_ms < interval_ms) return;
+    long long relative_x, relative_y;
+    unsigned long long relative_samples;
+    AcquireSRWLockShared(&state->relative_lock);
+    relative_x = state->relative_x;
+    relative_y = state->relative_y;
+    relative_samples = state->relative_samples;
+    ReleaseSRWLockShared(&state->relative_lock);
     SDL_Log("[input] Windows hooks: keyboard=%d mouse=%d "
         "key_events=%llu(+%llu) mouse_moves=%llu(+%llu) "
         "mouse_buttons=%llu(+%llu) last_known=%d last=%ld,%ld flags=0x%lx "
+        "last_key_known=%d last_key=%s code=%lu message=%lu flags=0x%lx "
+        "key_emitted=%llu key_ignored=%llu key_queue_failures=%llu "
+        "mouse_button_queue_failures=%llu relative_pending=%lld,%lld "
+        "relative_samples=%llu "
         "physical_known=%d physical=%ld,%ld cursor_known=%d cursor_visible=%d "
         "cursor_confined=%d clip_known=%d clip=%ld,%ld,%ld,%ld "
         "desktop=%ld,%ld,%ld,%ld foreground_pid=%lu own_foreground=%d",
@@ -161,6 +214,13 @@ static void log_input_summary(WindowsInputState *state, ULONGLONG now_ms) {
         state->mouse_buttons, button_delta,
         state->last_mouse_known, (long)state->last_mouse.x,
         (long)state->last_mouse.y, (unsigned long)state->last_mouse_flags,
+        state->last_key_known, state->last_key_name[0] ? state->last_key_name : "none",
+        (unsigned long)state->last_key_code,
+        (unsigned long)state->last_key_message,
+        (unsigned long)state->last_key_flags,
+        state->keyboard_emitted, state->keyboard_ignored,
+        state->keyboard_queue_failures, state->mouse_button_queue_failures,
+        relative_x, relative_y, relative_samples,
         physical_known,
         (long)physical.x, (long)physical.y,
         cursor_known, cursor_visible,
@@ -224,11 +284,39 @@ static DWORD WINAPI input_thread(void *context) {
     return 0;
 }
 
+bool bongo_cat_windows_input_take_relative(BongoCatPlatform *platform,
+    double *x, double *y) {
+    WindowsInputState *state = platform ? platform->native : NULL;
+    if (!state || !x || !y) return false;
+    AcquireSRWLockExclusive(&state->relative_lock);
+    long long relative_x = state->relative_x;
+    long long relative_y = state->relative_y;
+    state->relative_x = 0;
+    state->relative_y = 0;
+    ReleaseSRWLockExclusive(&state->relative_lock);
+    *x = (double)relative_x;
+    *y = (double)relative_y;
+    return relative_x != 0 || relative_y != 0;
+}
+
+void bongo_cat_windows_input_reset_relative(BongoCatPlatform *platform) {
+    WindowsInputState *state = platform ? platform->native : NULL;
+    if (!state) return;
+    AcquireSRWLockExclusive(&state->relative_lock);
+    state->relative_x = 0;
+    state->relative_y = 0;
+    state->relative_mouse_known = state->last_mouse_known;
+    if (state->last_mouse_known) state->relative_mouse = state->last_mouse;
+    state->relative_resets++;
+    ReleaseSRWLockExclusive(&state->relative_lock);
+}
+
 bool bongo_cat_windows_input_start(BongoCatPlatform *platform) {
     if (!platform || SDL_getenv("BONGO_CAT_TEST_HOOK_FAILURE")) return false;
     WindowsInputState *state = calloc(1, sizeof(*state));
     if (!state) return false;
     InitializeSRWLock(&state->platform_lock);
+    InitializeSRWLock(&state->relative_lock);
     state->platform = platform;
     const char *drop_key_up = SDL_getenv("BONGO_CAT_TEST_DROP_KEY_UP");
     if (drop_key_up) state->test_drop_key_up =
