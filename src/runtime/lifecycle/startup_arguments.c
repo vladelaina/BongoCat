@@ -7,6 +7,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef _WIN32
+#include "windows_package.h"
+#endif
+
 static bool store_argument(char *target, size_t capacity, const char *value,
     const char *name, BongoCatError *error) {
     int length = snprintf(target, capacity, "%s", value ? value : "");
@@ -18,8 +22,18 @@ static bool store_argument(char *target, size_t capacity, const char *value,
 
 static bool prepare_nearby_root(BongoCatApp *app, BongoCatError *error) {
 #ifdef _WIN32
-    char *current = SDL_GetCurrentDirectory();
-    const char *root = current && current[0] ? current : SDL_GetBasePath();
+    /* A packaged full-trust app is commonly launched with System32 as its
+       current directory.  That is not a user model directory, and scanning
+       it can walk protected Windows management folders (for example
+       appmgmt\MACHINE), causing startup to fail or consume the scan budget.
+       Nearby model discovery remains available through an explicit
+       --nearby-root argument and for unpackaged/portable launches. */
+    char *current = NULL;
+    const char *root = NULL;
+    if (!bongo_cat_windows_is_packaged()) {
+        current = SDL_GetCurrentDirectory();
+        root = current && current[0] ? current : SDL_GetBasePath();
+    }
 #else
     const char *root = SDL_GetBasePath();
 #endif
