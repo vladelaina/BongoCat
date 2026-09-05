@@ -65,7 +65,9 @@ set(BONGO_CAT_RUNTIME_DIAGNOSTIC_SOURCES
 set(BONGO_CAT_RUNTIME_INPUT_SOURCES
   src/runtime/input/gamepad.c
   src/runtime/input/mouse.c
+  src/runtime/input/mouse_diagnostics.c
   src/runtime/input/mouse_mapping.c
+  src/runtime/input/mouse_pipeline.c
   src/runtime/input/shortcuts.c)
 
 set(BONGO_CAT_RUNTIME_MODEL_SOURCES
