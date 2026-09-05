@@ -119,6 +119,7 @@ void bongo_cat_app_apply_mouse(BongoCatApp *app) {
     SDL_MouseButtonFlags buttons = SDL_GetGlobalMouseState(&global_x, &global_y);
     bool button_event_pending = app->mouse_button_event_pending;
     bool cursor_locked = bongo_cat_platform_pointer_locked(&app->platform);
+    bool cursor_lock_changed = cursor_locked != app->pointer_cursor_locked;
     bool button_changed = false;
     if (!button_event_pending && !cursor_locked) {
         button_changed = reconcile_button(app, &app->left_mouse_down,
@@ -140,6 +141,13 @@ void bongo_cat_app_apply_mouse(BongoCatApp *app) {
         target_x = app->pointer_x;
         target_y = app->pointer_y;
     }
+    /* Most games recenter the cursor as they enter relative-look mode. Use
+       that observed center as the new virtual origin instead of carrying a
+       pre-game edge position into the first relative sample. */
+    if (cursor_locked && cursor_lock_changed) {
+        target_x = global_x;
+        target_y = global_y;
+    }
     bool moved = !app->pointer_known || app->pointer_x != target_x ||
         app->pointer_y != target_y;
     if (moved) {
@@ -156,9 +164,13 @@ void bongo_cat_app_apply_mouse(BongoCatApp *app) {
     bool model_moved = moved;
     bool profile_relative = app->model_render_options.mver_projection &&
         app->model_render_options.mouse_force_move;
+    /* A model may request forced mouse movement, but while the cursor is
+       visible and free its hook coordinates are the authoritative screen
+       position.  Enter relative mode only after another foreground window
+       actually confines the cursor; otherwise a missing raw sample would
+       leave the virtual point stuck at an old position. */
     bool relative_requested = !app->settings.model.ignore_mouse &&
-        (profile_relative || cursor_locked);
-    bool cursor_lock_changed = cursor_locked != app->pointer_cursor_locked;
+        cursor_locked;
     bool pointer_mode_changed = false;
     if (relative_requested != app->pointer_relative_active ||
         (relative_requested && cursor_lock_changed)) {
