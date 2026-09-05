@@ -40,9 +40,9 @@ static HRESULT read_relative_data(BongoCatDirectInput *state,
         if (SUCCEEDED(result)) {
             *overflow = result == DI_BUFFEROVERFLOW;
             for (DWORD index = 0; index < *event_count; ++index) {
-                if (events[index].dwOfs == DIMOFS_X)
+                if (events[index].dwOfs == (DWORD)DIMOFS_X)
                     *x += (LONG)events[index].dwData;
-                else if (events[index].dwOfs == DIMOFS_Y)
+                else if (events[index].dwOfs == (DWORD)DIMOFS_Y)
                     *y += (LONG)events[index].dwData;
             }
         }
@@ -227,11 +227,11 @@ bool bongo_cat_windows_direct_input_read(BongoCatPlatform *platform,
         *x = 0.0;
         *y = 0.0;
     } else if (sample_ready && !use_fallback) {
-        *x = direct_x;
-        *y = direct_y;
+        *x = (double)direct_x;
+        *y = (double)direct_y;
     } else if (fallback_ready) {
-        *x = fallback_x;
-        *y = fallback_y;
+        *x = (double)fallback_x;
+        *y = (double)fallback_y;
     } else {
         *x = 0.0;
         *y = 0.0;
