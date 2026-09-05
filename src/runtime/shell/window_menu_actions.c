@@ -28,9 +28,7 @@ static bool select_model(BongoCatApp *app, const char *id) {
 
 void bongo_cat_window_show_context_menu(BongoCatApp *app) {
     if (!app) return;
-    bool dark_theme = app->settings.app.theme == BONGO_CAT_THEME_DARK ||
-        (app->settings.app.theme == BONGO_CAT_THEME_AUTO &&
-            SDL_GetSystemTheme() == SDL_SYSTEM_THEME_DARK);
+    bool dark_theme = SDL_GetSystemTheme() == SDL_SYSTEM_THEME_DARK;
     BongoCatWindowMenuPreview preview;
     bongo_cat_window_menu_preview_init(&preview, app);
     const char *model_names[BONGO_CAT_MODEL_CAP];
