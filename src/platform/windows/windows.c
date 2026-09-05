@@ -34,7 +34,7 @@ void bongo_cat_platform_configure_preferences_window(SDL_Window *window) {
     bongo_cat_windows_capture_mark_transparent(handle, transparent);
     if (transparent) {
         bongo_cat_windows_capture_install_transparency_handler(handle);
-        bongo_cat_windows_capture_restore_transparency(handle);
+        bongo_cat_windows_capture_repair_transparency(handle);
     }
 }
 
@@ -63,9 +63,13 @@ BongoCatResult bongo_cat_platform_init(BongoCatPlatform *platform, SDL_Window *w
     HWND hwnd = native_window(platform);
     SetWindowTextW(hwnd, bongo_cat_windows_instance_title());
     bongo_cat_windows_borderless_install(hwnd);
+    bool transparent = (SDL_GetWindowFlags(window) &
+        SDL_WINDOW_TRANSPARENT) != 0;
+    /* Mark transparency before any OBS style transaction. Removing
+       WS_EX_TOOLWINDOW may recreate the DWM surface, so the configure path
+       must be able to repair it before the window is first shown. */
+    bongo_cat_windows_capture_mark_transparent(hwnd, transparent);
     bongo_cat_windows_capture_configure(hwnd);
-    bongo_cat_windows_capture_mark_transparent(hwnd,
-        (SDL_GetWindowFlags(window) & SDL_WINDOW_TRANSPARENT) != 0);
     SDL_SetWindowsMessageHook(windows_message_hook, NULL);
     if (!SDL_SetWindowResizable(window, true)) {
         SDL_LogWarn(SDL_LOG_CATEGORY_VIDEO,
@@ -73,6 +77,7 @@ BongoCatResult bongo_cat_platform_init(BongoCatPlatform *platform, SDL_Window *w
     }
     SetWindowPos(hwnd, NULL, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE |
         SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+    bongo_cat_windows_capture_repair_transparency(hwnd);
     bongo_cat_windows_capture_log(hwnd, "initialized");
     return BONGO_CAT_OK;
 }

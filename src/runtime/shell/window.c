@@ -47,6 +47,11 @@ static bool try_window(BongoCatApp *app, bool transparent, int samples,
 
 BongoCatResult bongo_cat_window_create(BongoCatApp *app, BongoCatError *error) {
     SDL_SetHint(SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH, "1");
+#ifdef _WIN32
+    /* Transparent OpenGL windows must never receive SDL's default black
+       WM_ERASEBKGND fill before the first frame is submitted. */
+    SDL_SetHint(SDL_HINT_WINDOWS_ERASE_BACKGROUND_MODE, "0");
+#endif
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) {
         bongo_cat_error_set(error, BONGO_CAT_ERROR_PLATFORM,
             "SDL initialization failed: %s", SDL_GetError());
@@ -98,7 +103,11 @@ void bongo_cat_window_apply(BongoCatApp *app) {
     if (preferences->keep_in_screen) bongo_cat_window_clamp_to_display(app);
     else bongo_cat_window_recover_to_display(app);
     SDL_SyncWindow(app->window);
-    bongo_cat_platform_set_visible(&app->platform, state->visible);
+    /* A visible session is revealed by the first successful frame. Keeping
+       the native window hidden while loading avoids exposing an uninitialised
+       (and on some drivers black) back buffer. */
+    bongo_cat_platform_set_visible(&app->platform,
+        state->visible && !app->startup_visibility_pending);
     bongo_cat_window_sync_click_through(app);
     bongo_cat_platform_set_always_on_top(&app->platform,
         preferences->always_on_top);

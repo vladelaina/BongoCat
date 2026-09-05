@@ -10,12 +10,8 @@
 static UINT taskbar_created_message;
 static UINT capture_refresh_message;
 static const wchar_t capture_property[] = L"BongoCat.CaptureWindow";
-static const wchar_t transparent_property[] = L"BongoCat.TransparentWindow";
-static const wchar_t transparency_proc_property[] =
-    L"BongoCat.TransparentWindowProc";
 static bool removal_warning_emitted;
 static bool style_warning_emitted;
-static bool transparency_warning_emitted;
 static bool environment_logged;
 #define BONGO_CAT_CAPTURE_REFRESH_TIMER ((UINT_PTR)0xBC51)
 
@@ -23,29 +19,8 @@ static bool has_property(HWND window, const wchar_t *name) {
     return window && name && GetPropW(window, name) != NULL;
 }
 
-void bongo_cat_windows_capture_mark_transparent(HWND window, bool enabled) {
-    if (!window) return;
-    if (enabled) SetPropW(window, transparent_property, (HANDLE)1);
-    else RemovePropW(window, transparent_property);
-}
-
-static LRESULT CALLBACK transparency_window_proc(HWND window, UINT message,
-    WPARAM wparam, LPARAM lparam) {
-    if (bongo_cat_windows_capture_handle_message(window, message, wparam))
-        return 0;
-    WNDPROC original = (WNDPROC)GetPropW(window, transparency_proc_property);
-    return CallWindowProcW(original ? original : DefWindowProcW, window,
-        message, wparam, lparam);
-}
-
-void bongo_cat_windows_capture_install_transparency_handler(HWND window) {
-    if (!window || GetPropW(window, transparency_proc_property)) return;
-    WNDPROC original = (WNDPROC)GetWindowLongPtrW(window, GWLP_WNDPROC);
-    if (!original || !SetPropW(window, transparency_proc_property,
-        (HANDLE)original)) return;
-    if (!SetWindowLongPtrW(window, GWLP_WNDPROC,
-        (LONG_PTR)transparency_window_proc))
-        RemovePropW(window, transparency_proc_property);
+bool bongo_cat_windows_capture_is_configured(HWND window) {
+    return has_property(window, capture_property);
 }
 
 static bool read_extended_style(HWND window, LONG_PTR *style) {
@@ -84,35 +59,6 @@ static HRESULT remove_taskbar_tab(HWND window) {
     if (taskbar) taskbar->lpVtbl->Release(taskbar);
     if (SUCCEEDED(initialized)) CoUninitialize();
     return result;
-}
-
-bool bongo_cat_windows_capture_restore_transparency(HWND window) {
-    if (!window) return false;
-    HRGN region = CreateRectRgn(-1, -1, 0, 0);
-    if (!region) return false;
-    DWM_BLURBEHIND blur = {0};
-    blur.dwFlags = DWM_BB_ENABLE | DWM_BB_BLURREGION;
-    blur.fEnable = TRUE;
-    blur.hRgnBlur = region;
-    HRESULT result = DwmEnableBlurBehindWindow(window, &blur);
-    DeleteObject(region);
-    if (FAILED(result) && !transparency_warning_emitted) {
-        transparency_warning_emitted = true;
-        SDL_LogWarn(SDL_LOG_CATEGORY_VIDEO,
-            "Cannot restore Windows transparent composition (0x%08lx)",
-            (unsigned long)result);
-    }
-    return SUCCEEDED(result);
-}
-
-static void repair_transparency(HWND window) {
-    if (!has_property(window, transparent_property)) return;
-    if (bongo_cat_windows_capture_restore_transparency(window)) {
-        /* A composition reset does not necessarily produce a paint message.
-           Invalidate the surface so the alpha-aware back buffer is presented
-           again (and, on Windows, the layered proxy is rebuilt). */
-        InvalidateRect(window, NULL, FALSE);
-    }
 }
 
 static void log_environment(HWND window) {
@@ -191,6 +137,7 @@ bool bongo_cat_windows_capture_configure(HWND window) {
             SDL_LogWarn(SDL_LOG_CATEGORY_VIDEO,
                 "Cannot read the window style required for OBS discovery");
         }
+        bongo_cat_windows_capture_repair_transparency(window);
         return false;
     }
     /* OBS does not require APPWINDOW. Avoid a hide/show style transition for
@@ -203,7 +150,6 @@ bool bongo_cat_windows_capture_configure(HWND window) {
         if (write_extended_style(window, next, &style_error)) {
             SetWindowPos(window, NULL, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE |
                 SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
-            bongo_cat_windows_capture_restore_transparency(window);
         } else if (!style_warning_emitted) {
             style_warning_emitted = true;
             SDL_LogWarn(SDL_LOG_CATEGORY_VIDEO,
@@ -217,6 +163,10 @@ bool bongo_cat_windows_capture_configure(HWND window) {
             UpdateWindow(window);
         }
     }
+    /* Style/frame changes can recreate the DWM redirection surface. Repair
+       after the complete hide/show transaction, and on the idempotent path
+       as well so repeated configure calls remain safe. */
+    bongo_cat_windows_capture_repair_transparency(window);
     LONG_PTR applied = 0;
     bool ready = read_extended_style(window, &applied) &&
         !(applied & (WS_EX_TOOLWINDOW | WS_EX_NOREDIRECTIONBITMAP));
@@ -238,13 +188,8 @@ bool bongo_cat_windows_capture_configure(HWND window) {
 bool bongo_cat_windows_capture_handle_message(
     HWND window, UINT message, WPARAM wparam) {
     register_messages();
-    if ((message == WM_DWMCOMPOSITIONCHANGED || message == WM_DISPLAYCHANGE) &&
-        has_property(window, transparent_property)) {
-        repair_transparency(window);
-        /* Let SDL continue processing WM_DISPLAYCHANGE so its display list is
-           refreshed. WM_DWMCOMPOSITIONCHANGED has no SDL-side state to update. */
-        return false;
-    }
+    if (bongo_cat_windows_capture_handle_transparency_message(
+            window, message, wparam)) return true;
     if (capture_refresh_message && message == capture_refresh_message) {
         if (!has_property(window, capture_property)) return false;
         refresh_taskbar(window);
@@ -263,7 +208,7 @@ bool bongo_cat_windows_capture_handle_message(
             refresh_taskbar(window);
             schedule_refresh(window);
         }
-        repair_transparency(window);
+        bongo_cat_windows_capture_repair_transparency(window);
         return capture_window;
     }
     return false;

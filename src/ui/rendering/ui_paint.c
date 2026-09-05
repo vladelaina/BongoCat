@@ -33,8 +33,12 @@ static uint32_t pack(struct nk_color color) {
 }
 
 static void pixel(unsigned char *target, struct nk_color color, float alpha) {
-    target[0] = color.r; target[1] = color.g; target[2] = color.b;
-    target[3] = (unsigned char)(color.a * clamp01(alpha) + .5f);
+    unsigned char coverage = (unsigned char)(color.a * clamp01(alpha) + .5f);
+    /* GL_LINEAR interpolates RGB and alpha independently. Keeping a colored
+       RGB value in a fully transparent texel can therefore create a visible
+       fringe on DWM-composited windows when a neighbouring sample is mixed. */
+    target[0] = coverage ? color.r : 0; target[1] = coverage ? color.g : 0; target[2] = coverage ? color.b : 0;
+    target[3] = coverage;
 }
 
 static float rounded_distance(float x, float y, float width, float height,

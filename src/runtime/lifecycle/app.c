@@ -72,6 +72,11 @@ bool bongo_cat_app_initialize(BongoCatApp *app, int argc, char **argv,
             "%s", app->smoke_model);
     if (!app->secondary_pet && !app->autostart_launch)
         app->session.window.visible = true;
+    /* Keep a normally visible session hidden until the renderer has produced
+       its first complete frame. The native window is still configured and
+       sized below, but no platform gets a chance to expose an empty back
+       buffer during model/driver startup. */
+    app->startup_visibility_pending = app->session.window.visible;
     bongo_cat_startup_stage(app, "configuration-ready");
     if (bongo_cat_app_locate_assets(app, error) != BONGO_CAT_OK) return false;
     bongo_cat_startup_stage(app, "assets-ready");

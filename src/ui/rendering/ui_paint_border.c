@@ -72,7 +72,10 @@ void bongo_cat_ui_raster_dashed_rounded(unsigned char *pixels,
             clamp01(NK_MIN(phase + .5f, dash - phase + .5f)) : 0.0f;
         float alpha = clamp01(thickness * .5f + .75f - distance) * dash_alpha;
         unsigned char *target = pixels + ((size_t)y * width + x) * 4;
-        target[0] = color.r; target[1] = color.g; target[2] = color.b;
-        target[3] = (unsigned char)(color.a * alpha + .5f);
+        unsigned char coverage = (unsigned char)(color.a * alpha + .5f);
+        target[0] = coverage ? color.r : 0;
+        target[1] = coverage ? color.g : 0;
+        target[2] = coverage ? color.b : 0;
+        target[3] = coverage;
     }
 }

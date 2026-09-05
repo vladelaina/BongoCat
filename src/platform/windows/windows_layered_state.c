@@ -47,6 +47,7 @@ void bongo_cat_platform_set_visible(BongoCatPlatform *platform,
     if (visible) {
         HWND source = native_window(platform);
         bongo_cat_windows_capture_configure(source);
+        bongo_cat_windows_capture_repair_transparency(source);
         bongo_cat_windows_capture_log(source, "visible");
     }
 }

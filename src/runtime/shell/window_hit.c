@@ -55,6 +55,7 @@ void bongo_cat_window_set_visible(BongoCatApp *app, bool visible) {
     if (!app || !app->window) return;
     app->session.window.visible = visible;
     if (!visible) {
+        app->startup_visibility_pending = false;
         bongo_cat_platform_set_visible(&app->platform, false);
         return;
     }
@@ -67,13 +68,17 @@ void bongo_cat_window_set_visible(BongoCatApp *app, bool visible) {
         app->session.window.opacity_percent / 100.0f);
     if (app->settings.window.keep_in_screen) bongo_cat_window_clamp_to_display(app);
     else bongo_cat_window_recover_to_display(app);
-    bongo_cat_platform_set_visible(&app->platform, true);
+    /* Keep the native surface hidden until the first complete frame has been
+       submitted. The render loop will reveal it next to that presentation. */
+    bongo_cat_platform_set_visible(&app->platform,
+        !app->startup_visibility_pending);
     bongo_cat_window_mark_hit_dirty(app);
     app->dirty = true;
 }
 
 void bongo_cat_window_raise_when_due(BongoCatApp *app, uint64_t now) {
-    if (!app || !app->startup_raise_due_ns || now < app->startup_raise_due_ns) return;
+    if (!app || !app->startup_raise_due_ns ||
+        app->startup_visibility_pending || now < app->startup_raise_due_ns) return;
     app->startup_raise_due_ns = 0;
     bongo_cat_window_set_visible(app, true);
     bongo_cat_platform_raise_window(app->window);

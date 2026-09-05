@@ -195,10 +195,30 @@ static void test_capture_styles(void) {
     }
 }
 
+static void test_transparency_lifecycle(void) {
+    HWND window = CreateWindowExW(0, L"STATIC", L"BongoCat transparency test",
+        WS_POPUP, 0, 0, 32, 32, NULL, NULL, GetModuleHandleW(NULL), NULL);
+    CHECK(window != NULL);
+    if (!window) return;
+    CHECK(!bongo_cat_windows_capture_is_configured(window));
+    bongo_cat_windows_capture_mark_transparent(window, true);
+    CHECK(bongo_cat_windows_capture_handle_transparency_message(
+        window, WM_ERASEBKGND, 0));
+    bongo_cat_windows_capture_install_transparency_handler(window);
+    CHECK(SendMessageW(window, WM_ERASEBKGND, 0, 0) == 0);
+    CHECK(bongo_cat_windows_capture_configure(window));
+    CHECK(bongo_cat_windows_capture_is_configured(window));
+    bongo_cat_windows_capture_mark_transparent(window, false);
+    CHECK(!bongo_cat_windows_capture_handle_transparency_message(
+        window, WM_ERASEBKGND, 0));
+    DestroyWindow(window);
+}
+
 int main(void) {
     test_package_storage_root();
     test_click_through_does_not_refresh_frame();
     test_capture_styles();
+    test_transparency_lifecycle();
     test_tray_restart_notification();
     test_popup_completion();
     test_input_startup();

@@ -82,15 +82,28 @@ static bool render(BongoCatApp *app, bool present) {
         app->dirty = true;
         return cover_handled;
     }
+    bool reveal_startup = app->startup_visibility_pending &&
+        app->session.window.visible;
     bongo_cat_frame_audit(app, width, height);
     bongo_cat_window_capture_pointer_hit(app);
-    if (!bongo_cat_platform_present(&app->platform, width, height)) {
+    /* Keep the native window hidden while diagnostics/readback finish. The
+       reveal is intentionally adjacent to the swap so an uninitialised front
+       buffer cannot be displayed as a black startup frame. */
+    bool pre_presented = reveal_startup &&
+        bongo_cat_platform_present(&app->platform, width, height);
+    if (reveal_startup)
+        bongo_cat_platform_set_visible(&app->platform, true);
+    bool presented = pre_presented ||
+        bongo_cat_platform_present(&app->platform, width, height);
+    if (!presented) {
+        if (reveal_startup) bongo_cat_platform_set_visible(&app->platform, false);
         app->dirty = true;
         app->render_retry_ns = now + 1000000000ull;
         SDL_LogError(SDL_LOG_CATEGORY_VIDEO,
             "Main frame presentation failed: %s", SDL_GetError());
         return false;
     }
+    if (reveal_startup) app->startup_visibility_pending = false;
     bongo_cat_frame_presented_audit(app);
     bongo_cat_startup_ready(app);
     bongo_cat_memory_policy_frame_presented();
@@ -140,7 +153,8 @@ bool bongo_cat_app_capture_pending_model_cover(BongoCatApp *app) {
 static void take_instance_wake(BongoCatApp *app) {
     if (!bongo_cat_platform_single_instance_take_wake()) return;
     bongo_cat_window_set_visible(app, true);
-    bongo_cat_platform_raise_window(app->window);
+    if (!app->startup_visibility_pending)
+        bongo_cat_platform_raise_window(app->window);
     SDL_Log("Existing instance requested window reveal");
 }
 

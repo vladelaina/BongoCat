@@ -88,6 +88,9 @@ typedef struct BongoCatApp {
     bool secondary_control_known;
     bool secondary_control_visible;
     bool secondary_control_pass_through;
+    /* Keep the initial transparent window hidden until its first complete
+       model frame is ready. This prevents a platform-dependent black flash. */
+    bool startup_visibility_pending;
     int secondary_origin_x, secondary_origin_y;
     uint64_t secondary_control_check_ns;
     uint64_t secondary_control_failure_ns;

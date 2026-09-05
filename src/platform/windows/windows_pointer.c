@@ -45,7 +45,14 @@ void bongo_cat_platform_raise_window(SDL_Window *window) {
     BringWindowToTop(handle);
     SetForegroundWindow(handle);
     if (proxy) BringWindowToTop(proxy);
-    bongo_cat_windows_capture_configure(handle);
+    /* Preferences windows are transparent too, but are not OBS capture
+       sources. Running the capture style transaction on them can recreate the
+       DWM surface and reintroduce an opaque edge. Only configure windows that
+       were explicitly registered as capture sources. */
+    if (bongo_cat_windows_capture_is_configured(handle))
+        bongo_cat_windows_capture_configure(handle);
+    else
+        bongo_cat_windows_capture_repair_transparency(handle);
 }
 
 bool bongo_cat_platform_set_geometry(BongoCatPlatform *platform,
@@ -71,6 +78,8 @@ bool bongo_cat_platform_set_geometry(BongoCatPlatform *platform,
         size_changed ? height : current_height,
         SWP_NOZORDER | SWP_NOACTIVATE) != 0;
     if (!changed) return false;
-    return SDL_SyncWindow(platform->window);
+    bool synced = SDL_SyncWindow(platform->window);
+    if (synced) bongo_cat_windows_capture_repair_transparency(window);
+    return synced;
 }
 #endif

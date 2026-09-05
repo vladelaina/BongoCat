@@ -228,7 +228,9 @@ bool bongo_cat_platform_present(BongoCatPlatform *platform, int width, int heigh
     HWND source = native_window(platform);
     if (!source || !value->visible || !IsWindowVisible(source) || IsIconic(source)) {
         if (value->proxy) ShowWindow(value->proxy, SW_HIDE);
-        return source != NULL;
+        /* A hidden source has no frame to expose through the proxy. Let the
+           startup path show it before retrying the first presentation. */
+        return false;
     }
     RECT bounds;
     if (!GetWindowRect(source, &bounds)) return false;
