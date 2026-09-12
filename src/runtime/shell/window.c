@@ -98,6 +98,7 @@ BongoCatResult bongo_cat_window_create(BongoCatApp *app, BongoCatError *error) {
 void bongo_cat_window_apply(BongoCatApp *app) {
     BongoCatWindowPreferences *preferences = &app->settings.window;
     BongoCatWindowState *state = &app->session.window;
+    bongo_cat_app_cancel_hover_fade(app);
     bongo_cat_platform_set_opacity(&app->platform,
         state->opacity_percent / 100.0f);
     SDL_SetWindowSize(app->window, state->width, state->height);

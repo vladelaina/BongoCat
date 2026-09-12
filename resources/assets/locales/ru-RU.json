@@ -26,6 +26,7 @@
           "randomExpression": "Случайные выражения",
           "obsBackground": "Однотонный фон",
           "hideOnHover": "Скрывать при наведении",
+          "hideFadeSeconds": "Длительность затухания (с)",
           "maxFPS": "Максимальная частота кадров"
         },
         "hints": {

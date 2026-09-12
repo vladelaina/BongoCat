@@ -26,6 +26,7 @@
           "randomExpression": "Zufällige Ausdrücke",
           "obsBackground": "Einfarbiger Hintergrund",
           "hideOnHover": "Beim Darüberfahren ausblenden",
+          "hideFadeSeconds": "Ausblendedauer (s)",
           "maxFPS": "Maximale Bildrate"
         },
         "hints": {

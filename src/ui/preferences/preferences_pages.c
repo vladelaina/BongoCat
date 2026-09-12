@@ -53,6 +53,12 @@ static void page_display(BongoCatApp *app, struct nk_context *context) {
             "pages.preference.cat.labels.hideOnHover", "Hide on Hover"), "",
             &window->hide_on_hover))
             bongo_cat_app_update_hover(app, SDL_GetTicksNS());
+        bongo_cat_pref_row_icon(context, BONGO_CAT_PREF_ICON_SHORTCUT_VISIBILITY);
+        bongo_cat_pref_float(context, "hide-fade", tr(app,
+            "pages.preference.cat.labels.hideFadeSeconds", "Fade Duration (s)"),
+            "", 0.0f, &window->hide_fade_seconds,
+            BONGO_CAT_MAX_HIDE_FADE_SECONDS, 0.1f,
+            BONGO_CAT_DEFAULT_HIDE_FADE_SECONDS);
     }
     bongo_cat_pref_row_icon(context, BONGO_CAT_PREF_ICON_KEEP_IN_SCREEN);
     if (bongo_cat_pref_toggle(context, "keep-in-screen", tr(app,
@@ -102,9 +108,11 @@ static void page_display(BongoCatApp *app, struct nk_context *context) {
         BONGO_CAT_DEFAULT_WINDOW_OPACITY_PERCENT);
     if (old_opacity != window_state->opacity_percent)
         bongo_cat_window_cancel_wheel_animation(app);
-    if (old_opacity != window_state->opacity_percent && !app->hover_hidden)
+    if (old_opacity != window_state->opacity_percent && !app->hover_hidden) {
+        bongo_cat_app_cancel_hover_fade(app);
         bongo_cat_platform_set_opacity(&app->platform,
             window_state->opacity_percent / 100.0f);
+    }
     bongo_cat_pref_row_icon(context, BONGO_CAT_PREF_ICON_RANDOM_EXPRESSION);
     bongo_cat_pref_toggle_float(context, "random-expression", tr(app,
         "pages.preference.cat.labels.randomExpression", "Random Expressions"),

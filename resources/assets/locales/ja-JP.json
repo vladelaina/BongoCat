@@ -26,6 +26,7 @@
           "randomExpression": "ランダム表情",
           "obsBackground": "単色背景",
           "hideOnHover": "ホバー時に非表示",
+          "hideFadeSeconds": "フェード時間 (秒)",
           "maxFPS": "最大フレームレート"
         },
         "hints": {

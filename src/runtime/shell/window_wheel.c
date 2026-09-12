@@ -174,8 +174,10 @@ void bongo_cat_window_update_wheel_animation(BongoCatApp *app, uint64_t now) {
         SDL_fabsf(scale - app->session.window.scale_percent) > 0.001f;
     if (SDL_fabsf(opacity - app->session.window.opacity_percent) > 0.001f) {
         app->session.window.opacity_percent = opacity;
-        if (!app->hover_hidden) bongo_cat_platform_set_opacity(
-            &app->platform, opacity / 100.0f);
+        if (!app->hover_hidden) {
+            bongo_cat_app_cancel_hover_fade(app);
+            bongo_cat_platform_set_opacity(&app->platform, opacity / 100.0f);
+        }
     }
     apply_scale(app, scale);
     bool reached =

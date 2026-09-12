@@ -26,6 +26,7 @@
           "randomExpression": "Random Expressions",
           "obsBackground": "Solid Background",
           "hideOnHover": "Hide on Hover",
+          "hideFadeSeconds": "Fade Duration (s)",
           "maxFPS": "Max Frame Rate"
         },
         "hints": {

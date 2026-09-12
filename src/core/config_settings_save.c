@@ -43,6 +43,8 @@ static bool write_window(yyjson_mut_doc *doc, yyjson_mut_val *object,
                 value->obs_background_color)) &&
         yyjson_mut_obj_add_real(doc, object, "hideDelaySeconds",
             value->hide_delay_seconds) &&
+        yyjson_mut_obj_add_real(doc, object, "hideFadeSeconds",
+            value->hide_fade_seconds) &&
         yyjson_mut_obj_add_real(doc, object,
             "randomExpressionIntervalSeconds",
             value->random_expression_interval_seconds);

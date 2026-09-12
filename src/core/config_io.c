@@ -74,6 +74,8 @@ static bool read_window(yyjson_val *object, BongoCatWindowPreferences *value,
             error) ||
         !read_float(object, "hideDelaySeconds", &value->hide_delay_seconds,
             error) ||
+        !read_float(object, "hideFadeSeconds", &value->hide_fade_seconds,
+            error) ||
         !read_float(object, "randomExpressionIntervalSeconds",
             &value->random_expression_interval_seconds,
             error)) return false;

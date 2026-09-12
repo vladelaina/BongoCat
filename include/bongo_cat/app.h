@@ -141,6 +141,9 @@ typedef struct BongoCatApp {
     BongoCatMverPointerState mver_pointer;
     bool hover_inside;
     bool hover_hidden;
+    bool hover_fade_active;
+    float hover_fade_from, hover_fade_to;
+    uint64_t hover_fade_start_ns;
     bool pointer_known;
     bool pointer_hit_dirty;
     bool pointer_transparent;

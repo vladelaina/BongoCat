@@ -26,6 +26,7 @@
           "randomExpression": "무작위 표정",
           "obsBackground": "단색 배경",
           "hideOnHover": "마우스를 올리면 숨기기",
+          "hideFadeSeconds": "페이드 시간 (초)",
           "maxFPS": "최대 프레임 속도"
         },
         "hints": {
