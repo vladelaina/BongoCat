@@ -26,6 +26,7 @@
           "randomExpression": "Expresiones aleatorias",
           "obsBackground": "Fondo sólido",
           "hideOnHover": "Ocultar al pasar el ratón",
+          "hideFadeSeconds": "Duración del fundido (s)",
           "maxFPS": "Frecuencia máxima de fotogramas"
         },
         "hints": {

@@ -26,6 +26,7 @@
           "randomExpression": "Expressions aléatoires",
           "obsBackground": "Arrière-plan uni",
           "hideOnHover": "Masquer au survol",
+          "hideFadeSeconds": "Durée du fondu (s)",
           "maxFPS": "Fréquence d'images maximale"
         },
         "hints": {

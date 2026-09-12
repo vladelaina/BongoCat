@@ -34,6 +34,7 @@ int bongo_cat_window_wait_timeout(const BongoCatApp *app, uint64_t now) {
     if (bongo_cat_preferences_needs_frame(app->preferences) && wait_ms > 4)
         wait_ms = 4;
     if (app->wheel_animation_active && wait_ms > 8) wait_ms = 8;
+    if (app->hover_fade_active && wait_ms > 8) wait_ms = 8;
     if (app->session.window.visible && !app->window_minimized &&
         (app->click_through_applied || (app->settings.window.pass_through &&
             app->settings.window.always_on_top && app->settings.window.hide_on_hover)) &&

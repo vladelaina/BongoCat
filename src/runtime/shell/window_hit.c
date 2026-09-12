@@ -74,6 +74,7 @@ void bongo_cat_window_set_visible(BongoCatApp *app, bool visible) {
         SDL_RestoreWindow(app->window);
     app->window_minimized = false;
     app->hover_hidden = false;
+    bongo_cat_app_cancel_hover_fade(app);
     bongo_cat_app_reset_pointer_tracking(app);
     bongo_cat_platform_set_opacity(&app->platform,
         app->session.window.opacity_percent / 100.0f);

@@ -198,6 +198,7 @@ void bongo_cat_settings_defaults(BongoCatSettings *config) {
     config->window.keep_in_screen = false;
     config->window.obs_background_color = BONGO_CAT_OBS_BACKGROUND_GREEN;
     config->window.corner_radius_percent = BONGO_CAT_DEFAULT_WINDOW_CORNER_PERCENT;
+    config->window.hide_fade_seconds = BONGO_CAT_DEFAULT_HIDE_FADE_SECONDS;
     config->window.random_expression_interval_seconds =
         BONGO_CAT_DEFAULT_RANDOM_EXPRESSION_SECONDS;
     config->app.tray_visible = true;
@@ -212,6 +213,9 @@ void bongo_cat_settings_validate(BongoCatSettings *config) {
     if (config->model.max_fps > 240) config->model.max_fps = 240;
     config->window.hide_delay_seconds = clampf_or(
         config->window.hide_delay_seconds, 0.0f, 60.0f, 0.0f);
+    config->window.hide_fade_seconds = clampf_or(
+        config->window.hide_fade_seconds, 0.0f,
+        BONGO_CAT_MAX_HIDE_FADE_SECONDS, BONGO_CAT_DEFAULT_HIDE_FADE_SECONDS);
     config->window.corner_radius_percent = clampf_or(
         config->window.corner_radius_percent, 0.0f, 50.0f,
         BONGO_CAT_DEFAULT_WINDOW_CORNER_PERCENT);

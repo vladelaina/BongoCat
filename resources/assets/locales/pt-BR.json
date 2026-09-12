@@ -26,6 +26,7 @@
           "randomExpression": "Expressões Aleatórias",
           "obsBackground": "Fundo sólido",
           "hideOnHover": "Ocultar ao Passar o Mouse",
+          "hideFadeSeconds": "Duração do fade (s)",
           "maxFPS": "Taxa Máxima de Quadros"
         },
         "hints": {

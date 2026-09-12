@@ -12,8 +12,50 @@ void bongo_cat_app_track_hover(BongoCatApp *app, double x, double y) {
     bongo_cat_app_update_hover(app, SDL_GetTicksNS());
 }
 
+/* Fade progress follows absolute timestamps, so a duration change or an
+   interrupted reversal restarts from the opacity currently on screen. */
+void bongo_cat_app_update_hover_fade(BongoCatApp *app, uint64_t now) {
+    if (!app || !app->hover_fade_active) return;
+    float duration = app->settings.window.hide_fade_seconds;
+    float target = app->hover_fade_to;
+    if (duration <= 0.0f) {
+        app->hover_fade_active = false;
+        bongo_cat_platform_set_opacity(&app->platform, target);
+        return;
+    }
+    float seconds = (float)((double)(now >= app->hover_fade_start_ns ?
+        now - app->hover_fade_start_ns : 0) / 1000000000.0);
+    float t = seconds / duration;
+    if (t >= 1.0f) {
+        app->hover_fade_active = false;
+        t = 1.0f;
+    } else if (t < 0.0f) t = 0.0f;
+    float eased = t * t * (3.0f - 2.0f * t);
+    bongo_cat_platform_set_opacity(&app->platform,
+        app->hover_fade_from +
+            (target - app->hover_fade_from) * eased);
+}
+
+void bongo_cat_app_cancel_hover_fade(BongoCatApp *app) {
+    if (app) app->hover_fade_active = false;
+}
+
+static void hover_start_fade(BongoCatApp *app, bool hidden, uint64_t now) {
+    float target = hidden ? 0.0f :
+        app->session.window.opacity_percent / 100.0f;
+    if (app->settings.window.hide_fade_seconds <= 0.0f) {
+        app->hover_fade_active = false;
+        bongo_cat_platform_set_opacity(&app->platform, target);
+        return;
+    }
+    app->hover_fade_from = bongo_cat_platform_get_opacity(&app->platform);
+    app->hover_fade_to = target;
+    app->hover_fade_start_ns = now;
+    app->hover_fade_active = true;
+    bongo_cat_app_update_hover_fade(app, now);
+}
+
 void bongo_cat_app_update_hover(BongoCatApp *app, uint64_t now) {
-    (void)now;
     if (!app || !app->window) return;
     bool enabled = app->settings.window.hide_on_hover &&
         app->settings.window.pass_through && app->settings.window.always_on_top &&
@@ -29,8 +71,7 @@ void bongo_cat_app_update_hover(BongoCatApp *app, uint64_t now) {
     app->hover_inside = inside;
     app->hover_deadline_ns = 0;
     if (app->hover_hidden == inside) return;
-    bongo_cat_platform_set_opacity(&app->platform,
-        inside ? 0.0f : app->session.window.opacity_percent / 100.0f);
+    hover_start_fade(app, inside, now);
     app->hover_hidden = inside;
     bongo_cat_window_sync_click_through(app);
 }

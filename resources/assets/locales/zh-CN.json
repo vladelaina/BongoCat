@@ -26,6 +26,7 @@
           "randomExpression": "随机表情",
           "obsBackground": "纯色背景",
           "hideOnHover": "鼠标移入隐藏",
+          "hideFadeSeconds": "隐藏渐变时长 (秒)",
           "maxFPS": "最大帧率"
         },
         "hints": {

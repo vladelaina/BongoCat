@@ -94,6 +94,8 @@ bool bongo_cat_app_audit_screen_pointer(BongoCatApp *app);
 bool bongo_cat_app_audit_display_pointer(BongoCatApp *app);
 void bongo_cat_app_track_hover(BongoCatApp *app, double x, double y);
 void bongo_cat_app_update_hover(BongoCatApp *app, uint64_t now);
+void bongo_cat_app_update_hover_fade(BongoCatApp *app, uint64_t now);
+void bongo_cat_app_cancel_hover_fade(BongoCatApp *app);
 bool bongo_cat_app_shortcuts_self_test(BongoCatApp *app);
 bool bongo_cat_app_sound_shortcuts(BongoCatApp *app, const BongoCatInputEvent *event,
     bool *changed);

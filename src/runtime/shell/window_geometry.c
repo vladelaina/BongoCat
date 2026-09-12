@@ -179,6 +179,7 @@ bool bongo_cat_window_geometry_self_test(BongoCatApp *app) {
         &app->platform) - 0.5f) < 0.02f;
     app->settings.window.hide_on_hover = true;
     app->settings.window.hide_delay_seconds = 0.0f;
+    app->settings.window.hide_fade_seconds = 0.0f;
     app->settings.window.pass_through = true;
     app->settings.window.always_on_top = true;
     app->settings.window.obs_background = true;
@@ -209,6 +210,23 @@ bool bongo_cat_window_geometry_self_test(BongoCatApp *app) {
     app->settings.window.hide_on_hover = false;
     bongo_cat_app_update_hover(app, SDL_GetTicksNS());
     restored = restored && !app->hover_hidden;
+    /* With a fade duration the hide no longer snaps: progress animates from
+       the on-screen opacity toward the target and completes there. */
+    app->settings.window.hide_on_hover = true;
+    app->settings.window.hide_fade_seconds = 0.5f;
+    bongo_cat_app_track_hover(app, x + 10, y + 10);
+    uint64_t fade_started = SDL_GetTicksNS();
+    bongo_cat_app_update_hover_fade(app, fade_started + 125000000ull);
+    float faded = bongo_cat_platform_get_opacity(&app->platform);
+    bongo_cat_app_update_hover_fade(app, fade_started + 600000000ull);
+    bool fade = app->hover_hidden && faded > 0.02f && faded < 0.98f &&
+        bongo_cat_platform_get_opacity(&app->platform) < 0.02f;
+    bongo_cat_app_track_hover(app, bounds.x - 10, bounds.y - 10);
+    bongo_cat_app_update_hover_fade(app, SDL_GetTicksNS() + 700000000ull);
+    fade = fade && !app->hover_hidden &&
+        SDL_fabsf(bongo_cat_platform_get_opacity(&app->platform) - 1.0f) < 0.02f;
+    app->settings.window.hide_fade_seconds = 0.0f;
+    app->settings.window.hide_on_hover = false;
     float safe_scale;
     int safe_width, safe_height;
     bool bounded = bongo_cat_window_scaled_size(8000, 4000, 100.0f, 500.0f,
@@ -267,10 +285,10 @@ bool bongo_cat_window_geometry_self_test(BongoCatApp *app) {
     bongo_cat_window_sync_click_through(app);
     SDL_SyncWindow(app->window);
     bool passed = clamped && anchor_reset && scaled && opacity && hidden && restored &&
-        bounded && gesture && display_reset;
+        fade && bounded && gesture && display_reset;
     if (!passed) fprintf(stderr, "geometry self-test: clamped=%d scaled=%d(%dx%d) "
-        "anchor=%d opacity=%d hidden=%d restored=%d bounded=%d gesture=%d(%dx%d) display=%d\n",
+        "anchor=%d opacity=%d hidden=%d restored=%d fade=%d bounded=%d gesture=%d(%dx%d) display=%d\n",
         clamped, scaled, scaled_width, scaled_height, anchor_reset, opacity, hidden, restored,
-        bounded, gesture, gesture_width, gesture_height, display_reset);
+        fade, bounded, gesture, gesture_width, gesture_height, display_reset);
     return passed;
 }

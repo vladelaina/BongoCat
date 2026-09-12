@@ -198,6 +198,7 @@ void bongo_cat_app_loop(BongoCatApp *app) {
         bongo_cat_runtime_flow_update(app, now);
         bongo_cat_window_apply_pending_resize(app);
         bongo_cat_app_update_hover(app, now);
+        bongo_cat_app_update_hover_fade(app, now);
         bongo_cat_app_drain_input(app, true);
         if (bongo_cat_model_frame_due(app, now)) update_model(app, now);
         else if (!app->session.window.visible || app->window_minimized) {
