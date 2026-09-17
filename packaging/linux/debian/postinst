@@ -1,0 +1,20 @@
+#!/bin/sh
+set -e
+
+# Detect the session type at install time for diagnostics. The launcher at
+# /opt/BongoCat/run.sh re-detects the environment on every start, so this is
+# informational only and switching sessions later still works.
+session_type="${XDG_SESSION_TYPE:-}"
+if [ -z "$session_type" ] && [ -n "${WAYLAND_DISPLAY:-}" ]; then
+  session_type="wayland"
+elif [ -z "$session_type" ]; then
+  session_type="x11"
+fi
+echo "BongoCat: detected session type: $session_type"
+
+# Refresh the application menu so the .desktop entry shows up immediately.
+if command -v update-desktop-database >/dev/null 2>&1; then
+  update-desktop-database /usr/share/applications 2>/dev/null || true
+fi
+
+exit 0
