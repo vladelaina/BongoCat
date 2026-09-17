@@ -61,10 +61,18 @@ bool bongo_cat_model_apply_aspect(BongoCatApp *app,
     }
     app->session.window.content_width = content_width;
     app->session.window.content_height = content_height;
+    /* scale_percent is anchored to the default content height (354px), so
+       recompute it from the content height just derived. This keeps the scale
+       factor in sync with the geometry whenever a model load changes the size;
+       otherwise a stale factor keeps the old, possibly drifted value. */
+    float scale = 100.0f * (float)content_height /
+        BONGO_CAT_DEFAULT_WINDOW_HEIGHT;
+    bool scale_drifted =
+        SDL_fabsf(scale - app->session.window.scale_percent) > 0.01f;
     if (next_x == x && next_y == y && next_width == width &&
-        next_height == height) return false;
+        next_height == height && !scale_drifted) return false;
     bool changed = bongo_cat_window_apply_geometry(app, next_x, next_y,
-        app->session.window.scale_percent, next_width, next_height);
+        scale, next_width, next_height);
     if (changed) {
         app->session.window.content_width = content_width;
         app->session.window.content_height = content_height;

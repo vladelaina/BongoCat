@@ -28,10 +28,10 @@ void bongo_cat_session_defaults(BongoCatSessionState *session) {
     session->window.scale_percent = BONGO_CAT_DEFAULT_WINDOW_SCALE_PERCENT;
     session->window.opacity_percent =
         BONGO_CAT_DEFAULT_WINDOW_OPACITY_PERCENT;
-    session->window.width = 612;
-    session->window.height = 354;
-    session->window.content_width = 612;
-    session->window.content_height = 354;
+    session->window.width = BONGO_CAT_DEFAULT_WINDOW_WIDTH;
+    session->window.height = BONGO_CAT_DEFAULT_WINDOW_HEIGHT;
+    session->window.content_width = BONGO_CAT_DEFAULT_WINDOW_WIDTH;
+    session->window.content_height = BONGO_CAT_DEFAULT_WINDOW_HEIGHT;
     memcpy(session->active_model_id, "standard", sizeof("standard"));
 }
 

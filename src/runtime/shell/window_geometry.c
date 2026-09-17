@@ -61,9 +61,12 @@ bool bongo_cat_window_scaled_size(int base_width, int base_height, float base_sc
     float requested_scale, float *actual_scale, int *width, int *height) {
     if (base_width <= 0 || base_height <= 0 || base_scale <= 0.0f ||
         !actual_scale || !width || !height) return false;
-    float minimum = SDL_max(WINDOW_MIN_SCALE, SDL_max(
-        base_scale * WINDOW_MIN_DIMENSION / base_width,
-        base_scale * WINDOW_MIN_DIMENSION / base_height));
+    /* Anchor the floor to the default content height instead of base_scale:
+       deriving it from base_scale locks the scale at whatever stale value the
+       window carries, which made the pet impossible to shrink once its size
+       had drifted. The width/height clamp below still enforces 64px. */
+    float minimum = SDL_max(WINDOW_MIN_SCALE,
+        100.0f * WINDOW_MIN_DIMENSION / BONGO_CAT_DEFAULT_WINDOW_HEIGHT);
     float maximum = SDL_min(WINDOW_MAX_SCALE, SDL_min(
         base_scale * WINDOW_MAX_DIMENSION / base_width,
         base_scale * WINDOW_MAX_DIMENSION / base_height));
