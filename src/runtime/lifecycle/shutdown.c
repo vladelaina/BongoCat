@@ -16,6 +16,7 @@ void bongo_cat_app_shutdown(BongoCatApp *app, const char *stage,
         "[runtime] Shutdown started: stage=%s exit_code=%d",
         stage, exit_code);
     bongo_cat_app_capture_behavior_state(app);
+    bongo_cat_window_snapshot_discard(app);
     bongo_cat_config_store_flush(app);
     bongo_cat_multi_pet_shutdown(app);
     bongo_cat_model_refresh_shutdown(app);

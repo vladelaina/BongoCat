@@ -8,20 +8,27 @@
 
 static bool add_rows(yyjson_mut_doc *output, yyjson_mut_val *items,
     yyjson_val *rows, const BongoCatImportCandidate *candidate,
-    const char *kind, const char *field, const char *group, size_t available,
+    const char *kind, const char *field, const char *group, yyjson_val *available,
     const BongoCatMverLabels *labels,
     BongoCatError *error) {
-    if (!rows) return true;
+    if (!rows || yyjson_is_null(rows)) return true;
     if (!yyjson_is_arr(rows)) {
         bongo_cat_error_set(error, BONGO_CAT_ERROR_FORMAT,
             "Mver %s bindings exceed the matching Live2D manifest entries", kind);
         return false;
     }
     size_t limit = yyjson_arr_size(rows);
-    if (limit > available) limit = available;
+    if (limit > yyjson_arr_size(available)) limit = yyjson_arr_size(available);
     size_t index, count; yyjson_val *row;
     yyjson_arr_foreach(rows, index, count, row) {
         if (index >= limit) break;
+        if (yyjson_is_null(row) || (yyjson_is_arr(row) && !yyjson_arr_size(row)))
+            continue;
+        const char *file = yyjson_get_str(yyjson_obj_get(
+            yyjson_arr_get(available, index), "File"));
+        char path[BONGO_CAT_PATH_CAP];
+        if (!file || !bongo_cat_path_join(path, sizeof(path), candidate->directory,
+                file) || !bongo_cat_path_is_file(path)) continue;
         char shortcut[BONGO_CAT_SHORTCUT_CAP];
         if (!bongo_cat_mver_chord(candidate, row, shortcut, sizeof(shortcut))) {
             bongo_cat_error_set(error, BONGO_CAT_ERROR_FORMAT,
@@ -56,9 +63,8 @@ static bool add_motion_group(yyjson_mut_doc *output, yyjson_mut_val *items,
     const BongoCatMverLabels *labels, BongoCatError *error) {
     yyjson_val *available = yyjson_obj_get(motions, group);
     if (yyjson_is_arr(configured) && !yyjson_is_arr(available)) return true;
-    size_t count = yyjson_is_arr(available) ? yyjson_arr_size(available) : 0;
     return add_rows(output, items, configured, candidate, "motion", field,
-        group, count, labels, error);
+        group, available, labels, error);
 }
 
 bool bongo_cat_mver_add_behaviors(void *raw_output, void *raw_items,
@@ -73,8 +79,7 @@ bool bongo_cat_mver_add_behaviors(void *raw_output, void *raw_items,
     bool ok = document && add_rows(output, items,
         yyjson_obj_get(mode, "l2d_expression"), candidate, "expression",
         "l2d_expression", NULL,
-        yyjson_is_arr(expressions) ? yyjson_arr_size(expressions) : 0,
-        labels, error) &&
+        expressions, labels, error) &&
         add_motion_group(output, items, yyjson_obj_get(mode, "l2d_motion"),
             motions, "l2d_motion", "CAT_motion", candidate, labels, error) &&
         add_motion_group(output, items,

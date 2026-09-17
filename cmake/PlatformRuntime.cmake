@@ -10,6 +10,9 @@ if(WIN32)
     src/platform/windows/windows_capture.c
     src/platform/windows/windows_transparency.c
     src/platform/windows/windows_pointer.c
+    src/platform/windows/windows_snapshot.c
+    src/platform/windows/windows_snapshot_image.c
+    src/platform/windows/windows_snapshot_input.c
     src/platform/windows/windows_dialog.c
     src/platform/windows/windows_input.c
     src/platform/windows/windows_input_receiver.c

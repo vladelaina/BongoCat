@@ -59,7 +59,8 @@ void NativeModel::stop_motion_runs(const std::string &key) {
 
 void NativeModel::expire_motion_runs() {
     if (motion_runs_.empty()) return;
-    std::vector<unsigned char> finished(motion_runs_.size());
+    auto &finished = motion_finished_scratch_;
+    finished.resize(motion_runs_.size());
     for (size_t i = 0; i < motion_runs_.size(); ++i)
         finished[i] = _motionManager->IsFinished(motion_runs_[i].handle);
     bool restored_persistent_state = false;

@@ -100,6 +100,7 @@ set(BONGO_CAT_RUNTIME_MODEL_SOURCES
 set(BONGO_CAT_RUNTIME_IMPORT_SOURCES
   # Shared import workflow.
   src/runtime/model/import/model_import_app.c
+  src/runtime/model/import/model_import_archive.c
   src/runtime/model/import/model_import_adapter.c
   src/runtime/model/import/model_import_digest.c
   src/runtime/model/import/model_import_digest_api.c
@@ -168,6 +169,8 @@ set(BONGO_CAT_RUNTIME_SHELL_SOURCES
   src/runtime/shell/window_menu_behavior.c
   src/runtime/shell/window_menu_behavior_test.c
   src/runtime/shell/window_menu_preview.c
+  src/runtime/shell/window_scale.c
+  src/runtime/shell/window_snapshot.c
   src/runtime/shell/window_wheel.c
   src/runtime/shell/window_wheel_test.c)
 

@@ -53,6 +53,7 @@ void bongo_cat_window_drag_motion(BongoCatApp *app,
     if (x * x + y * y < 9.0f) return;
     app->drag_candidate = false;
     app->window_drag_active = true;
+    bongo_cat_window_snapshot_begin(app);
     if (use_pointer_drag(app)) {
         if (app->settings.window.keep_in_screen)
             bongo_cat_window_drag_bounds_refresh(app);
@@ -75,6 +76,7 @@ void bongo_cat_window_drag_end(BongoCatApp *app) {
     app->drag_candidate = false;
     bongo_cat_window_clamp_to_display(app);
     app->window_drag_active = false;
+    bongo_cat_window_snapshot_end(app);
     bongo_cat_window_drag_bounds_clear(app);
     if (was_active && app->settings.model.mouse_centered) {
         float pointer_x = 0.0f, pointer_y = 0.0f;

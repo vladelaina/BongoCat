@@ -4,6 +4,7 @@
 #include <SDL3/SDL_opengl.h>
 
 bool bongo_cat_window_visible_at_pointer(BongoCatApp *app, float x, float y) {
+    if (app->window_snapshot) return bongo_cat_window_snapshot_hit(app, x, y);
     int width, height, pixel_width, pixel_height;
     if (!SDL_GetWindowSize(app->window, &width, &height) ||
         !SDL_GetWindowSizeInPixels(app->window, &pixel_width, &pixel_height) ||
@@ -68,6 +69,7 @@ void bongo_cat_window_mark_hit_dirty(BongoCatApp *app) {
 void bongo_cat_window_set_visible(BongoCatApp *app, bool visible) {
     if (!app || !app->window) return;
     app->session.window.visible = visible;
+    if (!visible) bongo_cat_window_snapshot_discard(app);
     if (!visible) {
         app->startup_visibility_pending = false;
 #if defined(__linux__)
@@ -146,6 +148,7 @@ void bongo_cat_window_schedule_hit_check(BongoCatApp *app) {
 void bongo_cat_window_sync_click_through(BongoCatApp *app) {
     if (!app || !app->window) return;
     bool forced = app->settings.window.pass_through || app->hover_hidden;
+    if (forced && app->window_snapshot) bongo_cat_window_snapshot_end(app);
     if (!forced && !bongo_cat_platform_dynamic_hit_supported()) {
         app->pointer_transparent = false;
         app->pointer_hit_dirty = false;
@@ -175,14 +178,22 @@ void bongo_cat_window_sync_click_through(BongoCatApp *app) {
 }
 
 void bongo_cat_window_apply_pending_resize(BongoCatApp *app) {
-    if (!app || !app->resize_pending) return;
-    app->model_pointer_anchor_ready = false;
+    if (!app) return;
+    if (app->window_snapshot) return;
     if (app->wheel_animation_active) {
+        if (!app->resize_pending) return;
+        app->resize_pending = false;
+        app->resize_render_target_pending = true;
+        /* Keep the normalized gaze anchor stable throughout the gesture. */
         bongo_cat_live2d_reshape(app->live2d,
             app->resize_pixel_width, app->resize_pixel_height);
         return;
     }
+    if (!app->resize_pending && !app->resize_render_target_pending) return;
     app->resize_pending = false;
+    if (!app->resize_render_target_pending)
+        app->model_pointer_anchor_ready = false;
+    app->resize_render_target_pending = false;
     bongo_cat_live2d_resize(app->live2d,
         app->resize_pixel_width, app->resize_pixel_height);
     bongo_cat_window_mark_hit_dirty(app);

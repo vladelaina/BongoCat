@@ -99,6 +99,7 @@ private:
         float max_y = 0.0f;
         bool valid = false;
     };
+    struct DrawableBounds { ModelBounds bounds; float area; };
     bool load_model(BongoCatError *error);
     void load_expressions();
     void load_effects();
@@ -135,6 +136,7 @@ private:
     void release_textures();
     void release_renderer();
     bool create_renderer(BongoCatError *error);
+    void update_mask_buffers();
     void bind_textures();
     std::vector<unsigned char> read(const std::string &path,
         size_t maximum = (size_t)-1) const;
@@ -151,10 +153,13 @@ private:
     std::vector<std::string> expression_names_;
     std::vector<GLuint> textures_;
     std::vector<BongoCatImageAlphaMask> texture_alpha_;
+    mutable std::vector<std::vector<unsigned char>> triangle_alpha_;
+    mutable std::vector<DrawableBounds> bounds_scratch_;
     std::vector<float> parameter_snapshot_;
     std::vector<float> part_snapshot_;
     std::vector<float> parameter_override_values_;
     std::vector<float> parameter_baseline_values_;
+    std::vector<float> parameter_save_scratch_;
     std::vector<unsigned char> parameter_overrides_;
     std::vector<float> motion_preview_parameters_;
     std::vector<float> motion_preview_parts_;
@@ -168,6 +173,11 @@ private:
     int height_ = 354;
     int renderer_width_ = 0;
     int renderer_height_ = 0;
+    int mask_texture_limit_ = 0;
+    int mask_buffer_size_ = 0;
+    int mask_layout_divisions_ = 1;
+    int mask_last_width_ = 0;
+    int mask_last_height_ = 0;
     int viewport_x_ = 0;
     int viewport_y_ = 0;
     int viewport_width_ = 612;
@@ -187,6 +197,7 @@ private:
     bool parameter_overrides_applied_ = false;
     std::vector<std::string> idle_motion_keys_;
     std::vector<MotionRun> motion_runs_;
+    std::vector<unsigned char> motion_finished_scratch_;
     ViewerLookUpdater *viewer_look_ = nullptr;
     int last_idle_motion_ = -1;
     float opacity_snapshot_ = -1.0f;

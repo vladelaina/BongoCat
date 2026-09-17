@@ -14,6 +14,7 @@ void bongo_cat_app_track_hover(BongoCatApp *app, double x, double y) {
 }
 
 static bool hover_opacity(BongoCatApp *app, float opacity) {
+    bongo_cat_window_snapshot_end(app);
     if (bongo_cat_platform_set_opacity(&app->platform, opacity)) return true;
     SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
         "Hover hiding disabled after opacity update failed: %s", SDL_GetError());

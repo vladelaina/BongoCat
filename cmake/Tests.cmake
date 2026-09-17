@@ -129,6 +129,7 @@ if(BUILD_TESTING)
     tests/model_import/test_mver_audio.c
     tests/model_import/test_mver_import.c
     tests/model_import/test_model_import_source.c
+    tests/model_import/test_model_import_archive.c
     tests/model_import/test_mver_manifest.c
     tests/model_import/test_tauri_portable.c
     tests/model_import/test_mver_container.c
@@ -146,7 +147,8 @@ if(BUILD_TESTING)
     ${BONGO_CAT_RUNTIME_INTERNAL_INCLUDE_DIRS})
   target_include_directories(bongo_cat_mver_import_tests SYSTEM PRIVATE
     ${BONGO_CAT_NUKLEAR_INCLUDE_DIR} ${BONGO_CAT_STB_INCLUDE_DIR})
-  target_link_libraries(bongo_cat_mver_import_tests PRIVATE bongo_cat_runtime)
+  target_link_libraries(bongo_cat_mver_import_tests PRIVATE
+    bongo_cat_runtime bongo_cat_archive)
   target_compile_definitions(bongo_cat_mver_import_tests PRIVATE
     BONGO_CAT_NATIVE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
   if(MSVC)

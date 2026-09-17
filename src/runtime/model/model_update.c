@@ -24,6 +24,7 @@ void bongo_cat_random_expression_reset(BongoCatApp *app) {
 }
 
 void bongo_cat_random_expression_update(BongoCatApp *app, uint64_t now) {
+    if (app && app->window_snapshot) return;
     if (!app || !app->settings.window.random_expression || !app->live2d) {
         bongo_cat_random_expression_reset(app);
         return;
@@ -68,6 +69,7 @@ void bongo_cat_random_expression_update(BongoCatApp *app, uint64_t now) {
 }
 
 bool bongo_cat_app_step_live2d(BongoCatApp *app, float elapsed_seconds) {
+    if (app && app->window_snapshot) return false;
     if (!app || !app->live2d || elapsed_seconds <= 0.0f) return false;
     if (elapsed_seconds > 0.25f) elapsed_seconds = 0.25f;
     unsigned steps = 1;

@@ -118,6 +118,7 @@ bool bongo_cat_app_select_model_with_error(BongoCatApp *app,
             "Model is not installed: %s", id);
         return false;
     }
+    bongo_cat_window_snapshot_end(app);
     if (app->loaded_model[0] && strcmp(app->loaded_model, entry->id) == 0) {
         commit_model(app, entry, false, false);
         return true;

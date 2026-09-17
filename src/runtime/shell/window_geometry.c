@@ -101,22 +101,6 @@ bool bongo_cat_window_apply_geometry(BongoCatApp *app, int x, int y,
     return true;
 }
 
-bool bongo_cat_window_set_scale(BongoCatApp *app, float scale) {
-    if (!app || !app->window) return false;
-    int x, y, width, height;
-    if (!SDL_GetWindowPosition(app->window, &x, &y) ||
-        !SDL_GetWindowSize(app->window, &width, &height)) return false;
-    float actual;
-    int next_width, next_height;
-    if (!bongo_cat_window_scaled_size(width, height,
-        app->session.window.scale_percent, scale,
-        &actual, &next_width, &next_height)) return false;
-    if (actual == app->session.window.scale_percent &&
-        next_width == width && next_height == height) return false;
-    return bongo_cat_window_apply_geometry(app, x, y,
-        actual, next_width, next_height);
-}
-
 void bongo_cat_window_resize_by_pointer(BongoCatApp *app, const SDL_Event *event) {
     bool shift = bongo_cat_input_shift_down(&app->input);
 #ifndef _WIN32

@@ -22,7 +22,8 @@ static bool clear_binding(yyjson_mut_doc *output, yyjson_mut_val *items,
     yyjson_val *root, const BongoCatImportCandidate *candidate) {
     yyjson_val *decoration = yyjson_obj_get(root, "decoration");
     yyjson_val *row = yyjson_obj_get(decoration, "emoticonClear");
-    if (!row) return true;
+    if (!row || yyjson_is_null(row) ||
+        (yyjson_is_arr(row) && !yyjson_arr_size(row))) return true;
     char shortcut[BONGO_CAT_SHORTCUT_CAP];
     if (!bongo_cat_mver_chord(candidate, row, shortcut, sizeof(shortcut))) return false;
     yyjson_mut_val *item = yyjson_mut_arr_add_obj(output, items);
@@ -50,11 +51,13 @@ bool bongo_cat_mver_effects(void *raw_output, void *raw_items, void *raw_root,
     yyjson_arr_foreach(rows, index, count, row) {
         char shortcut[BONGO_CAT_SHORTCUT_CAP], name[32];
         char source[BONGO_CAT_PATH_CAP], destination[BONGO_CAT_PATH_CAP];
+        if (yyjson_is_null(row) || (yyjson_is_arr(row) && !yyjson_arr_size(row)))
+            continue;
         snprintf(name, sizeof(name), "%zu.png", index);
+        if (!effect_source(candidate, name, source, sizeof(source)) ||
+            !bongo_cat_image_info(source, NULL, NULL)) continue;
         if (!bongo_cat_mver_chord(candidate, row, shortcut, sizeof(shortcut))) return false;
-        if (!effect_source(candidate, name, source, sizeof(source))) continue;
-        if (!bongo_cat_image_info(source, NULL, NULL) ||
-            !bongo_cat_path_join(destination, sizeof(destination), target_effects, name) ||
+        if (!bongo_cat_path_join(destination, sizeof(destination), target_effects, name) ||
             !bongo_cat_path_copy_file(source, destination)) return false;
         yyjson_mut_val *item = yyjson_mut_arr_add_obj(output, items);
         char relative[BONGO_CAT_PATH_CAP];

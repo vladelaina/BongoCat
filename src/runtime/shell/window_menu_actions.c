@@ -91,6 +91,8 @@ void bongo_cat_window_show_context_menu(BongoCatApp *app) {
 
 void bongo_cat_window_menu_action(BongoCatApp *app,
     BongoCatMenuAction action) {
+    if (action < BONGO_CAT_MENU_SCALE_50 || action > BONGO_CAT_MENU_SCALE_200)
+        bongo_cat_window_snapshot_end(app);
     if (action == BONGO_CAT_MENU_PREFERENCES) {
         if (app->secondary_pet)
             bongo_cat_multi_pet_request_preferences(app);

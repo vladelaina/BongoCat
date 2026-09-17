@@ -24,13 +24,22 @@ static bool numbered_asset(const char *directory, const char *group) {
 }
 
 static bool mver_shape(const char *image_root) {
-    char mode[BONGO_CAT_PATH_CAP];
-    if (bongo_cat_path_join(mode, sizeof(mode), image_root, "standard") &&
-        numbered_asset(mode, "hand")) return true;
-    const char *names[] = {"keyboard", "gamepad"};
-    for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); ++i)
-        if (bongo_cat_path_join(mode, sizeof(mode), image_root, names[i]) &&
-            numbered_asset(mode, "lefthand") && numbered_asset(mode, "righthand")) return true;
+    char mode[BONGO_CAT_PATH_CAP], model[BONGO_CAT_PATH_CAP];
+    char setting[BONGO_CAT_PATH_CAP];
+    const char *names[] = {"standard", "keyboard", "gamepad"};
+    for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); ++i) {
+        if (!bongo_cat_path_join(mode, sizeof(mode), image_root, names[i]))
+            continue;
+        if (i == 0 ? numbered_asset(mode, "hand") :
+            numbered_asset(mode, "lefthand") && numbered_asset(mode, "righthand"))
+            return true;
+        /* Live2D packages may omit all optional hand sprites. */
+        if (bongo_cat_path_find_suffix(mode, ".model3.json", setting,
+                sizeof(setting)) ||
+            (bongo_cat_path_join(model, sizeof(model), mode, "cat_model") &&
+                bongo_cat_path_find_suffix(model, ".model3.json", setting,
+                    sizeof(setting)))) return true;
+    }
     return false;
 }
 
@@ -63,15 +72,16 @@ static bool find_package(const char *source, char *package, size_t capacity,
     return false;
 }
 
-static bool mode_config_valid(yyjson_val *mode, BongoCatModelMode value,
-    const char *directory) {
+static bool optional_matrix(yyjson_val *mode, const char *name) {
+    yyjson_val *value = yyjson_obj_get(mode, name);
+    return !value || yyjson_is_null(value) || yyjson_is_arr(value);
+}
+
+static bool mode_config_valid(yyjson_val *mode, BongoCatModelMode value) {
     if (!yyjson_is_obj(mode)) return false;
     if (value == BONGO_CAT_MODE_STANDARD)
-        return yyjson_is_arr(yyjson_obj_get(mode, "hand")) &&
-            numbered_asset(directory, "hand");
-    return yyjson_is_arr(yyjson_obj_get(mode, "lefthand")) &&
-        yyjson_is_arr(yyjson_obj_get(mode, "righthand")) &&
-        numbered_asset(directory, "lefthand") && numbered_asset(directory, "righthand");
+        return optional_matrix(mode, "hand");
+    return optional_matrix(mode, "lefthand") && optional_matrix(mode, "righthand");
 }
 
 static bool mode_uses_live2d(yyjson_val *mode) {
@@ -102,15 +112,15 @@ static bool add_mode(BongoCatImportDiscovery *discovery, const char *source,
     if (!bongo_cat_path_join(mode_root, sizeof(mode_root), image_root, name)) return false;
     yyjson_val *mode_config = yyjson_obj_get(root, name);
     if (!bongo_cat_path_is_dir(mode_root) || !yyjson_is_obj(mode_config)) return true;
-    if (!mode_config_valid(mode_config, mode, mode_root)) {
-        bongo_cat_error_set(error, BONGO_CAT_ERROR_FORMAT,
-            "Mver mode has invalid input mappings or numbered assets: %s", mode_root);
-        return false;
-    }
     /* Mver distributions bundle fallback Live2D files for modes that are
        configured to use static sprites. They are runtime templates, not
        authored model variants, so they must not become import candidates. */
     if (!mode_uses_live2d(mode_config)) return true;
+    if (!mode_config_valid(mode_config, mode)) {
+        bongo_cat_error_set(error, BONGO_CAT_ERROR_FORMAT,
+            "Mver mode has invalid input mappings: %s", mode_root);
+        return false;
+    }
     if (discovery->count >= BONGO_CAT_IMPORT_CANDIDATE_CAP) return false;
     BongoCatImportCandidate *candidate = &discovery->candidates[discovery->count];
     if (!find_mode_model(mode_root, candidate->directory, sizeof(candidate->directory),

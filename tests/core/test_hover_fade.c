@@ -34,6 +34,10 @@ bool bongo_cat_window_visible_at_pointer(BongoCatApp *app, float x, float y) {
 }
 void bongo_cat_window_schedule_pointer_hit(BongoCatApp *app) { (void)app; }
 void bongo_cat_window_sync_click_through(BongoCatApp *app) { (void)app; }
+void bongo_cat_window_snapshot_end(BongoCatApp *app) { (void)app; }
+void bongo_cat_window_snapshot_update(BongoCatApp *app, uint64_t now) {
+    (void)app; (void)now;
+}
 void bongo_cat_app_drain_input(BongoCatApp *app, bool shortcuts) {
     (void)app; (void)shortcuts;
 }

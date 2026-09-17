@@ -11,11 +11,6 @@
 
 typedef BongoCatMverKeyNames KeyNames;
 
-static bool child_is_dir(const char *root, const char *name) {
-    char path[BONGO_CAT_PATH_CAP];
-    return bongo_cat_path_join(path, sizeof(path), root, name) && bongo_cat_path_is_dir(path);
-}
-
 static bool asset_file(const BongoCatImportCandidate *candidate, const char *group,
     const char *name, char *output, size_t capacity) {
     char directory[BONGO_CAT_PATH_CAP];
@@ -156,7 +151,9 @@ static bool process_matrix(const BongoCatImportCandidate *candidate, yyjson_val 
     yyjson_val *before, yyjson_val *after, yyjson_val *keyboard_matrix,
     const char *hand_name, const char *key_group, const char *target,
     BongoCatError *error) {
+    if (!matrix || yyjson_is_null(matrix)) return true;
     if (!yyjson_is_arr(matrix)) return false;
+    if (!yyjson_arr_size(matrix)) return true;
     char resources[BONGO_CAT_PATH_CAP], output_dir[BONGO_CAT_PATH_CAP];
     if (!bongo_cat_path_join(resources, sizeof(resources), target, "resources") ||
         !bongo_cat_path_join(output_dir, sizeof(output_dir), resources, key_group) ||
@@ -170,7 +167,8 @@ static bool process_matrix(const BongoCatImportCandidate *candidate, yyjson_val 
     yyjson_arr_foreach(matrix, index, count, keys) {
         char hand[BONGO_CAT_PATH_CAP], filename[32];
         snprintf(filename, sizeof(filename), "%zu.png", index);
-        if (!asset_file(candidate, hand_name, filename, hand, sizeof(hand))) {
+        if (!asset_file(candidate, hand_name, filename, hand, sizeof(hand)) ||
+            !bongo_cat_image_info(hand, NULL, NULL)) {
             size_t missing_index, missing_count; yyjson_val *missing;
             yyjson_arr_foreach(keys, missing_index, missing_count, missing) {
                 int modifier = (yyjson_is_int(missing) || yyjson_is_uint(missing))
@@ -193,7 +191,8 @@ static bool process_matrix(const BongoCatImportCandidate *candidate, yyjson_val 
             if (keyboard_index(keyboard_matrix, code, &keyboard_row)) {
                 snprintf(filename, sizeof(filename), "%zu.png", keyboard_row);
                 if (asset_file(candidate, "keyboard", filename, keyboard,
-                    sizeof(keyboard))) keyboard_path = keyboard;
+                    sizeof(keyboard)) && bongo_cat_image_info(keyboard, NULL, NULL))
+                    keyboard_path = keyboard;
             }
             int modifier = bongo_cat_mver_modifier_index(code);
             size_t occurrence = modifier >= 0 ? modifier_seen[modifier]++ : 0;
@@ -215,8 +214,6 @@ bool bongo_cat_import_mver_assets(const BongoCatImportCandidate *candidate,
     const char *target, BongoCatError *error) {
     if (candidate->format != BONGO_CAT_IMPORT_MVER &&
         candidate->format != BONGO_CAT_IMPORT_MVER_PATCH) return true;
-    const char *left = candidate->mode == BONGO_CAT_MODE_STANDARD ? "hand" : "lefthand";
-    if (!child_is_dir(candidate->assets, left)) return false;
     FILE *file = bongo_cat_file_open(candidate->config, "rb");
     yyjson_doc *document = file ? yyjson_read_fp(file,
         YYJSON_READ_JSON5 | YYJSON_READ_ALLOW_INVALID_UNICODE, NULL, NULL) : NULL;
@@ -234,15 +231,14 @@ bool bongo_cat_import_mver_assets(const BongoCatImportCandidate *candidate,
     yyjson_val *keyboard = yyjson_obj_get(mode, "keyboard");
     if (candidate->mode == BONGO_CAT_MODE_STANDARD) {
         yyjson_val *hand = yyjson_obj_get(mode, "hand");
-        if (yyjson_is_arr(hand)) ok = process_matrix(candidate, hand, NULL, NULL,
+        ok = process_matrix(candidate, hand, NULL, NULL,
             keyboard, "hand", "left-keys", target, error);
         if (ok) ok = copy_standard_pointer_assets(candidate, target);
     } else {
         yyjson_val *left_keys = yyjson_obj_get(mode, "lefthand");
         yyjson_val *right_keys = yyjson_obj_get(mode, "righthand");
-        if (yyjson_is_arr(left_keys) && yyjson_is_arr(right_keys))
-            ok = process_matrix(candidate, left_keys, NULL, right_keys, keyboard,
-                "lefthand", "left-keys", target, error) &&
+        ok = process_matrix(candidate, left_keys, NULL, right_keys, keyboard,
+            "lefthand", "left-keys", target, error) &&
             process_matrix(candidate, right_keys, left_keys, NULL, keyboard,
                 "righthand", "right-keys", target, error);
     }

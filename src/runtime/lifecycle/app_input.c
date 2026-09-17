@@ -45,6 +45,11 @@ void bongo_cat_app_drain_input(BongoCatApp *app, bool allow_shortcuts) {
         }
         if (strcmp(event.name, "CapsLock") == 0)
             bongo_cat_input_schedule_release(&app->input, &event, 100);
+        if (keyboard || event.kind == BONGO_CAT_INPUT_GAMEPAD_BUTTON ||
+            event.kind == BONGO_CAT_INPUT_GAMEPAD_AXIS ||
+            (!app->window_drag_active && (event.kind == BONGO_CAT_INPUT_MOUSE_DOWN ||
+                event.kind == BONGO_CAT_INPUT_MOUSE_UP)))
+            bongo_cat_window_snapshot_end(app);
         if (allow_shortcuts &&
             !bongo_cat_preferences_shortcuts_blocked(app->preferences))
             bongo_cat_app_shortcuts(app, &event);

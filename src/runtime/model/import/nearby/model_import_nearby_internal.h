@@ -4,7 +4,7 @@
 #include "model_import.h"
 
 #define BONGO_CAT_NEARBY_CACHE_MARKER ".bongo-cat-cache.json"
-#define BONGO_CAT_NEARBY_CACHE_SCHEMA 6
+#define BONGO_CAT_NEARBY_CACHE_SCHEMA 7
 #define BONGO_CAT_ADAPTER_CACHE_DIRECTORY "model-adapters"
 
 bool bongo_cat_nearby_signature(const BongoCatImportCandidate *candidate,

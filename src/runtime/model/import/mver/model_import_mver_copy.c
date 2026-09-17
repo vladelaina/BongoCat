@@ -1,5 +1,4 @@
 #include "model_import_mver_copy.h"
-#include "model_import_mver_manifest.h"
 #include "model_import_path.h"
 #include "bongo_cat/path.h"
 
@@ -80,10 +79,6 @@ static BongoCatPathVisit copy_child(void *userdata, const char *dirname,
             name)) return BONGO_CAT_PATH_FAILURE;
     if (!bongo_cat_path_is_dir(source)) {
         if (context->depth == 0) return BONGO_CAT_PATH_CONTINUE;
-        if (bongo_cat_import_has_suffix_ci(name, ".model3.json"))
-            return bongo_cat_import_mver_manifest_copy(dirname, name,
-                source, target, context->error)
-                ? BONGO_CAT_PATH_CONTINUE : BONGO_CAT_PATH_FAILURE;
         return bongo_cat_path_copy_file(source, target)
             ? BONGO_CAT_PATH_CONTINUE : BONGO_CAT_PATH_FAILURE;
     }

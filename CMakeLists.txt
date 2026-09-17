@@ -75,7 +75,7 @@ add_library(bongo_cat_core STATIC
   src/core/input_state.c src/core/mver_pointer.c
   src/core/mouse_tracking.c src/core/sha256.c src/core/utf8.c
   src/core/model_catalog.c
-  src/core/model_behavior.c
+  src/core/model_behavior.c src/core/model_json.c
   src/core/path.c src/core/path_io.c src/core/json.c src/core/shortcut.c
   src/core/sound_shortcut.c
   src/core/update_release.c src/core/update_version.c)
@@ -97,7 +97,7 @@ target_include_directories(bongo_cat_runtime PRIVATE
   ${BONGO_CAT_RUNTIME_INTERNAL_INCLUDE_DIRS})
 target_include_directories(bongo_cat_runtime SYSTEM PRIVATE
   ${BONGO_CAT_STB_INCLUDE_DIR} ${BONGO_CAT_NUKLEAR_INCLUDE_DIR})
-target_link_libraries(bongo_cat_runtime PRIVATE bongo_cat_warnings)
+target_link_libraries(bongo_cat_runtime PRIVATE bongo_cat_warnings bongo_cat_archive)
 target_link_libraries(bongo_cat_runtime PUBLIC bongo_cat_core SDL3::SDL3-static OpenGL::GL ${BONGO_CAT_MINIAUDIO_TARGET})
 if(MSVC)
   set_source_files_properties(src/media/stb_image_impl.c src/media/image_resize.c src/ui/backend/nuklear_impl.c

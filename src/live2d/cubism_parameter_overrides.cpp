@@ -48,7 +48,8 @@ void NativeModel::save_parameters() {
     /* Cubism's saved state is the motion baseline. Never let frame-end input
        overrides become the starting values for a later motion frame. */
     const int count = _model->GetParameterCount();
-    std::vector<float> current((size_t)count);
+    auto &current = parameter_save_scratch_;
+    current.resize((size_t)count);
     for (int i = 0; i < count; ++i) {
         current[(size_t)i] = _model->GetParameterValue(i);
         _model->SetParameterValue(i, parameter_baseline_values_[(size_t)i]);

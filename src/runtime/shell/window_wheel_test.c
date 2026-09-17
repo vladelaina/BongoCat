@@ -54,7 +54,7 @@ bool bongo_cat_window_wheel_self_test(BongoCatApp *app) {
     for (int i = 1; i <= 12; ++i)
         bongo_cat_window_update_wheel_animation(app, started + i * 16666667ull);
     bool responsive = SDL_fabsf(
-        app->session.window.scale_percent - 105.0f) < 0.1f;
+        app->session.window.scale_percent - 102.0f) < 0.1f;
     bongo_cat_window_update_wheel_animation(app,
         started + 250000000ull);
     bool scale = responsive && !app->wheel_animation_active &&
@@ -65,15 +65,15 @@ bool bongo_cat_window_wheel_self_test(BongoCatApp *app) {
         original_width, original_height);
     wheel.y = 1000.0f;
     for (int i = 0; i < 2; ++i) bongo_cat_window_wheel(app, &wheel);
-    bool burst = app->wheel_scale_target >= 109.5f &&
-        app->wheel_scale_target <= 110.1f;
+    bool burst = app->wheel_scale_target >= 103.5f &&
+        app->wheel_scale_target <= 104.1f;
     bongo_cat_window_cancel_wheel_animation(app);
     bongo_cat_window_apply_geometry(app, original_x, original_y, 100.0f,
         original_width, original_height);
     wheel.y = 3.0f;
     bongo_cat_window_wheel(app, &wheel);
-    bool aggregated = app->wheel_scale_target >= 104.5f &&
-        app->wheel_scale_target <= 105.1f;
+    bool aggregated = app->wheel_scale_target >= 101.5f &&
+        app->wheel_scale_target <= 102.1f;
     bongo_cat_window_cancel_wheel_animation(app);
     bongo_cat_window_apply_geometry(app, original_x, original_y, 100.0f,
         original_width, original_height);
@@ -93,7 +93,7 @@ bool bongo_cat_window_wheel_self_test(BongoCatApp *app) {
     for (int i = 1; i <= 30; ++i)
         bongo_cat_window_update_wheel_animation(app, started + i * 16666667ull);
     bool flipped = SDL_fabsf(
-        app->session.window.scale_percent - 95.0f) < 0.1f;
+        app->session.window.scale_percent - 98.0f) < 0.1f;
     wheel.direction = SDL_MOUSEWHEEL_NORMAL;
     bongo_cat_window_cancel_wheel_animation(app);
     app->session.window.scale_percent = 500.0f;

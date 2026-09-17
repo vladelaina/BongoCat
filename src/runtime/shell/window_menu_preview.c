@@ -46,6 +46,7 @@ void bongo_cat_window_menu_preview(void *userdata, BongoCatMenuAction action) {
     if (state->last != BONGO_CAT_MENU_NONE && previous_group != next_group)
         bongo_cat_window_menu_restore(state, BONGO_CAT_MENU_NONE);
     if (!previewable(action)) {
+        bongo_cat_window_snapshot_end(app);
         if (previous_group == 0)
             bongo_cat_window_menu_restore(state, BONGO_CAT_MENU_NONE);
         state->last = action;
@@ -53,11 +54,14 @@ void bongo_cat_window_menu_preview(void *userdata, BongoCatMenuAction action) {
     }
     state->last = action;
     if (action >= BONGO_CAT_MENU_SCALE_50 &&
-        action <= BONGO_CAT_MENU_SCALE_200)
+        action <= BONGO_CAT_MENU_SCALE_200) {
         bongo_cat_window_set_scale(app,
             (float)(50 + 10 * (action - BONGO_CAT_MENU_SCALE_50)));
-    else if (action >= BONGO_CAT_MENU_OPACITY_10 &&
+        /* The shared scale path already presents the resized frame. */
+        return;
+    } else if (action >= BONGO_CAT_MENU_OPACITY_10 &&
         action <= BONGO_CAT_MENU_OPACITY_100) {
+        bongo_cat_window_snapshot_end(app);
         app->session.window.opacity_percent =
             (float)(10 * (action - BONGO_CAT_MENU_OPACITY_10 + 1));
         if (!app->hover_hidden) {
@@ -70,6 +74,7 @@ void bongo_cat_window_menu_preview(void *userdata, BongoCatMenuAction action) {
         bongo_cat_modal_frame_tick(&state->modal_frame);
         return;
     } else {
+        bongo_cat_window_snapshot_end(app);
         if (next_group == 5 &&
             bongo_cat_live2d_expression(app->live2d) != state->expression)
             bongo_cat_live2d_set_expression(app->live2d, state->expression);
@@ -124,6 +129,7 @@ void bongo_cat_window_menu_restore(void *userdata, BongoCatMenuAction selected) 
     }
     if (!keep_opacity &&
         SDL_fabsf(app->session.window.opacity_percent - state->opacity) > .01f) {
+        bongo_cat_window_snapshot_end(app);
         app->session.window.opacity_percent = state->opacity;
         if (!app->hover_hidden) {
             bongo_cat_app_cancel_hover_fade(app);
@@ -140,6 +146,7 @@ void bongo_cat_window_menu_restore(void *userdata, BongoCatMenuAction selected) 
     }
     if (committed_expression)
         bongo_cat_app_capture_behavior_state(app);
+    bongo_cat_window_snapshot_end(app);
     if (changed) bongo_cat_app_render_now(app);
 }
 

@@ -128,3 +128,5 @@ else()
     set(BONGO_CAT_MINIAUDIO_TARGET bongo_cat_miniaudio_system)
   endif()
 endif()
+
+include("${CMAKE_CURRENT_LIST_DIR}/Archive.cmake")

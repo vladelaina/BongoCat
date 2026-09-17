@@ -36,7 +36,7 @@ bool bongo_cat_mver_add_audio(void *raw_output, void *raw_items,
     yyjson_mut_doc *output = raw_output;
     yyjson_mut_val *items = raw_items;
     yyjson_val *config = raw_config, *rows = raw_rows;
-    if (!rows) return true;
+    if (!rows || yyjson_is_null(rows)) return true;
     if (!yyjson_is_arr(rows)) return false;
     char target_resources[BONGO_CAT_PATH_CAP], target_sounds[BONGO_CAT_PATH_CAP];
     if (!bongo_cat_path_join(target_resources, sizeof(target_resources), target, "resources") ||
@@ -49,9 +49,11 @@ bool bongo_cat_mver_add_audio(void *raw_output, void *raw_items,
     yyjson_arr_foreach(rows, index, count, row) {
         char shortcut[BONGO_CAT_SHORTCUT_CAP], source[BONGO_CAT_PATH_CAP];
         char relative[BONGO_CAT_PATH_CAP], destination[BONGO_CAT_PATH_CAP];
-        if (!bongo_cat_mver_sound_chord(row, shortcut, sizeof(shortcut))) return false;
+        if (yyjson_is_null(row) || (yyjson_is_arr(row) && !yyjson_arr_size(row)))
+            continue;
         if (!sound_source(candidate, index, source, sizeof(source), relative,
             sizeof(relative))) continue;
+        if (!bongo_cat_mver_sound_chord(row, shortcut, sizeof(shortcut))) return false;
         const char *name = bongo_cat_path_name(source);
         if (!bongo_cat_path_join(destination, sizeof(destination), target_sounds, name) ||
             !bongo_cat_path_copy_file(source, destination)) return false;

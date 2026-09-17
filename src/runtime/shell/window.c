@@ -157,13 +157,18 @@ bool bongo_cat_window_event(BongoCatApp *app, const SDL_Event *event) {
         bongo_cat_window_drag_end(app);
     }
     if (event->type == SDL_EVENT_WINDOW_RESIZED) {
-        app->session.window.width = event->window.data1;
-        app->session.window.height = event->window.data2;
-        bongo_cat_window_content_size(app, event->window.data1,
-            event->window.data2, &app->session.window.content_width,
-            &app->session.window.content_height);
-        bongo_cat_window_clamp_to_display(app);
-        app->dirty = true;
+        /* Queued notifications may describe an earlier animation frame. */
+        int width = app->session.window.width, height = app->session.window.height;
+        SDL_GetWindowSize(app->window, &width, &height);
+        if (width != app->session.window.width || height != app->session.window.height) {
+            app->session.window.width = width;
+            app->session.window.height = height;
+            bongo_cat_window_content_size(app, width,
+                height, &app->session.window.content_width,
+                &app->session.window.content_height);
+            bongo_cat_window_clamp_to_display(app);
+            app->dirty = true;
+        }
     }
     if (event->type == SDL_EVENT_WINDOW_EXPOSED ||
         event->type == SDL_EVENT_WINDOW_SHOWN ||
@@ -172,7 +177,8 @@ bool bongo_cat_window_event(BongoCatApp *app, const SDL_Event *event) {
            expose is not proof that the window is currently restored. */
         app->window_minimized =
             (SDL_GetWindowFlags(app->window) & SDL_WINDOW_MINIMIZED) != 0;
-        bongo_cat_app_reset_pointer_tracking(app);
+        if (event->type != SDL_EVENT_WINDOW_EXPOSED)
+            bongo_cat_app_reset_pointer_tracking(app);
         /* DWM can discard the transparent redirection surface after an
            Explorer/display refresh. Repaint even when the model is idle so
            the restored alpha surface is submitted immediately. */
@@ -197,17 +203,27 @@ bool bongo_cat_window_event(BongoCatApp *app, const SDL_Event *event) {
     }
     if (event->type == SDL_EVENT_WINDOW_RESIZED ||
         event->type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) {
-        SDL_GetWindowSizeInPixels(app->window,
-            &app->resize_pixel_width, &app->resize_pixel_height);
-        app->resize_pending = true;
-        bongo_cat_window_mark_hit_dirty(app);
+        int width = 0, height = 0;
+        if (SDL_GetWindowSizeInPixels(app->window, &width, &height) &&
+            (width != app->resize_pixel_width || height != app->resize_pixel_height)) {
+            app->resize_pixel_width = width;
+            app->resize_pixel_height = height;
+            app->resize_pending = true;
+            app->dirty = true;
+            bongo_cat_window_mark_hit_dirty(app);
+        }
     } else if (event->type == SDL_EVENT_WINDOW_MOVED) {
-        app->session.window.x = event->window.data1;
-        app->session.window.y = event->window.data2;
-        app->session.window.position_known = true;
-        app->pointer_known = false;
-        if (!app->window_drag_active) bongo_cat_window_clamp_to_display(app);
-        bongo_cat_window_mark_hit_dirty(app);
+        int x = 0, y = 0;
+        if (SDL_GetWindowPosition(app->window, &x, &y) &&
+            (!app->session.window.position_known ||
+             x != app->session.window.x || y != app->session.window.y)) {
+            app->session.window.x = x;
+            app->session.window.y = y;
+            app->session.window.position_known = true;
+            app->pointer_known = false;
+            if (!app->window_drag_active) bongo_cat_window_clamp_to_display(app);
+            bongo_cat_window_mark_hit_dirty(app);
+        }
     } else if (event->type == SDL_EVENT_WINDOW_DISPLAY_CHANGED ||
         event->type == SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED) {
         bongo_cat_app_reset_pointer_tracking(app);

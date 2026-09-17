@@ -1,4 +1,5 @@
 #include "model_import.h"
+#include "model_import_archive.h"
 #include "model_import_lock.h"
 #include "model_import_session_internal.h"
 #include "model_storage.h"
@@ -131,8 +132,15 @@ BongoCatResult bongo_cat_import_session_install(
     bongo_cat_import_storage_lock();
     SDL_Log("[runtime] Model import storage lock: stage=acquired path=%s",
         source);
-    BongoCatResult result = session_install_unlocked(session, source, receipt,
-        error);
+    char directory[BONGO_CAT_PATH_CAP], temporary[BONGO_CAT_PATH_CAP] = "";
+    BongoCatResult result = BONGO_CAT_OK;
+    bool archive = bongo_cat_import_is_archive(source);
+    if (archive) result = bongo_cat_import_archive_extract(source, directory,
+        temporary, error);
+    if (result == BONGO_CAT_OK)
+        result = session_install_unlocked(session, archive ? directory : source,
+            receipt, error);
+    bongo_cat_import_archive_cleanup(temporary);
     bongo_cat_import_storage_unlock();
     SDL_Log("[runtime] Model import storage lock: stage=released result=%d "
         "path=%s", (int)result, source);

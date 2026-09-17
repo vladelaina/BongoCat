@@ -127,13 +127,10 @@ BongoCatResult bongo_cat_behaviors_load(BongoCatBehaviorCatalog *catalog,
     char path[BONGO_CAT_PATH_CAP];
     if (!bongo_cat_path_join(path, sizeof(path), model->directory, model->setting_file))
         return BONGO_CAT_ERROR_FORMAT;
-    yyjson_read_err json_error = {0};
-    FILE *file = bongo_cat_file_open(path, "rb");
-    yyjson_doc *document = file ? yyjson_read_fp(file, 0, NULL, &json_error) : NULL;
-    if (file) fclose(file);
+    yyjson_doc *document = bongo_cat_model_json_read(path, NULL);
     if (!document) {
         bongo_cat_error_set(error, BONGO_CAT_ERROR_FORMAT, "Cannot read model setting: %s",
-            json_error.msg ? json_error.msg : "cannot open file");
+            path);
         return BONGO_CAT_ERROR_FORMAT;
     }
     yyjson_val *references = yyjson_obj_get(yyjson_doc_get_root(document), "FileReferences");

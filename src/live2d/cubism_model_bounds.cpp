@@ -28,8 +28,11 @@ bool NativeModel::canvas_size(int *width, int *height) const {
 NativeModel::ModelBounds NativeModel::capture_visible_bounds() const {
     ModelBounds bounds;
     if (!_model) return bounds;
-    struct DrawableBounds { ModelBounds bounds; float area; };
-    std::vector<DrawableBounds> drawables;
+    auto &drawables = bounds_scratch_;
+    drawables.clear();
+    const size_t drawable_count = (size_t)_model->GetDrawableCount();
+    drawables.reserve(drawable_count);
+    triangle_alpha_.resize(drawable_count);
     size_t largest = 0;
     for (int i = 0; i < _model->GetDrawableCount(); ++i) {
         if (!_model->GetDrawableDynamicFlagIsVisible(i) ||
@@ -43,6 +46,11 @@ NativeModel::ModelBounds NativeModel::capture_visible_bounds() const {
         const auto *uvs = _model->GetDrawableVertexUvs(i);
         const auto *indices = _model->GetDrawableVertexIndices(i);
         int index_count = _model->GetDrawableVertexIndexCount(i);
+        if (!indices || !uvs || index_count < 3) continue;
+        auto &triangle_alpha = triangle_alpha_[(size_t)i];
+        const size_t triangle_count = (size_t)index_count / 3;
+        const bool sample_alpha = triangle_alpha.size() != triangle_count;
+        if (sample_alpha) triangle_alpha.assign(triangle_count, 0);
         ModelBounds drawable = {FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX, true};
         float visible_area = 0.0f;
         auto alpha = [&](float u, float v) {
@@ -54,16 +62,20 @@ NativeModel::ModelBounds NativeModel::capture_visible_bounds() const {
         for (int j = 0; indices && uvs && j + 2 < index_count; j += 3) {
             int a = indices[j], b = indices[j + 1], c = indices[j + 2];
             if (a >= count || b >= count || c >= count) continue;
+            // Cubism UVs and mesh indices are static; only positions deform.
+            if (sample_alpha) {
+                float u = (uvs[a].X + uvs[b].X + uvs[c].X) / 3.0f;
+                float v = (uvs[a].Y + uvs[b].Y + uvs[c].Y) / 3.0f;
+                triangle_alpha[(size_t)j / 3] = (unsigned char)std::max({alpha(u, v),
+                    alpha((uvs[a].X + uvs[b].X) * 0.5f, (uvs[a].Y + uvs[b].Y) * 0.5f),
+                    alpha((uvs[b].X + uvs[c].X) * 0.5f, (uvs[b].Y + uvs[c].Y) * 0.5f),
+                    alpha((uvs[c].X + uvs[a].X) * 0.5f, (uvs[c].Y + uvs[a].Y) * 0.5f)});
+            }
+            int opacity = triangle_alpha[(size_t)j / 3];
+            if (opacity <= 8) continue;
             float ax = vertices[a * 2], ay = vertices[a * 2 + 1];
             float bx = vertices[b * 2], by = vertices[b * 2 + 1];
             float cx = vertices[c * 2], cy = vertices[c * 2 + 1];
-            float u = (uvs[a].X + uvs[b].X + uvs[c].X) / 3.0f;
-            float v = (uvs[a].Y + uvs[b].Y + uvs[c].Y) / 3.0f;
-            int opacity = std::max({alpha(u, v),
-                alpha((uvs[a].X + uvs[b].X) * 0.5f, (uvs[a].Y + uvs[b].Y) * 0.5f),
-                alpha((uvs[b].X + uvs[c].X) * 0.5f, (uvs[b].Y + uvs[c].Y) * 0.5f),
-                alpha((uvs[c].X + uvs[a].X) * 0.5f, (uvs[c].Y + uvs[a].Y) * 0.5f)});
-            if (opacity <= 8) continue;
             float area = std::fabs((bx - ax) * (cy - ay) - (by - ay) * (cx - ax));
             visible_area += area * opacity / 255.0f;
             drawable.min_x = std::min({drawable.min_x, ax, bx, cx});

@@ -14,8 +14,10 @@ static void handle_event(BongoCatApp *app, const SDL_Event *event) {
     if (bongo_cat_preferences_event(app->preferences, event)) return;
     if (!bongo_cat_window_event(app, event)) app->running = false;
     if (event->type >= SDL_EVENT_GAMEPAD_AXIS_MOTION &&
-        event->type <= SDL_EVENT_GAMEPAD_TOUCHPAD_UP)
+        event->type <= SDL_EVENT_GAMEPAD_TOUCHPAD_UP) {
+        bongo_cat_window_snapshot_end(app);
         bongo_cat_gamepad_event(app, event);
+    }
 }
 
 static void update_model(BongoCatApp *app, uint64_t now) {
@@ -26,6 +28,10 @@ static void update_model(BongoCatApp *app, uint64_t now) {
 }
 
 static bool render(BongoCatApp *app, bool present) {
+    if (present && app->window_snapshot) {
+        bongo_cat_window_snapshot_present(app);
+        return app->window_snapshot != NULL;
+    }
     uint64_t now = SDL_GetTicksNS();
     if (app->render_retry_ns > now) return false;
     if (!SDL_GL_MakeCurrent(app->window, app->gl_context)) {
@@ -126,6 +132,7 @@ void bongo_cat_app_render_now(BongoCatApp *app) {
 
 bool bongo_cat_app_capture_pending_model_cover(BongoCatApp *app) {
     if (!app || !app->window || !bongo_cat_model_cover_pending(app)) return false;
+    if (app->window_snapshot) return false;
     uint64_t now = SDL_GetTicksNS();
     if (!bongo_cat_model_cover_capture_due(app, now)) return false;
     if (app->window_minimized) {
@@ -192,6 +199,7 @@ void bongo_cat_app_loop(BongoCatApp *app) {
         if (take_update_shutdown(app)) continue;
         now = SDL_GetTicksNS();
         bongo_cat_window_update_wheel_animation(app, now);
+        bongo_cat_window_snapshot_update(app, now);
         bongo_cat_multi_pet_update(app, now);
         bongo_cat_random_expression_update(app, now);
         bongo_cat_audio_update(app->audio);

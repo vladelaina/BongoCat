@@ -24,7 +24,8 @@ bool safe_path_value(yyjson_val *value) {
 
 bool optional_path(yyjson_val *object, const char *key) {
     yyjson_val *value = yyjson_obj_get(object, key);
-    return !value || safe_path_value(value);
+    return !value || (yyjson_is_str(value) && !yyjson_get_str(value)[0]) ||
+        safe_path_value(value);
 }
 
 bool optional_number(yyjson_val *object, const char *key) {

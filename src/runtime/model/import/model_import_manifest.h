@@ -5,7 +5,7 @@
 #include <yyjson.h>
 
 bool bongo_cat_import_manifest_document_valid(const char *root,
-    yyjson_doc *document);
+    yyjson_doc *document, bool allow_missing_optional);
 
 /* Validates a Live2D manifest and every referenced local asset. */
 bool bongo_cat_import_manifest_valid(const char *root, const char *setting,

@@ -170,6 +170,12 @@ typedef struct BongoCatApp {
     float resize_scale_start, resize_scale_target;
     int resize_base_width, resize_base_height;
     bool resize_pending;
+    bool resize_render_target_pending;
+    /* Native preview ownership and gesture lifetime belong to window_snapshot.c. */
+    void *window_snapshot;
+    bool snapshot_blocked;
+    uint64_t snapshot_deadline_ns;
+    float snapshot_pointer_x, snapshot_pointer_y;
     bool wheel_animation_active;
     bool wheel_gesture_active;
     int resize_pixel_width, resize_pixel_height;
