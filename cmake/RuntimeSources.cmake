@@ -51,6 +51,7 @@ set(BONGO_CAT_RUNTIME_LIFECYCLE_SOURCES
   src/runtime/lifecycle/storage_paths.c)
 
 set(BONGO_CAT_RUNTIME_UPDATE_SOURCES
+  src/runtime/update/update_appimage.c
   src/runtime/update/update_channel.c
   src/runtime/update/update_http.c
   src/runtime/update/update_http_unix.c

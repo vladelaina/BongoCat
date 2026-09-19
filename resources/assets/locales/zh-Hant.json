@@ -235,6 +235,8 @@
       "openLogsFailed": "無法開啟日誌資料夾",
       "latest": "已是最新版本",
       "checkingUpdate": "正在檢查...",
+      "downloadingUpdate": "正在下載更新...",
+      "updateInstalled": "重新啟動後套用 v%s",
       "updateAvailable": "發現新版本：",
       "updateFailed": "無法檢查更新",
       "updateHttpFailed": "GitHub 回傳 HTTP 狀態碼 %s",

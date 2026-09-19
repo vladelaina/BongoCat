@@ -13,13 +13,36 @@
 #define STORE_URI "ms-windows-store://pdp/?ProductId=9P41MLSX72XW"
 #define STORE_WEB_URL "https://apps.microsoft.com/detail/9P41MLSX72XW"
 
+/* Progress events only repaint the About page; completions carry state. */
+#define UPDATE_EVENT_PROGRESS 1
+
+static bool busy(BongoCatUpdateStatus status) {
+    return status == BONGO_CAT_UPDATE_CHECKING ||
+        status == BONGO_CAT_UPDATE_DOWNLOADING;
+}
+
 static void reap_worker(BongoCatUpdateService *service) {
     SDL_LockMutex(service->mutex);
-    SDL_Thread *worker = service->status != BONGO_CAT_UPDATE_CHECKING
-        ? service->worker : NULL;
+    SDL_Thread *worker = !busy(service->status) ? service->worker : NULL;
     if (worker) service->worker = NULL;
     SDL_UnlockMutex(service->mutex);
     if (worker) SDL_WaitThread(worker, NULL);
+}
+
+/* Announces a status change that has no result yet, such as a download that
+ * started, without touching the completion bookkeeping in the event handler. */
+static void publish(BongoCatUpdateService *service,
+    BongoCatUpdateStatus status) {
+    SDL_LockMutex(service->mutex);
+    bool notify = !service->shutting_down;
+    if (notify) service->status = status;
+    SDL_UnlockMutex(service->mutex);
+    if (!notify) return;
+    SDL_Event event = {0};
+    event.type = service->event_type;
+    event.user.code = UPDATE_EVENT_PROGRESS;
+    event.user.data1 = service;
+    SDL_PushEvent(&event);
 }
 
 static int local_day(void) {
@@ -28,6 +51,15 @@ static int local_day(void) {
     if (!SDL_GetCurrentTime(&timestamp) ||
         !SDL_TimeToDateTime(timestamp, &local, true)) return 0;
     return local.year * 10000 + local.month * 100 + local.day;
+}
+
+static const char *status_name(BongoCatUpdateStatus status) {
+    switch (status) {
+    case BONGO_CAT_UPDATE_CURRENT: return "current";
+    case BONGO_CAT_UPDATE_AVAILABLE: return "available";
+    case BONGO_CAT_UPDATE_INSTALLED: return "installed";
+    default: return "done";
+    }
 }
 
 static void complete(BongoCatUpdateService *service,
@@ -49,8 +81,7 @@ static void complete(BongoCatUpdateService *service,
         SDL_LogError(BONGO_CAT_LOG_UPDATE, "Update check failed: %s",
             error && error[0] ? error : "unknown error");
     else SDL_LogInfo(BONGO_CAT_LOG_UPDATE, "Update check: %s version=%s",
-        status == BONGO_CAT_UPDATE_AVAILABLE ? "available" : "current",
-        release ? release->version : BONGO_CAT_VERSION);
+        status_name(status), release ? release->version : BONGO_CAT_VERSION);
     SDL_Event event = {0};
     event.type = service->event_type;
     event.user.data1 = service;
@@ -77,10 +108,30 @@ static int SDLCALL update_worker(void *userdata) {
         complete(service, BONGO_CAT_UPDATE_ERROR, NULL, error.message);
         return 0;
     }
-    BongoCatUpdateStatus status = bongo_cat_update_compare_versions(
-        release.version, BONGO_CAT_VERSION) > 0
-        ? BONGO_CAT_UPDATE_AVAILABLE : BONGO_CAT_UPDATE_CURRENT;
-    complete(service, status, &release, NULL);
+    if (bongo_cat_update_compare_versions(release.version,
+            BONGO_CAT_VERSION) <= 0) {
+        complete(service, BONGO_CAT_UPDATE_CURRENT, &release, NULL);
+        return 0;
+    }
+    /* An AppImage owns its own file, so a newer release is installed instead
+     * of handed to the browser. Everything else keeps the existing flow. */
+    if (service->appimage && release.appimage_url[0]) {
+        publish(service, BONGO_CAT_UPDATE_DOWNLOADING);
+        message[0] = '\0';
+        if (bongo_cat_update_appimage_install(service, release.appimage_url,
+                service->appimage_path, message, sizeof(message))) {
+            SDL_LogInfo(BONGO_CAT_LOG_UPDATE,
+                "AppImage update installed: version=%s", release.version);
+            complete(service, BONGO_CAT_UPDATE_INSTALLED, &release, NULL);
+        } else {
+            SDL_LogWarn(BONGO_CAT_LOG_UPDATE,
+                "AppImage update failed: %s", message);
+            service->install_failed = true;
+            complete(service, BONGO_CAT_UPDATE_ERROR, &release, message);
+        }
+        return 0;
+    }
+    complete(service, BONGO_CAT_UPDATE_AVAILABLE, &release, NULL);
     return 0;
 }
 
@@ -106,6 +157,8 @@ BongoCatUpdateService *bongo_cat_update_create(BongoCatApp *app) {
     else {
         service->status = BONGO_CAT_UPDATE_IDLE;
         service->installed = bongo_cat_update_platform_installed();
+        service->appimage = bongo_cat_update_platform_appimage(
+            service->appimage_path, sizeof(service->appimage_path));
         if (app->session.available_update_version[0] &&
             bongo_cat_update_compare_versions(
                 app->session.available_update_version,
@@ -126,6 +179,7 @@ bool bongo_cat_update_check(BongoCatUpdateService *service, bool manual) {
     reap_worker(service);
     SDL_LockMutex(service->mutex);
     if (service->shutting_down || service->worker ||
+        service->status == BONGO_CAT_UPDATE_INSTALLED ||
         service->status == BONGO_CAT_UPDATE_STORE ||
         service->status == BONGO_CAT_UPDATE_UNSUPPORTED) {
         SDL_UnlockMutex(service->mutex);
@@ -134,6 +188,7 @@ bool bongo_cat_update_check(BongoCatUpdateService *service, bool manual) {
     service->status = BONGO_CAT_UPDATE_CHECKING;
     service->manual = manual;
     service->error[0] = '\0';
+    service->install_failed = false;
     SDL_LockMutex(service->http_mutex);
     service->http_cancelled = false;
     SDL_UnlockMutex(service->http_mutex);
@@ -199,6 +254,10 @@ bool bongo_cat_update_event(BongoCatUpdateService *service,
     const SDL_Event *event) {
     if (!service || !event || event->type != service->event_type ||
         event->user.data1 != service) return false;
+    if (event->user.code == UPDATE_EVENT_PROGRESS) {
+        bongo_cat_preferences_invalidate(service->app->preferences);
+        return true;
+    }
     SDL_LockMutex(service->mutex);
     bool manual = service->manual;
     BongoCatUpdateStatus status = service->status;

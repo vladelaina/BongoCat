@@ -1,5 +1,6 @@
 #include "update_internal.h"
 #include "bongo_cat/i18n.h"
+#include "bongo_cat/path.h"
 #include "preferences_notice.h"
 
 #include <stdio.h>
@@ -62,6 +63,12 @@ const char *bongo_cat_update_platform_asset(void) {
 #endif
 }
 
+bool bongo_cat_update_platform_appimage(char *path, size_t capacity) {
+    (void)path;
+    (void)capacity;
+    return false;
+}
+
 #else
 
 /* Unix packages are published as a single archive for each architecture.
@@ -96,6 +103,24 @@ const char *bongo_cat_update_platform_asset(void) {
 #endif
 }
 
+/* The AppImage runtime exports the absolute path of the bundle it mounted, so
+ * its presence is the only reliable signal that this build can replace
+ * itself. */
+bool bongo_cat_update_platform_appimage(char *path, size_t capacity) {
+#if defined(__linux__)
+    if (!path || !capacity) return false;
+    const char *bundle = SDL_getenv("APPIMAGE");
+    if (!bundle || !bundle[0] || strlen(bundle) >= capacity) return false;
+    if (!bongo_cat_path_is_file(bundle)) return false;
+    snprintf(path, capacity, "%s", bundle);
+    return true;
+#else
+    (void)path;
+    (void)capacity;
+    return false;
+#endif
+}
+
 #endif
 
 static const char *tr(BongoCatUpdateService *service, const char *key,
@@ -114,6 +139,11 @@ void bongo_cat_update_show_completion(BongoCatUpdateService *service) {
     } else if (snapshot.status == BONGO_CAT_UPDATE_AVAILABLE) {
         snprintf(message, sizeof(message), "%s v%s", tr(service,
             "native.support.updateAvailable", "New version available:"),
+            snapshot.release.version);
+        bongo_cat_preferences_notice_show(service->app, message, false);
+    } else if (snapshot.status == BONGO_CAT_UPDATE_INSTALLED) {
+        snprintf(message, sizeof(message), tr(service,
+            "native.support.updateInstalled", "Restart to apply v%s"),
             snapshot.release.version);
         bongo_cat_preferences_notice_show(service->app, message, false);
     } else if (snapshot.status == BONGO_CAT_UPDATE_ERROR) {

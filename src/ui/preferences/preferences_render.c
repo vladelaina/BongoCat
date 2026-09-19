@@ -87,6 +87,7 @@ static bool draw_shell(BongoCatPreferences *value, struct nk_context *context,
     BongoCatUpdateSnapshot update_snapshot;
     bongo_cat_update_snapshot(value->app->update, &update_snapshot);
     bool about_badge = update_snapshot.status == BONGO_CAT_UPDATE_AVAILABLE ||
+        update_snapshot.status == BONGO_CAT_UPDATE_INSTALLED ||
         (update_snapshot.status == BONGO_CAT_UPDATE_ERROR &&
             update_snapshot.release.version[0]);
     bongo_cat_ui_tabs(context, menus, menu_icons, 4, &value->page,

@@ -235,6 +235,8 @@
       "openLogsFailed": "Não foi possível abrir a pasta de logs",
       "latest": "Já está atualizado",
       "checkingUpdate": "Verificando...",
+      "downloadingUpdate": "Baixando atualização...",
+      "updateInstalled": "Reinicie para aplicar v%s",
       "updateAvailable": "Nova versão disponível:",
       "updateFailed": "Não foi possível verificar atualizações",
       "updateHttpFailed": "O GitHub retornou o status HTTP %s",
