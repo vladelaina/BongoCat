@@ -41,6 +41,7 @@ void bongo_cat_update_show_completion(BongoCatUpdateService *service);
 bool bongo_cat_update_platform_supported(void);
 bool bongo_cat_update_platform_store(void);
 bool bongo_cat_update_platform_installed(void);
+bool bongo_cat_update_start_package(const char *url);
 const char *bongo_cat_update_platform_asset(void);
 
 #endif
