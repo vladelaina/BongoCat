@@ -286,6 +286,7 @@ set(BONGO_CAT_UI_PREFERENCES_SOURCES
   src/ui/preferences/preferences_page_dispatch.c
   src/ui/preferences/preferences_pages.c
   src/ui/preferences/preferences_present.c
+  src/ui/preferences/preferences_random_dialog.c
   src/ui/preferences/preferences_render.c
   src/ui/preferences/preferences_row_icons.c
   src/ui/preferences/preferences_scale.c

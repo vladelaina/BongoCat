@@ -134,6 +134,7 @@ bool bongo_cat_preferences_chrome_drag_allowed(
     const BongoCatPreferences *value) {
     return value && value->app && !value->native_drag &&
         !bongo_cat_preferences_behavior_dialog_active(value) &&
+        !bongo_cat_preferences_random_dialog_active(value) &&
         !bongo_cat_preferences_remove_dialog_active(value->app);
 }
 
@@ -167,6 +168,11 @@ static bool chrome_event(BongoCatPreferences *value, const SDL_Event *event) {
         }
         if (bongo_cat_preferences_behavior_dialog_active(value)) {
             bongo_cat_preferences_behavior_dialog_close(value);
+            value->render_dirty = true;
+            return true;
+        }
+        if (bongo_cat_preferences_random_dialog_active(value)) {
+            bongo_cat_preferences_random_dialog_close(value);
             value->render_dirty = true;
             return true;
         }

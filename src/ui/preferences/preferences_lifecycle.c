@@ -151,6 +151,10 @@ void bongo_cat_preferences_close(BongoCatPreferences *value) {
     bongo_cat_preferences_resource_note(value, "hidden");
     if (bongo_cat_preferences_behavior_dialog_active(value))
         bongo_cat_preferences_behavior_dialog_close(value);
+    value->random_dialog = false;
+    value->random_dialog_input_armed = false;
+    value->random_dialog_opened_ns = 0;
+    value->random_dialog_closing_ns = 0;
     bongo_cat_preferences_model_rename_finish(value, true);
     bongo_cat_preferences_shortcut_cancel(value);
     bongo_cat_behaviors_clear(value->behavior_catalog); free(value->behavior_catalog);

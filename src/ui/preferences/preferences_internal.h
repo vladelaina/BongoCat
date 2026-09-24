@@ -6,7 +6,7 @@
 #include "ui_catime.h"
 #include <SDL3/SDL.h>
 
-void bongo_cat_preferences_page_settings(BongoCatApp *app,
+void bongo_cat_preferences_page_settings(BongoCatPreferences *value,
     struct nk_context *context);
 void bongo_cat_preferences_page_model(BongoCatPreferences *value,
     struct nk_context *context);
@@ -24,6 +24,13 @@ void bongo_cat_preferences_behavior_dialog_draw(
     BongoCatPreferences *value, struct nk_context *context);
 void bongo_cat_preferences_behavior_dialog_close(
     BongoCatPreferences *value);
+bool bongo_cat_preferences_random_dialog_active(
+    const BongoCatPreferences *value);
+void bongo_cat_preferences_random_dialog_open(BongoCatPreferences *value,
+    BongoCatBehaviorKind kind);
+void bongo_cat_preferences_random_dialog_close(BongoCatPreferences *value);
+void bongo_cat_preferences_random_dialog_draw(
+    BongoCatPreferences *value, struct nk_context *context);
 bool bongo_cat_preferences_behavior_rename_event(
     BongoCatPreferences *value, const SDL_Event *event);
 void bongo_cat_preferences_behavior_rename_begin(BongoCatPreferences *value,

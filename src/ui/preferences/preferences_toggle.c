@@ -67,6 +67,11 @@ bool bongo_cat_pref_control_toggle_available(struct nk_context *context,
     return toggle_at(context, id, value, cell, available);
 }
 
+bool bongo_cat_pref_control_toggle_rect(struct nk_context *context,
+    const char *id, bool *value, struct nk_rect cell, bool available) {
+    return toggle_at(context, id, value, cell, available);
+}
+
 static bool draw_swatches(struct nk_context *context, const char *id,
     struct nk_rect cell, BongoCatObsBackgroundColor *selected) {
     const float slot = 25.0f, switch_width = 64.0f;

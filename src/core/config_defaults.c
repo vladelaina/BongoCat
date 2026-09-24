@@ -187,6 +187,34 @@ static void compact_removed_models(BongoCatSettings *config) {
     config->removed_model_count = output_count;
 }
 
+static void compact_random_disabled(BongoCatSettings *config) {
+    size_t input_count = config->random_disabled_count;
+    if (input_count > BONGO_CAT_RANDOM_DISABLED_CAP)
+        input_count = BONGO_CAT_RANDOM_DISABLED_CAP;
+    size_t output_count = 0;
+    for (size_t i = 0; i < input_count; ++i) {
+        char *id = config->random_disabled[i];
+        id[BONGO_CAT_BEHAVIOR_ID_CAP - 1] = '\0';
+        if (!id[0] || !bongo_cat_utf8_valid(id)) continue;
+        bool duplicate = false;
+        for (size_t j = 0; j < output_count; ++j)
+            if (!strcmp(config->random_disabled[j], id)) {
+                duplicate = true;
+                break;
+            }
+        if (duplicate) continue;
+        if (output_count != i) {
+            memcpy(config->random_disabled[output_count], id,
+                BONGO_CAT_BEHAVIOR_ID_CAP);
+        }
+        output_count++;
+    }
+    memset(&config->random_disabled[output_count], 0,
+        (BONGO_CAT_RANDOM_DISABLED_CAP - output_count) *
+        sizeof(config->random_disabled[0]));
+    config->random_disabled_count = output_count;
+}
+
 void bongo_cat_settings_defaults(BongoCatSettings *config) {
     if (!config) return;
     memset(config, 0, sizeof(*config));
@@ -238,6 +266,47 @@ void bongo_cat_settings_validate(BongoCatSettings *config) {
     compact_behavior_overrides(config);
     compact_model_overrides(config);
     compact_removed_models(config);
+    compact_random_disabled(config);
     validate_shortcuts(config);
     compact_behavior_overrides(config);
+}
+
+bool bongo_cat_settings_random_enabled(const BongoCatSettings *settings,
+    const char *behavior_id) {
+    if (!settings || !behavior_id) return true;
+    size_t count = settings->random_disabled_count;
+    if (count > BONGO_CAT_RANDOM_DISABLED_CAP)
+        count = BONGO_CAT_RANDOM_DISABLED_CAP;
+    for (size_t i = 0; i < count; ++i)
+        if (!strcmp(settings->random_disabled[i], behavior_id)) return false;
+    return true;
+}
+
+bool bongo_cat_settings_random_set_enabled(BongoCatSettings *settings,
+    const char *behavior_id, bool enabled) {
+    if (!settings || !behavior_id || !behavior_id[0]) return false;
+    size_t count = settings->random_disabled_count;
+    if (count > BONGO_CAT_RANDOM_DISABLED_CAP)
+        count = BONGO_CAT_RANDOM_DISABLED_CAP;
+    size_t existing = count;
+    for (size_t i = 0; i < count; ++i)
+        if (!strcmp(settings->random_disabled[i], behavior_id)) {
+            existing = i;
+            break;
+        }
+    if (enabled) {
+        if (existing == count) return false;
+        memmove(settings->random_disabled[existing],
+            settings->random_disabled[existing + 1],
+            (count - existing - 1) * sizeof(settings->random_disabled[0]));
+        memset(settings->random_disabled[count - 1], 0,
+            sizeof(settings->random_disabled[0]));
+        settings->random_disabled_count = count - 1;
+        return true;
+    }
+    if (existing < count || count >= BONGO_CAT_RANDOM_DISABLED_CAP) return false;
+    snprintf(settings->random_disabled[count],
+        sizeof(settings->random_disabled[0]), "%s", behavior_id);
+    settings->random_disabled_count = count + 1;
+    return true;
 }

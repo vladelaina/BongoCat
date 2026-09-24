@@ -146,6 +146,17 @@ BongoCatResult bongo_cat_app_remove_model(BongoCatApp *app, const char *id,
         app->settings.behavior_shortcuts[output++] = *shortcut;
     }
     app->settings.behavior_shortcut_count = output;
+    size_t random_output = 0;
+    for (size_t i = 0; i < app->settings.random_disabled_count; ++i) {
+        const char *behavior_id = app->settings.random_disabled[i];
+        if (!strncmp(behavior_id, id, id_length) &&
+            behavior_id[id_length] == ':') continue;
+        memcpy(app->settings.random_disabled[random_output++], behavior_id,
+            BONGO_CAT_BEHAVIOR_ID_CAP);
+    }
+    for (size_t i = random_output; i < app->settings.random_disabled_count; ++i)
+        memset(app->settings.random_disabled[i], 0, BONGO_CAT_BEHAVIOR_ID_CAP);
+    app->settings.random_disabled_count = random_output;
     bongo_cat_app_rescan_models(app);
     return BONGO_CAT_OK;
 }

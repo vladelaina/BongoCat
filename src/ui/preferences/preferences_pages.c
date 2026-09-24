@@ -26,7 +26,8 @@ static void section_gap(struct nk_context *context, float pixels) {
     context->current->layout->at_y += pixels;
 }
 
-static void page_display(BongoCatApp *app, struct nk_context *context) {
+static void page_display(BongoCatPreferences *value, struct nk_context *context) {
+    BongoCatApp *app = value->app;
     BongoCatModelPreferences *model = &app->settings.model;
     BongoCatWindowPreferences *window = &app->settings.window;
     BongoCatWindowState *window_state = &app->session.window;
@@ -151,19 +152,23 @@ static void page_display(BongoCatApp *app, struct nk_context *context) {
             window_state->opacity_percent / 100.0f);
     }
     bongo_cat_pref_row_icon(context, BONGO_CAT_PREF_ICON_RANDOM_EXPRESSION);
-    bongo_cat_pref_toggle_float(context, "random-expression", tr(app,
+    if (bongo_cat_pref_toggle_float_config(context, "random-expression", tr(app,
         "pages.preference.cat.labels.randomExpression", "Random Expressions"),
         tr(app, "pages.preference.cat.labels.secondsUnit", "s"),
         &window->random_expression, 1.0f,
         &window->random_expression_interval_seconds, 3600.0f, 1.0f,
-        BONGO_CAT_DEFAULT_RANDOM_EXPRESSION_SECONDS);
+        BONGO_CAT_DEFAULT_RANDOM_EXPRESSION_SECONDS))
+        bongo_cat_preferences_random_dialog_open(value,
+            BONGO_CAT_BEHAVIOR_EXPRESSION);
     bongo_cat_pref_row_icon(context, BONGO_CAT_PREF_ICON_RANDOM_MOTION);
-    bongo_cat_pref_toggle_float(context, "random-motion", tr(app,
+    if (bongo_cat_pref_toggle_float_config(context, "random-motion", tr(app,
         "pages.preference.cat.labels.randomMotion", "Random Motions"),
         tr(app, "pages.preference.cat.labels.secondsUnit", "s"),
         &window->random_motion, 1.0f,
         &window->random_motion_interval_seconds, 3600.0f, 1.0f,
-        BONGO_CAT_DEFAULT_RANDOM_MOTION_SECONDS);
+        BONGO_CAT_DEFAULT_RANDOM_MOTION_SECONDS))
+        bongo_cat_preferences_random_dialog_open(value,
+            BONGO_CAT_BEHAVIOR_MOTION);
 
     section_gap(context, 10);
     bongo_cat_pref_section_icon(context, tr(app,
@@ -386,9 +391,9 @@ static void page_general(BongoCatApp *app, struct nk_context *context) {
 #endif
 }
 
-void bongo_cat_preferences_page_settings(BongoCatApp *app,
+void bongo_cat_preferences_page_settings(BongoCatPreferences *value,
     struct nk_context *context) {
-    page_display(app, context);
+    page_display(value, context);
     section_gap(context, 10);
-    page_general(app, context);
+    page_general(value->app, context);
 }

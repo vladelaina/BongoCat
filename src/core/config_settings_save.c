@@ -119,6 +119,20 @@ static bool write_behaviors(yyjson_mut_doc *doc, yyjson_mut_val *root,
     return true;
 }
 
+static bool write_random_disabled(yyjson_mut_doc *doc, yyjson_mut_val *root,
+    const BongoCatSettings *settings) {
+    yyjson_mut_val *array = yyjson_mut_arr(doc);
+    if (!array || !yyjson_mut_obj_add_val(
+            doc, root, "randomBehaviorDisabled", array)) return false;
+    size_t count = settings->random_disabled_count;
+    if (count > BONGO_CAT_RANDOM_DISABLED_CAP)
+        count = BONGO_CAT_RANDOM_DISABLED_CAP;
+    for (size_t i = 0; i < count; ++i)
+        if (!yyjson_mut_arr_add_strcpy(doc, array,
+                settings->random_disabled[i])) return false;
+    return true;
+}
+
 static bool write_model_labels(yyjson_mut_doc *doc, yyjson_mut_val *root,
     const BongoCatSettings *settings) {
     yyjson_mut_val *array = yyjson_mut_arr(doc);
@@ -227,6 +241,7 @@ BongoCatResult bongo_cat_settings_save(const char *path,
         write_shortcuts(doc, yyjson_mut_obj_add_obj(doc, root, "shortcuts"),
             &canonical.shortcuts) &&
         write_behaviors(doc, root, &canonical) &&
+        write_random_disabled(doc, root, &canonical) &&
         write_model_labels(doc, root, &canonical) &&
         write_removed_models(doc, root, &canonical) &&
         yyjson_mut_obj_add_val(doc, root, "extensions", extensions);

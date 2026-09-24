@@ -29,6 +29,12 @@ static uint64_t settings_hash(const BongoCatSettings *settings) {
         behavior_count = BONGO_CAT_BEHAVIOR_BINDING_CAP;
     hash = hash_bytes(hash, settings->behavior_shortcuts,
         behavior_count * sizeof(settings->behavior_shortcuts[0]));
+    HASH_FIELD(settings->random_disabled_count);
+    size_t random_count = settings->random_disabled_count;
+    if (random_count > BONGO_CAT_RANDOM_DISABLED_CAP)
+        random_count = BONGO_CAT_RANDOM_DISABLED_CAP;
+    hash = hash_bytes(hash, settings->random_disabled,
+        random_count * sizeof(settings->random_disabled[0]));
     HASH_FIELD(settings->model_label_count);
     size_t model_count = settings->model_label_count;
     if (model_count > BONGO_CAT_MODEL_CAP) model_count = BONGO_CAT_MODEL_CAP;

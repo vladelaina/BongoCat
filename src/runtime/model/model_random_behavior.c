@@ -46,7 +46,9 @@ static bool random_behavior_due(bool enabled, float seconds, float fallback,
 
 static bool random_behavior_candidate(BongoCatApp *app,
     const BongoCatBehaviorEntry *entry, BongoCatBehaviorKind kind) {
-    return entry->kind == kind && (kind != BONGO_CAT_BEHAVIOR_MOTION ||
+    return entry->kind == kind &&
+        bongo_cat_settings_random_enabled(&app->settings, entry->id) &&
+        (kind != BONGO_CAT_BEHAVIOR_MOTION ||
         bongo_cat_live2d_motion_visible(app->live2d, entry->group, entry->index));
 }
 

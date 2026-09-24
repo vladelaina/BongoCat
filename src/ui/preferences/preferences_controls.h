@@ -21,6 +21,9 @@ bool bongo_cat_pref_control_toggle(struct nk_context *context,
     const char *id, bool *value);
 bool bongo_cat_pref_control_toggle_available(struct nk_context *context,
     const char *id, bool *value, bool available);
+/* Draws the toggle inside an explicit cell; used by overlay dialogs. */
+bool bongo_cat_pref_control_toggle_rect(struct nk_context *context,
+    const char *id, bool *value, struct nk_rect cell, bool available);
 bool bongo_cat_pref_control_obs_background(struct nk_context *context,
     const char *id, bool *enabled, BongoCatObsBackgroundColor *color);
 int bongo_cat_pref_control_combo(struct nk_context *context, const char *id,

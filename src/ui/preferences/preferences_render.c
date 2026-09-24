@@ -65,7 +65,8 @@ static bool draw_shell(BongoCatPreferences *value, struct nk_context *context,
         tr(value, "pages.preference.shortcut.title", "Shortcuts"),
         tr(value, "native.support.title", "Support the Developer")};
     bool modal = bongo_cat_preferences_remove_dialog_active(value->app) ||
-        bongo_cat_preferences_behavior_dialog_active(value);
+        bongo_cat_preferences_behavior_dialog_active(value) ||
+        bongo_cat_preferences_random_dialog_active(value);
     const bool native_chrome = bongo_cat_ui_native_chrome(); BongoCatUIPalette p = bongo_cat_ui_palette(dark);
     bongo_cat_ui_shell_draw(context, width, height, dark,
         !value->transparent_window);
@@ -207,6 +208,7 @@ static bool draw_shell(BongoCatPreferences *value, struct nk_context *context,
     bongo_cat_preferences_notice_draw(value, context, width, height);
     bongo_cat_preferences_remove_dialog_draw(value->app, context);
     bongo_cat_preferences_behavior_dialog_draw(value, context);
+    bongo_cat_preferences_random_dialog_draw(value, context);
     bongo_cat_about_overlays(value, context);
     return close_requested;
 }

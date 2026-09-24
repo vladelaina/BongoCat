@@ -116,6 +116,14 @@ struct BongoCatPreferences {
     BongoCatPreferencesScrollbar behavior_scrollbar;
     BongoCatPreferencesTextSession behavior_rename;
     BongoCatPreferencesTextSession model_rename;
+    /* Random expression/motion picker: rows with per-entry toggles. */
+    bool random_dialog;
+    BongoCatBehaviorKind random_dialog_kind;
+    bool random_dialog_input_armed;
+    uint64_t random_dialog_opened_ns;
+    uint64_t random_dialog_closing_ns;
+    float random_dialog_scroll;
+    BongoCatPreferencesScrollbar random_dialog_scrollbar;
     bool native_drag;
     bool chrome_dragging;
     bool live_resize_active;
