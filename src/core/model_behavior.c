@@ -102,8 +102,10 @@ static bool read_motions(BongoCatBehaviorCatalog *catalog, const BongoCatModelEn
         size_t index, count; yyjson_val *item;
         yyjson_arr_foreach(items, index, count, item) {
             const char *sound = yyjson_get_str(yyjson_obj_get(item, "Sound"));
+            const char *name = yyjson_get_str(yyjson_obj_get(item, "Name"));
             char label[BONGO_CAT_ID_CAP];
-            snprintf(label, sizeof(label), "%s %zu", group, index + 1);
+            if (name && name[0]) snprintf(label, sizeof(label), "%s", name);
+            else snprintf(label, sizeof(label), "%s %zu", group, index + 1);
             if (!add_behavior(catalog, model, BONGO_CAT_BEHAVIOR_MOTION, group,
                 (int)index, label, sound, NULL, error)) return false;
         }
