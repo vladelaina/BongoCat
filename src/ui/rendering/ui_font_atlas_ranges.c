@@ -92,7 +92,7 @@ bool bongo_cat_ui_font_has_ranges(const struct nk_font *font,
         const struct nk_font_glyph *glyph = nk_font_find_glyph(font, 'A');
         return glyph && glyph->codepoint == 'A';
     }
-    for (size_t pair = 0; ranges[pair] && ranges[pair + 1]; pair += 2)
+    for (size_t pair = 2; ranges[pair] && ranges[pair + 1]; pair += 2)
         for (nk_rune point = ranges[pair]; point <= ranges[pair + 1]; ++point) {
             const struct nk_font_glyph *glyph = nk_font_find_glyph(font, point);
             if (!glyph || glyph->codepoint != point) return false;

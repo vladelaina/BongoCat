@@ -77,15 +77,6 @@ else()
   target_link_libraries(bongo_cat_runtime PRIVATE
     X11::X11 X11::Xi X11::Xfixes m CURL::libcurl)
   target_link_libraries(bongo_cat_core PRIVATE m)
-  # Discover fonts outside the known distro paths, including user fonts.
-  find_package(Fontconfig QUIET)
-  if(Fontconfig_FOUND)
-    target_sources(bongo_cat_runtime PRIVATE src/ui/rendering/ui_font_fontconfig.c)
-    target_compile_definitions(bongo_cat_runtime PRIVATE BONGO_CAT_HAS_FONTCONFIG=1)
-    target_link_libraries(bongo_cat_runtime PRIVATE Fontconfig::Fontconfig)
-  else()
-    message(WARNING "Fontconfig unavailable: font discovery uses fixed system paths only")
-  endif()
   # X11/XWayland always use XFixes. Native Wayland needs the core input-region
   # protocol, which the pinned SDL does not implement for SetWindowShape.
   find_package(PkgConfig QUIET)

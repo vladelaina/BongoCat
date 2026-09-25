@@ -118,11 +118,6 @@ bool bongo_cat_ui_font_atlas_create(BongoCatUIBackend *ui,
         ui->korean_glyph_ranges = korean_ranges;
         ui->font_probe_loaded = bongo_cat_ui_font_has_ranges(body_font,
             glyph_ranges);
-        if (!ui->font_probe_loaded) SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
-            "UI font atlas is missing requested glyphs (body=%s, CJK=%s, Korean=%s)",
-            body_path ? body_path : "built-in",
-            body_fallback_path ? body_fallback_path : "none",
-            body_korean_fallback_path ? body_korean_fallback_path : "none");
         nk_style_set_font(&ui->context, ui->body_font);
     } else {
         free(korean_ranges); free(cjk_ranges); free(primary_ranges);
