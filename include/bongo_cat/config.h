@@ -68,6 +68,8 @@ typedef struct BongoCatWindowPreferences {
     BongoCatObsBackgroundColor obs_background_color;
     float hide_delay_seconds;
     float hide_fade_seconds;
+    /* Floor applied while hover-hidden; 0 hides completely. */
+    float hide_min_opacity_percent;
     float random_expression_interval_seconds;
     float random_motion_interval_seconds;
     float corner_radius_percent;

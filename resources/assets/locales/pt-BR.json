@@ -34,12 +34,14 @@
           "obsBackground": "Fundo sólido",
           "hideOnHover": "Ocultar ao Passar o Mouse",
           "hideFadeSeconds": "Duração do fade (s)",
+          "hideMinOpacity": "Opacidade mínima ao ocultar",
           "maxFPS": "Taxa Máxima de Quadros"
         },
         "hints": {
           "dynamicTextureResolution": "Ajusta automaticamente a resolução das texturas ao tamanho real de exibição, preservando os detalhes visuais e otimizando o uso da memória de vídeo. Em geral, não é recomendado ativar esta opção.",
           "hoverRequires": "Ative as opções [Passagem de cliques] e [Sempre no Topo] acima.",
           "hoverUnavailable": "Ocultar ao passar o mouse não está disponível no ambiente de desktop atual.",
+          "hideMinOpacity": "0% oculta o bichinho por completo; valores maiores o mantêm visível ao passar o mouse.",
           "gamepadFourHands": "Mantém duas mãos extras visíveis no modo controle. A aparência depende do modelo",
           "gameCompatibility": "Ative se o mascote não responder nos jogos e mude para o modo janela nas configurações do jogo",
           "gameCompatibilityHelp": "Ao ativar, o BongoCat será reiniciado com permissões de administrador. Ele continuará usando essas permissões sempre que for iniciado. Ao desativar esta opção, voltará a usar permissões normais.\n\nPor que um mascote de desktop precisa de permissões de administrador?\n\nAlguns jogos são executados com permissões de administrador. Como o Windows isola processos com níveis de permissão diferentes, o BongoCat com permissões normais pode não receber os comandos do teclado e do mouse nesses jogos, fazendo com que o mascote não responda.\n\nÉ como se o jogo e o BongoCat estivessem em andares diferentes. Alguns jogos funcionam em um nível de permissão mais alto, e o BongoCat com permissões normais não consegue receber seus comandos. Você joga no andar de cima e o BongoCat está no de baixo: o som não chega, então o mascote não consegue acompanhar suas ações.\n\nSe você não costuma jogar esses jogos, pode manter esta opção desativada. Não solicitaremos permissões de administrador sem necessidade.",

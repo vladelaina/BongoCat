@@ -94,6 +94,26 @@ static void page_display(BongoCatApp *app, struct nk_context *context) {
             window->hide_on_hover = hide_on_hover;
             bongo_cat_app_update_hover(app, SDL_GetTicksNS());
         }
+        bongo_cat_pref_row_icon(context, BONGO_CAT_PREF_ICON_HIDE_FADE);
+        if (bongo_cat_pref_slider(context, "hide-min-opacity", tr(app,
+            "pages.preference.cat.labels.hideMinOpacity",
+            "Min Opacity When Hidden"),
+            tr(app, "pages.preference.cat.hints.hideMinOpacity",
+                "0% hides the pet completely; higher values keep it visible while hovered."),
+            0.0f, &window->hide_min_opacity_percent, 100.0f, 1.0f, 0.0f)) {
+        /* The floor may never stay above the window opacity: raising it past
+           the slider pushes the window opacity up instead. */
+        if (window->hide_min_opacity_percent > window_state->opacity_percent) {
+            window_state->opacity_percent = window->hide_min_opacity_percent;
+            bongo_cat_window_cancel_wheel_animation(app);
+            if (!app->hover_hidden) {
+                bongo_cat_app_cancel_hover_fade(app);
+                bongo_cat_platform_set_opacity(&app->platform,
+                    window_state->opacity_percent / 100.0f);
+            }
+        }
+        bongo_cat_app_retarget_hover_hide(app, SDL_GetTicksNS());
+    }
     }
     bongo_cat_pref_row_icon(context, BONGO_CAT_PREF_ICON_SOLID_BACKGROUND);
     if (bongo_cat_pref_obs_background(context, "obs-background", tr(app,
@@ -145,6 +165,8 @@ static void page_display(BongoCatApp *app, struct nk_context *context) {
         bongo_cat_platform_set_opacity(&app->platform,
             window_state->opacity_percent / 100.0f);
     }
+    if (old_opacity != window_state->opacity_percent)
+        bongo_cat_app_sync_opacity_floor(app, SDL_GetTicksNS());
     bongo_cat_pref_row_icon(context, BONGO_CAT_PREF_ICON_RANDOM_EXPRESSION);
     bongo_cat_pref_toggle_float(context, "random-expression", tr(app,
         "pages.preference.cat.labels.randomExpression", "Random Expressions"),

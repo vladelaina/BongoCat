@@ -170,6 +170,7 @@ void bongo_cat_window_update_wheel_animation(BongoCatApp *app, uint64_t now) {
             bongo_cat_app_cancel_hover_fade(app);
             bongo_cat_platform_set_opacity(&app->platform, opacity / 100.0f);
         }
+        bongo_cat_app_sync_opacity_floor(app, now);
     }
     apply_scale(app, scale);
     bool reached =

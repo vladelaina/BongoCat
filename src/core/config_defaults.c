@@ -227,6 +227,8 @@ void bongo_cat_settings_validate(BongoCatSettings *config) {
     config->window.hide_fade_seconds = clampf_or(
         config->window.hide_fade_seconds, 0.0f,
         BONGO_CAT_MAX_HIDE_FADE_SECONDS, BONGO_CAT_DEFAULT_HIDE_FADE_SECONDS);
+    config->window.hide_min_opacity_percent = clampf_or(
+        config->window.hide_min_opacity_percent, 0.0f, 100.0f, 0.0f);
     config->window.corner_radius_percent = clampf_or(
         config->window.corner_radius_percent, 0.0f, 50.0f,
         BONGO_CAT_DEFAULT_WINDOW_CORNER_PERCENT);

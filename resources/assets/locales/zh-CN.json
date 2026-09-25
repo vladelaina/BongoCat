@@ -35,6 +35,7 @@
           "obsBackground": "纯色背景",
           "hideOnHover": "鼠标移入隐藏",
           "hideFadeSeconds": "鼠标移入淡出时长（秒）",
+          "hideMinOpacity": "悬浮隐藏时最低不透明度",
           "maxFPS": "最大帧率"
         },
         "hints": {
@@ -42,6 +43,7 @@
           "renderQuality": "寻找视觉平衡点从而节约内存",
           "hoverRequires": "需要同时开启上面的[鼠标穿透]和[置顶]选项",
           "hoverUnavailable": "当前桌面环境暂不支持鼠标移入隐藏。",
+          "hideMinOpacity": "0% 时鼠标移入会完全隐藏宠物；值越高，悬停时保留的可见度越高。",
           "gamepadFourHands": "在手柄模式下常驻显示额外两只手，四手一起玩！具体效果取决于模型",
           "gameCompatibility": "游戏中桌宠无法响应时开启，并在游戏设置中切换为窗口化模式",
           "gameCompatibilityHelp": "为什么桌宠需要管理员权限？\n部分游戏会以更高权限运行，普通权限下的 BongoCat 无法看到游戏中的键鼠操作。\n不玩这类游戏无需开启。我们只在必要时使用管理员权限。",

@@ -34,12 +34,14 @@
           "obsBackground": "Arrière-plan uni",
           "hideOnHover": "Masquer au survol",
           "hideFadeSeconds": "Durée du fondu (s)",
+          "hideMinOpacity": "Opacité min. lors du masquage",
           "maxFPS": "Fréquence d'images maximale"
         },
         "hints": {
           "dynamicTextureResolution": "Adapte automatiquement la résolution des textures à la taille réelle d’affichage, tout en préservant les détails visuels et en optimisant l’utilisation de la mémoire vidéo. Il est généralement déconseillé d’activer cette option.",
           "hoverRequires": "Activez les options [Passage des clics] et [Toujours au premier plan] ci-dessus.",
           "hoverUnavailable": "Le masquage au survol est indisponible dans cet environnement de bureau.",
+          "hideMinOpacity": "0 % masque complètement le compagnon ; une valeur plus élevée le garde visible au survol.",
           "gamepadFourHands": "Affiche en permanence deux mains supplémentaires en mode manette. Le rendu dépend du modèle",
           "gameCompatibility": "Activez cette option si la mascotte ne réagit pas en jeu et passez en mode fenêtré dans les paramètres du jeu",
           "gameCompatibilityHelp": "Une fois cette option activée, BongoCat redémarre avec les droits administrateur. Il conserve ces droits à chaque lancement suivant. Désactivez cette option pour revenir aux droits normaux.\n\nPourquoi une mascotte de bureau a-t-elle besoin des droits administrateur ?\n\nCertains jeux s'exécutent avec les droits administrateur. Windows isolant les processus selon leurs droits, BongoCat avec des droits normaux peut ne pas recevoir les entrées du clavier et de la souris dans ces jeux. La mascotte ne réagit alors plus.\n\nPour faire simple, c'est comme si le jeu et BongoCat se trouvaient à des étages différents. Certains jeux fonctionnent à un niveau de droits supérieur, auquel BongoCat ne peut pas accéder avec ses droits normaux. Vous jouez à l'étage et BongoCat est en bas : le son ne passe pas, et la mascotte ne peut pas suivre vos actions.\n\nSi vous ne jouez pas à ce type de jeux, vous pouvez laisser cette option désactivée. Nous ne demandons pas les droits administrateur sans nécessité.",

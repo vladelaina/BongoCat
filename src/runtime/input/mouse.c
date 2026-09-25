@@ -13,6 +13,12 @@ void bongo_cat_app_track_hover(BongoCatApp *app, double x, double y) {
     bongo_cat_app_update_hover(app, SDL_GetTicksNS());
 }
 
+/* The hidden state never brightens past the configured window opacity. */
+static float hover_opacity_minimum(const BongoCatApp *app) {
+    return SDL_min(app->settings.window.hide_min_opacity_percent,
+        app->session.window.opacity_percent) / 100.0f;
+}
+
 static bool hover_opacity(BongoCatApp *app, float opacity) {
     bongo_cat_window_snapshot_end(app);
     if (bongo_cat_platform_set_opacity(&app->platform, opacity)) return true;
@@ -45,7 +51,8 @@ void bongo_cat_app_update_hover_fade(BongoCatApp *app, uint64_t now) {
         SDL_min(next, app->hover_fade_target);
     float phase = app->hover_fade_phase;
     float opacity = phase == app->hover_fade_target ?
-        (app->hover_hidden ? 0.0f : app->session.window.opacity_percent / 100.0f) :
+        (app->hover_hidden ? hover_opacity_minimum(app) :
+            app->session.window.opacity_percent / 100.0f) :
         app->hover_fade_opacity * bongo_cat_hover_fade_curve(phase);
     if (hover_opacity(app, opacity))
         app->hover_fade_active = phase != app->hover_fade_target;
@@ -59,7 +66,7 @@ void bongo_cat_app_cancel_hover_fade(BongoCatApp *app) {
 }
 
 static void hover_start_fade(BongoCatApp *app, bool hidden, uint64_t now) {
-    float target = hidden ? 0.0f :
+    float target = hidden ? hover_opacity_minimum(app) :
         app->session.window.opacity_percent / 100.0f;
     app->hover_hidden = hidden;
     if (app->settings.window.hide_fade_seconds <= 0.0f) {
@@ -77,6 +84,19 @@ static void hover_start_fade(BongoCatApp *app, bool hidden, uint64_t now) {
     app->hover_fade_tick_ns = now;
     app->hover_fade_next_ns = now + 8000000ull;
     app->hover_fade_active = current != target;
+}
+
+void bongo_cat_app_retarget_hover_hide(BongoCatApp *app, uint64_t now) {
+    if (app && app->hover_hidden) hover_start_fade(app, true, now);
+}
+
+void bongo_cat_app_sync_opacity_floor(BongoCatApp *app, uint64_t now) {
+    if (!app) return;
+    if (app->settings.window.hide_min_opacity_percent >
+        app->session.window.opacity_percent)
+        app->settings.window.hide_min_opacity_percent =
+            app->session.window.opacity_percent;
+    bongo_cat_app_retarget_hover_hide(app, now);
 }
 
 void bongo_cat_app_update_hover(BongoCatApp *app, uint64_t now) {

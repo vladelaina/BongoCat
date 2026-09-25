@@ -158,6 +158,56 @@ int main(void) {
     tick(app, start + 500000000ull, true);
     CHECK(app->platform.window_opacity == 0.8f);
 
+    /* The opacity floor keeps a hovered pet partially visible. */
+    reset(app);
+    app->settings.window.hide_min_opacity_percent = 30.0f;
+    tick(app, start, true);
+    tick(app, start + 1000000000ull, true);
+    CHECK(app->hover_hidden && !app->hover_fade_active &&
+        SDL_fabsf(app->platform.window_opacity - 0.3f) < 0.00001f);
+    tick(app, start + 2000000000ull, false);
+    CHECK(!app->hover_hidden && app->platform.window_opacity == 0.8f);
+
+    /* A floor above the window opacity never brightens the pet. */
+    reset(app);
+    app->settings.window.hide_min_opacity_percent = 100.0f;
+    tick(app, start, true);
+    tick(app, start + 1000000000ull, true);
+    CHECK(app->hover_hidden && !app->hover_fade_active &&
+        app->platform.window_opacity == 0.8f);
+
+    /* Instant hiding also lands on the floor. */
+    reset(app);
+    app->settings.window.hide_fade_seconds = 0.0f;
+    app->settings.window.hide_min_opacity_percent = 50.0f;
+    tick(app, start, true);
+    CHECK(app->hover_hidden && app->platform.window_opacity == 0.5f);
+
+    /* Raising the floor while hidden re-blends toward the new target. */
+    reset(app);
+    app->settings.window.hide_min_opacity_percent = 30.0f;
+    tick(app, start, true);
+    tick(app, start + 1000000000ull, true);
+    app->settings.window.hide_min_opacity_percent = 60.0f;
+    bongo_cat_app_retarget_hover_hide(app, start + 2000000000ull);
+    CHECK(app->hover_fade_active && app->hover_hidden);
+    tick(app, start + 3000000000ull, true);
+    CHECK(SDL_fabsf(app->platform.window_opacity - 0.6f) < 0.00001f &&
+        !app->hover_fade_active);
+
+    /* Lowering the window opacity shrinks the floor setting alongside it. */
+    reset(app);
+    app->settings.window.hide_min_opacity_percent = 30.0f;
+    tick(app, start, true);
+    tick(app, start + 1000000000ull, true);
+    app->session.window.opacity_percent = 20.0f;
+    bongo_cat_app_sync_opacity_floor(app, start + 2000000000ull);
+    CHECK(app->settings.window.hide_min_opacity_percent == 20.0f &&
+        app->hover_fade_active);
+    tick(app, start + 3000000000ull, true);
+    CHECK(SDL_fabsf(app->platform.window_opacity - 0.2f) < 0.00001f &&
+        !app->hover_fade_active);
+
     /* The menu/modal loop must advance an existing fade without the app loop. */
     reset(app);
     tick(app, SDL_GetTicksNS(), true);

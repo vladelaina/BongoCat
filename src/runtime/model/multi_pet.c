@@ -192,6 +192,8 @@ static void reload_secondary_settings(BongoCatApp *app) {
             app->settings.window.obs_background_color ||
         settings.window.hide_delay_seconds != app->settings.window.hide_delay_seconds ||
         settings.window.hide_fade_seconds != app->settings.window.hide_fade_seconds ||
+        settings.window.hide_min_opacity_percent !=
+            app->settings.window.hide_min_opacity_percent ||
         settings.window.random_expression_interval_seconds !=
             app->settings.window.random_expression_interval_seconds ||
         settings.window.random_motion_interval_seconds !=
@@ -233,6 +235,7 @@ static void reload_secondary_settings(BongoCatApp *app) {
             app->settings.window.always_on_top);
         bongo_cat_window_mark_hit_dirty(app);
         bongo_cat_window_sync_click_through(app);
+        bongo_cat_app_retarget_hover_hide(app, SDL_GetTicksNS());
     }
 }
 

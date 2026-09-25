@@ -34,12 +34,14 @@
           "obsBackground": "Einfarbiger Hintergrund",
           "hideOnHover": "Beim Darüberfahren ausblenden",
           "hideFadeSeconds": "Ausblendedauer (s)",
+          "hideMinOpacity": "Mindestopazität beim Ausblenden",
           "maxFPS": "Maximale Bildrate"
         },
         "hints": {
           "dynamicTextureResolution": "Passt die Texturauflösung automatisch an die tatsächliche Anzeigegröße an, um Bilddetails zu erhalten und gleichzeitig die Grafikspeichernutzung zu optimieren. Es wird generell davon abgeraten, diese Option zu aktivieren.",
           "hoverRequires": "Die obigen Optionen [Klickdurchlässigkeit] und [Immer im Vordergrund] müssen aktiviert sein.",
           "hoverUnavailable": "Ausblenden bei Mausberührung ist in dieser Desktop-Umgebung nicht verfügbar.",
+          "hideMinOpacity": "0 % blendet das Haustier vollständig aus; höhere Werte halten es beim Überfahren sichtbar.",
           "gamepadFourHands": "Im Gamepad-Modus bleiben zwei zusätzliche Hände sichtbar. Das Aussehen hängt vom Modell ab",
           "gameCompatibility": "Aktivieren, wenn das Desktop-Tier im Spiel nicht reagiert, und in den Spieleinstellungen zum Fenstermodus wechseln",
           "gameCompatibilityHelp": "Nach dem Aktivieren startet BongoCat mit Administratorrechten neu. Auch bei jedem weiteren Start wird BongoCat mit Administratorrechten ausgeführt. Wenn du diese Option ausschaltest, kehrt BongoCat zu normalen Rechten zurück.\n\nWarum benötigt ein Desktop-Tier Administratorrechte?\n\nEinige Spiele werden mit Administratorrechten ausgeführt. Windows trennt Prozesse mit unterschiedlichen Berechtigungen. Deshalb kann BongoCat mit normalen Rechten möglicherweise keine Tastatur- und Mauseingaben aus diesen Spielen empfangen, sodass das Desktop-Tier nicht reagiert.\n\nVereinfacht gesagt befinden sich das Spiel und BongoCat auf unterschiedlichen Stockwerken. Einige Spiele laufen auf einer höheren Berechtigungsstufe, deren Eingaben BongoCat mit normalen Rechten nicht empfangen kann. Du spielst oben, während BongoCat unten ist: Der Ton kommt nicht an und das Desktop-Tier kann deinen Aktionen nicht folgen.\n\nWenn du solche Spiele nicht spielst, kannst du diese Option ausgeschaltet lassen. Wir fordern Administratorrechte nur an, wenn sie benötigt werden.",

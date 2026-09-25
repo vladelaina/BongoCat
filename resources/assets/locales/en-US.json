@@ -35,6 +35,7 @@
           "obsBackground": "Solid Background",
           "hideOnHover": "Hide on Hover",
           "hideFadeSeconds": "Fade Duration (s)",
+          "hideMinOpacity": "Min Opacity When Hidden",
           "maxFPS": "Max Frame Rate"
         },
         "hints": {
@@ -42,6 +43,7 @@
           "renderQuality": "Try different levels to find the best visual balance and save memory.",
           "hoverRequires": "Requires both [Pass Through] and [Always on Top] above to be enabled.",
           "hoverUnavailable": "Hover hiding is unavailable in the current desktop environment.",
+          "hideMinOpacity": "0% hides the pet completely; higher values keep it visible while hovered.",
           "gamepadFourHands": "Keep two extra hands visible in gamepad mode. Appearance depends on the model",
           "gameCompatibility": "Enable if the desktop pet does not respond in games, and switch to windowed mode in the game settings",
           "gameCompatibilityHelp": "After enabling, BongoCat will restart and run with administrator privileges. Every subsequent launch will also use administrator privileges. Turning this option off restores normal privileges.\n\nWhy does a desktop pet need administrator privileges?\n\nSome games run with administrator privileges. Because Windows isolates processes at different privilege levels, BongoCat running with normal privileges may be unable to receive keyboard and mouse input from these games, leaving the pet unresponsive.\n\nSimply put, it is like the game and BongoCat are on different floors. Some games run at a higher privilege level, so BongoCat with normal privileges cannot receive their keyboard and mouse input. It is as if you are upstairs while BongoCat is downstairs: the sound does not carry, so the pet cannot move along with your actions.\n\nIf you do not play these games, you can leave this option off. We will not request administrator privileges unnecessarily.",
