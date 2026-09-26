@@ -37,6 +37,10 @@ static NSWindow *native_window(BongoCatPlatform *platform) {
 static void configure_capture_window(NSWindow *window) {
     [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
     [window setSharingType:NSWindowSharingReadOnly];
+    /* Keep the pet on screen while the user switches macOS Spaces. */
+    NSWindowCollectionBehavior behavior = [window collectionBehavior];
+    behavior |= NSWindowCollectionBehaviorCanJoinAllSpaces;
+    [window setCollectionBehavior:behavior];
 }
 
 static void show_instance(void) {
