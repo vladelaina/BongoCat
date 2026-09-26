@@ -63,17 +63,21 @@ static void update_hands(BongoCatApp *app) {
     bool gamepad = app->loaded_mode == BONGO_CAT_MODE_GAMEPAD;
     bool four_hands = gamepad &&
         app->settings.model.gamepad_four_hands;
-    bool left_stick = gamepad && (four_hands || stick_active(app->left_stick_x,
-        app->left_stick_y, app->left_stick_pressed));
-    bool right_stick = gamepad && (four_hands || stick_active(app->right_stick_x,
-        app->right_stick_y, app->right_stick_pressed));
+    bool left_overlay = bongo_cat_overlay_hand_active(app->overlay, false);
+    bool right_overlay = bongo_cat_overlay_hand_active(app->overlay, true);
+    /* In the normal pose, an overlay paw takes priority over the stick paw
+       on the same side. The explicit four-hands preference keeps both. */
+    bool left_stick = gamepad && (four_hands ||
+        (!left_overlay && stick_active(app->left_stick_x,
+            app->left_stick_y, app->left_stick_pressed)));
+    bool right_stick = gamepad && (four_hands ||
+        (!right_overlay && stick_active(app->right_stick_x,
+            app->right_stick_y, app->right_stick_pressed)));
     /* HandDown hides the resting paw so its input overlay can replace it.
        Four-hands mode keeps those resting paws alongside the stick hands;
        only a real button overlay should hide a resting paw in this mode. */
-    bool left = (!four_hands && left_stick) ||
-        bongo_cat_overlay_hand_active(app->overlay, false);
-    bool right = (!four_hands && right_stick) ||
-        bongo_cat_overlay_hand_active(app->overlay, true);
+    bool left = (!four_hands && left_stick) || left_overlay;
+    bool right = (!four_hands && right_stick) || right_overlay;
     app->input_diagnostics.hands_seen |= (left ? 1u : 0u) | (right ? 2u : 0u);
     bongo_cat_live2d_set_parameter(app->live2d, "CatParamStickShowLeftHand", left_stick);
     bongo_cat_live2d_set_parameter(app->live2d, "CatParamStickShowRightHand", right_stick);
@@ -121,14 +125,17 @@ static void apply_gamepad_key(BongoCatApp *app, const char *name, bool pressed) 
 
 static void apply_gamepad(BongoCatApp *app, const BongoCatInputEvent *event) {
     const char *id = NULL;
+    bool invert_y = false;
     if (strcmp(event->name, "LeftStickX") == 0) {
         id = "CatParamStickLX"; app->left_stick_x = event->value;
     } else if (strcmp(event->name, "LeftStickY") == 0) {
         id = "CatParamStickLY"; app->left_stick_y = event->value;
+        invert_y = true;
     } else if (strcmp(event->name, "RightStickX") == 0) {
         id = "CatParamStickRX"; app->right_stick_x = event->value;
     } else if (strcmp(event->name, "RightStickY") == 0) {
         id = "CatParamStickRY"; app->right_stick_y = event->value;
+        invert_y = true;
     } else if (strcmp(event->name, "LeftThumb") == 0) {
         app->left_stick_pressed = event->value > 0.0f;
         apply_gamepad_key(app, event->name, app->left_stick_pressed);
@@ -140,7 +147,9 @@ static void apply_gamepad(BongoCatApp *app, const BongoCatInputEvent *event) {
         bongo_cat_live2d_set_parameter(app->live2d, "CatParamStickRightDown",
             app->right_stick_pressed);
     } else apply_gamepad_key(app, event->name, event->value > 0.05f);
-    if (id) set_axis(app, id, event->value);
+    /* SDL reports stick up as negative Y; the authored model uses positive Y
+       for upward movement. Keep the raw input state for replay/diagnostics. */
+    if (id) set_axis(app, id, invert_y ? -event->value : event->value);
     update_hands(app);
     app->dirty = true;
 }

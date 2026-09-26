@@ -161,9 +161,9 @@ static bool assertions(BongoCatApp *app, const char *scenario, bool operation) {
     }
     if (strcmp(scenario, "gamepad-sticks") == 0)
         return signed_value(app, "CatParamStickLX", true) &&
-            signed_value(app, "CatParamStickLY", false) &&
+            signed_value(app, "CatParamStickLY", true) &&
             signed_value(app, "CatParamStickRX", false) &&
-            signed_value(app, "CatParamStickRY", true) &&
+            signed_value(app, "CatParamStickRY", false) &&
             active(app, "CatParamLeftHandDown") &&
             active(app, "CatParamRightHandDown");
     return false;

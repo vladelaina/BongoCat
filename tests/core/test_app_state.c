@@ -292,7 +292,7 @@ static void check_stick_deadzone(void) {
         float moved = i % 2 ? -0.5f : 0.5f;
         BongoCatInputEvent event = input(BONGO_CAT_INPUT_GAMEPAD_AXIS, axes[i].name, moved);
         bongo_cat_app_apply_input(&app, &event);
-        CHECK(parameter(axes[i].parameter) == moved);
+        CHECK(parameter(axes[i].parameter) == (i % 2 ? -moved : moved));
         CHECK(app.active_input_count == 1 && app.active_inputs[0].value == moved);
         CHECK(parameter(i < 2 ? "CatParamStickShowLeftHand" : "CatParamStickShowRightHand") == 1.0f);
         event.value = i % 2 ? -0.028f : 0.019f;
@@ -470,13 +470,13 @@ int main(void) {
     CHECK(parameter("CatParamStickLeftDown") == 1.0f);
     event = input(BONGO_CAT_INPUT_GAMEPAD_AXIS, "LeftStickY", -0.5f);
     bongo_cat_app_apply_input(&app, &event);
-    CHECK(parameter("CatParamStickLY") == -0.5f);
+    CHECK(parameter("CatParamStickLY") == 0.5f);
     event = input(BONGO_CAT_INPUT_GAMEPAD_AXIS, "RightStickX", -0.75f);
     bongo_cat_app_apply_input(&app, &event);
     CHECK(parameter("CatParamStickRX") == -0.75f);
     event = input(BONGO_CAT_INPUT_GAMEPAD_AXIS, "RightStickY", 0.25f);
     bongo_cat_app_apply_input(&app, &event);
-    CHECK(parameter("CatParamStickRY") == 0.25f);
+    CHECK(parameter("CatParamStickRY") == -0.25f);
     event = input(BONGO_CAT_INPUT_GAMEPAD_BUTTON, "South", 1.0f);
     bongo_cat_app_apply_input(&app, &event);
     CHECK(right_hand);

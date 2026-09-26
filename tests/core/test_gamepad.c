@@ -9,14 +9,20 @@
 int bongo_cat_test_failures;
 static BongoCatApp app;
 static bool south, dpad, keyboard, effect;
+static bool left_shoulder, right_shoulder, left_trigger, right_trigger;
 static unsigned shortcut_calls;
-static float left_hand, right_hand;
+static float left_hand, right_hand, left_stick_hand, right_stick_hand;
+static float left_stick_y_param, right_stick_y_param;
 
 bool bongo_cat_live2d_set_parameter(BongoCatLive2D *live2d,
     const char *id, float value) {
     (void)live2d;
     if (!strcmp(id, "CatParamLeftHandDown")) left_hand = value;
     if (!strcmp(id, "CatParamRightHandDown")) right_hand = value;
+    if (!strcmp(id, "CatParamStickShowLeftHand")) left_stick_hand = value;
+    if (!strcmp(id, "CatParamStickShowRightHand")) right_stick_hand = value;
+    if (!strcmp(id, "CatParamStickLY")) left_stick_y_param = value;
+    if (!strcmp(id, "CatParamStickRY")) right_stick_y_param = value;
     return true;
 }
 
@@ -33,12 +39,17 @@ int bongo_cat_overlay_key(BongoCatOverlay *overlay,
     if (!strcmp(name, "South")) { south = pressed; return 1; }
     if (!strcmp(name, "DPadLeft")) { dpad = pressed; return 0; }
     if (!strcmp(name, "KeyA")) { keyboard = pressed; return 0; }
+    if (!strcmp(name, "LeftTrigger")) { left_shoulder = pressed; return 0; }
+    if (!strcmp(name, "RightTrigger")) { right_shoulder = pressed; return 1; }
+    if (!strcmp(name, "LeftTrigger2")) { left_trigger = pressed; return 0; }
+    if (!strcmp(name, "RightTrigger2")) { right_trigger = pressed; return 1; }
     return -1;
 }
 
 bool bongo_cat_overlay_hand_active(const BongoCatOverlay *overlay, bool right) {
     (void)overlay;
-    return right ? south : dpad || keyboard;
+    return right ? south || right_shoulder || right_trigger :
+        dpad || keyboard || left_shoulder || left_trigger;
 }
 
 bool bongo_cat_overlay_effect(BongoCatOverlay *overlay, const char *path) {
@@ -91,18 +102,63 @@ static void check_neutral(void) {
     CHECK(!app.left_stick_pressed && !app.right_stick_pressed);
     CHECK(!south && !dpad && !keyboard);
     CHECK(left_hand == 0.0f && right_hand == 0.0f);
+    CHECK(left_stick_hand == 0.0f && right_stick_hand == 0.0f);
+}
+
+static void direct_input(BongoCatApp *target, BongoCatInputKind kind,
+    const char *name, float value) {
+    BongoCatInputEvent event = {.kind = kind, .value = value};
+    snprintf(event.name, sizeof(event.name), "%s", name);
+    bongo_cat_app_apply_input(target, &event);
+}
+
+static void check_gamepad_poses(void) {
+    static BongoCatApp direct;
+    direct.live2d = (BongoCatLive2D *)&direct;
+    direct.overlay = (BongoCatOverlay *)&direct;
+    direct.loaded_mode = BONGO_CAT_MODE_GAMEPAD;
+    direct_input(&direct, BONGO_CAT_INPUT_GAMEPAD_AXIS, "LeftStickY", -0.5f);
+    direct_input(&direct, BONGO_CAT_INPUT_GAMEPAD_AXIS, "RightStickY", -0.5f);
+    CHECK(direct.left_stick_y == -0.5f && direct.right_stick_y == -0.5f);
+    CHECK(left_stick_y_param == 0.5f && right_stick_y_param == 0.5f);
+    CHECK(left_stick_hand == 1.0f && right_stick_hand == 1.0f);
+    direct_input(&direct, BONGO_CAT_INPUT_GAMEPAD_AXIS, "LeftStickY", 0.5f);
+    direct_input(&direct, BONGO_CAT_INPUT_GAMEPAD_AXIS, "RightStickY", 0.5f);
+    CHECK(left_stick_y_param == -0.5f && right_stick_y_param == -0.5f);
+    direct_input(&direct, BONGO_CAT_INPUT_GAMEPAD_BUTTON, "RightTrigger", 1.0f);
+    CHECK(right_shoulder && right_hand == 1.0f);
+    CHECK(right_stick_hand == 0.0f && left_stick_hand == 1.0f);
+    direct_input(&direct, BONGO_CAT_INPUT_GAMEPAD_BUTTON, "LeftTrigger", 1.0f);
+    CHECK(left_shoulder && left_hand == 1.0f);
+    CHECK(left_stick_hand == 0.0f && right_stick_hand == 0.0f);
+    direct_input(&direct, BONGO_CAT_INPUT_GAMEPAD_BUTTON, "LeftTrigger", 0.0f);
+    CHECK(!left_shoulder && left_stick_hand == 1.0f);
+    CHECK(right_stick_hand == 0.0f);
+    direct_input(&direct, BONGO_CAT_INPUT_GAMEPAD_BUTTON, "RightTrigger", 0.0f);
+    CHECK(!right_shoulder && right_stick_hand == 1.0f);
+    direct_input(&direct, BONGO_CAT_INPUT_GAMEPAD_AXIS, "LeftTrigger2", 0.6f);
+    direct_input(&direct, BONGO_CAT_INPUT_GAMEPAD_AXIS, "RightTrigger2", 0.6f);
+    CHECK(left_trigger && right_trigger);
+    CHECK(left_stick_hand == 0.0f && right_stick_hand == 0.0f);
+    direct_input(&direct, BONGO_CAT_INPUT_GAMEPAD_AXIS, "LeftTrigger2", 0.0f);
+    direct_input(&direct, BONGO_CAT_INPUT_GAMEPAD_AXIS, "RightTrigger2", 0.0f);
+    CHECK(!left_trigger && !right_trigger);
+    CHECK(left_stick_hand == 1.0f && right_stick_hand == 1.0f);
+    bongo_cat_app_reset_gamepad(&direct);
+    CHECK(left_stick_hand == 0.0f && right_stick_hand == 0.0f);
 }
 
 int main(void) {
     SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
     if (!SDL_Init(SDL_INIT_GAMEPAD | SDL_INIT_EVENTS)) return 1;
+    check_gamepad_poses();
     int count = 0;
     SDL_JoystickID *ids = SDL_GetGamepads(&count);
     SDL_free(ids);
     if (count) {
-        fprintf(stderr, "Skipping virtual gamepad test: physical gamepad present.\n");
+        fprintf(stderr, "Virtual gamepad portion skipped: physical gamepad present.\n");
         SDL_Quit();
-        return 77;
+        return bongo_cat_test_failures ? 1 : 0;
     }
     SDL_Joystick *joystick = NULL;
     SDL_JoystickID id = attach_gamepad(&joystick);
@@ -201,6 +257,56 @@ int main(void) {
         dispatch_events();
         CHECK(app.active_gamepad == id && dpad && left_hand == 1.0f);
         CHECK(shortcut_calls == before);
+        CHECK(SDL_SetJoystickVirtualButton(joystick,
+            SDL_GAMEPAD_BUTTON_DPAD_LEFT, false));
+        CHECK(SDL_SetJoystickVirtualAxis(joystick,
+            SDL_GAMEPAD_AXIS_LEFTY, -16384));
+        CHECK(SDL_SetJoystickVirtualAxis(joystick,
+            SDL_GAMEPAD_AXIS_RIGHTY, -16384));
+        dispatch_events();
+        CHECK(app.left_stick_y < -0.49f && app.right_stick_y < -0.49f);
+        CHECK(left_stick_y_param > 0.49f && right_stick_y_param > 0.49f);
+        CHECK(left_stick_hand == 1.0f && right_stick_hand == 1.0f);
+        CHECK(SDL_SetJoystickVirtualAxis(joystick,
+            SDL_GAMEPAD_AXIS_LEFTY, 16384));
+        CHECK(SDL_SetJoystickVirtualAxis(joystick,
+            SDL_GAMEPAD_AXIS_RIGHTY, 16384));
+        dispatch_events();
+        CHECK(left_stick_y_param < -0.49f && right_stick_y_param < -0.49f);
+
+        CHECK(SDL_SetJoystickVirtualButton(joystick,
+            SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER, true));
+        dispatch_events();
+        CHECK(right_shoulder && right_hand == 1.0f);
+        CHECK(right_stick_hand == 0.0f && left_stick_hand == 1.0f);
+        CHECK(SDL_SetJoystickVirtualButton(joystick,
+            SDL_GAMEPAD_BUTTON_LEFT_SHOULDER, true));
+        dispatch_events();
+        CHECK(left_shoulder && left_hand == 1.0f);
+        CHECK(left_stick_hand == 0.0f && right_stick_hand == 0.0f);
+        CHECK(SDL_SetJoystickVirtualButton(joystick,
+            SDL_GAMEPAD_BUTTON_LEFT_SHOULDER, false));
+        dispatch_events();
+        CHECK(!left_shoulder && left_stick_hand == 1.0f);
+        CHECK(right_stick_hand == 0.0f);
+        CHECK(SDL_SetJoystickVirtualButton(joystick,
+            SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER, false));
+        dispatch_events();
+        CHECK(!right_shoulder && right_stick_hand == 1.0f);
+        CHECK(SDL_SetJoystickVirtualAxis(joystick,
+            SDL_GAMEPAD_AXIS_LEFT_TRIGGER, 20000));
+        CHECK(SDL_SetJoystickVirtualAxis(joystick,
+            SDL_GAMEPAD_AXIS_RIGHT_TRIGGER, 20000));
+        dispatch_events();
+        CHECK(left_trigger && right_trigger);
+        CHECK(left_stick_hand == 0.0f && right_stick_hand == 0.0f);
+        CHECK(SDL_SetJoystickVirtualAxis(joystick,
+            SDL_GAMEPAD_AXIS_LEFT_TRIGGER, SDL_JOYSTICK_AXIS_MIN));
+        CHECK(SDL_SetJoystickVirtualAxis(joystick,
+            SDL_GAMEPAD_AXIS_RIGHT_TRIGGER, SDL_JOYSTICK_AXIS_MIN));
+        dispatch_events();
+        CHECK(!left_trigger && !right_trigger);
+        CHECK(left_stick_hand == 1.0f && right_stick_hand == 1.0f);
         SDL_CloseJoystick(joystick);
         CHECK(SDL_DetachVirtualJoystick(id));
         dispatch_events();
