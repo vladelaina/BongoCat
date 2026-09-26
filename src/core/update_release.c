@@ -47,6 +47,24 @@ static bool copy_asset_url(yyjson_val *asset, const char *expected,
     return true;
 }
 
+static bool copy_rpm_asset_url(yyjson_val *asset, const char *version,
+    char *target, size_t capacity) {
+    yyjson_val *name_value = yyjson_obj_get(asset, "name");
+    if (!yyjson_is_str(name_value)) return false;
+    const char *name = yyjson_get_str(name_value);
+    char prefix[128];
+    int length = snprintf(prefix, sizeof(prefix), "bongocat-%s-", version);
+    if (length < 0 || (size_t)length >= sizeof(prefix)) return false;
+    static const char suffix[] = ".x86_64.rpm";
+    size_t name_length = strlen(name);
+    size_t prefix_length = (size_t)length;
+    if (name_length < prefix_length + sizeof(suffix) - 1 ||
+        strncmp(name, prefix, prefix_length) != 0 ||
+        strcmp(name + name_length - (sizeof(suffix) - 1), suffix) != 0)
+        return false;
+    return copy_asset_url(asset, name, target, capacity);
+}
+
 static bool read_assets(yyjson_val *root, const char *platform,
     BongoCatUpdateRelease *release) {
     yyjson_val *assets = yyjson_obj_get(root, "assets");
@@ -78,6 +96,10 @@ static bool read_assets(yyjson_val *root, const char *platform,
                 sizeof(release->installer_url));
         if (!release->portable_url[0]) copy_asset_url(asset, portable,
             release->portable_url, sizeof(release->portable_url));
+        if (strcmp(platform, "linux-x64") == 0 &&
+            !release->package_url[0])
+            copy_rpm_asset_url(asset, release->version,
+                release->package_url, sizeof(release->package_url));
     }
     return true;
 }

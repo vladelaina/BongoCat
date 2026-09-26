@@ -250,8 +250,13 @@ bool bongo_cat_update_open(BongoCatUpdateService *service) {
         return SDL_OpenURL(STORE_URI) || SDL_OpenURL(STORE_WEB_URL);
     const char *url = RELEASES_URL;
     if (snapshot.status == BONGO_CAT_UPDATE_AVAILABLE) {
+        if (snapshot.installed && snapshot.release.package_url[0] &&
+            bongo_cat_update_start_package(snapshot.release.package_url))
+            return true;
         if (snapshot.installed && snapshot.release.installer_url[0])
             url = snapshot.release.installer_url;
+        else if (snapshot.installed && snapshot.release.release_url[0])
+            url = snapshot.release.release_url;
         else if (!snapshot.installed && snapshot.release.portable_url[0])
             url = snapshot.release.portable_url;
         else if (snapshot.release.release_url[0])
