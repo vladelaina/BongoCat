@@ -62,6 +62,13 @@ typedef struct BongoCatWindowPreferences {
     bool pass_through;
     bool always_on_top;
     bool hide_on_hover;
+    bool keep_in_screen;
+    /*
+     * 只在录屏/直播软件里可见: 桌面上看不见这个窗口, 但 OBS 之类的采集
+     * (窗口采集 WGC / 游戏采集) 仍然拿得到画面。Windows 上通过 DWM 隐藏
+     * (DWMWA_CLOAK) 实现, 其它平台暂不支持。
+     */
+    bool capture_only;
     bool obs_background;
     bool random_expression;
     bool random_motion;

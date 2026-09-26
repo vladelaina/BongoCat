@@ -38,6 +38,10 @@ static bool write_window(yyjson_mut_doc *doc, yyjson_mut_val *object,
             value->always_on_top) &&
         yyjson_mut_obj_add_bool(doc, object, "hideOnPointerOver",
             value->hide_on_hover) &&
+        yyjson_mut_obj_add_bool(doc, object, "keepOnScreen",
+            value->keep_in_screen) &&
+        yyjson_mut_obj_add_bool(doc, object, "captureOnly",
+            value->capture_only) &&
         yyjson_mut_obj_add_bool(doc, object, "captureBackground",
             value->obs_background) &&
         yyjson_mut_obj_add_bool(doc, object, "randomExpression",

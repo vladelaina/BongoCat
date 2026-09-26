@@ -21,6 +21,8 @@ typedef struct BongoCatPlatform {
     uint32_t wake_event_type;
     float window_opacity;
     bool hover_hide_unavailable;
+    /* 只在采集软件里可见 (见 bongo_cat_platform_set_capture_only) */
+    bool capture_only;
 } BongoCatPlatform;
 
 typedef enum BongoCatMenuAction {
@@ -113,6 +115,11 @@ bool bongo_cat_platform_present(BongoCatPlatform *platform, int width, int heigh
 bool bongo_cat_platform_frame_alpha(const BongoCatPlatform *platform,
     int width, int height, int x, int y, uint8_t *alpha);
 void bongo_cat_platform_set_visible(BongoCatPlatform *platform, bool visible);
+/* 只在采集软件里可见: 桌面上隐藏窗口, 但仍参与渲染与采集 (Windows: DWM 隐藏)。
+   返回 false 表示当前平台不支持。 */
+bool bongo_cat_platform_set_capture_only(BongoCatPlatform *platform,
+    bool enabled);
+bool bongo_cat_platform_capture_only_supported(void);
 bool bongo_cat_platform_pointer_local(BongoCatPlatform *platform, double screen_x,
     double screen_y, float *local_x, float *local_y);
 /* Reports a foreground application's fixed/locked system cursor state. */

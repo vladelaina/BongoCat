@@ -170,6 +170,14 @@ void bongo_cat_platform_set_visible(BongoCatPlatform *platform, bool visible) {
         if (native) bongo_cat_linux_x11_set_above(platform, native->always_on_top);
     }
 }
+/* 只在采集软件里显示: X11 下没有等价机制 (需要合成器/虚拟显示器支持),
+   设置界面会因此隐藏这一项。 */
+bool bongo_cat_platform_capture_only_supported(void) { return false; }
+bool bongo_cat_platform_set_capture_only(BongoCatPlatform *platform,
+    bool enabled) {
+    (void)platform; (void)enabled;
+    return false;
+}
 bool bongo_cat_platform_pointer_local(BongoCatPlatform *platform, double screen_x,
     double screen_y, float *local_x, float *local_y) {
     int x, y, width, height;

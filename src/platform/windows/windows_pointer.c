@@ -29,6 +29,16 @@ bool bongo_cat_platform_pointer_local(BongoCatPlatform *platform, double screen_
 void bongo_cat_platform_set_click_through(BongoCatPlatform *platform,
     bool forced, bool pointer_transparent) {
     HWND window = native_window(platform);
+    /*
+     * 仅录屏可见时窗口在桌面上完全看不见 (DWM 隐藏), 所以必须整体穿透点击。
+     * 这里不能走 forced 分支: 那条路会启用 layered presenter —— 它用一个代理窗口
+     * 把画面重新显示到桌面上, 正好和"桌面不显示"冲突。
+     */
+    if (platform->capture_only) {
+        bongo_cat_windows_layered_set_click_through(platform, false);
+        bongo_cat_windows_borderless_set_click_through(window, true, true);
+        return;
+    }
     bongo_cat_windows_layered_set_click_through(platform, forced);
     bongo_cat_windows_borderless_set_click_through(window, forced,
         pointer_transparent);

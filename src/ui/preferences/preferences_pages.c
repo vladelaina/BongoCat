@@ -95,6 +95,23 @@ static void page_display(BongoCatApp *app, struct nk_context *context) {
             bongo_cat_app_update_hover(app, SDL_GetTicksNS());
         }
     }
+    bongo_cat_pref_row_icon(context, BONGO_CAT_PREF_ICON_KEEP_IN_SCREEN);
+    if (bongo_cat_pref_toggle(context, "keep-in-screen", tr(app,
+        "pages.preference.cat.labels.keepInScreen", "Keep on Screen"), "",
+        &window->keep_in_screen) && window->keep_in_screen)
+        bongo_cat_window_clamp_to_display(app);
+    /* 只在录屏/直播软件里显示: 仅 Windows 有等价机制 (DWM 隐藏), 其它平台不显示
+       这一项, 免得给用户一个点了没反应的开关。 */
+    if (bongo_cat_platform_capture_only_supported()) {
+        bongo_cat_pref_row_icon(context, BONGO_CAT_PREF_ICON_SOLID_BACKGROUND);
+        if (bongo_cat_pref_toggle(context, "capture-only", tr(app,
+            "pages.preference.cat.labels.captureOnly", "Capture Only"), tr(app,
+            "pages.preference.cat.hints.captureOnly", "Hidden on the desktop, "
+            "still visible in OBS"), &window->capture_only)) {
+            bongo_cat_window_apply_capture_only(app);
+            app->dirty = true;
+        }
+    }
     bongo_cat_pref_row_icon(context, BONGO_CAT_PREF_ICON_SOLID_BACKGROUND);
     if (bongo_cat_pref_obs_background(context, "obs-background", tr(app,
         "pages.preference.cat.labels.obsBackground", "Solid Background"), tr(app,

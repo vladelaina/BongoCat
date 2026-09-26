@@ -1,9 +1,25 @@
 #include "windows_capture.h"
 #include "windows_layered.h"
+#include "bongo_cat/log.h"
+#include "bongo_cat/platform.h"
 
 #ifdef _WIN32
 #include <SDL3/SDL.h>
+#include <SDL3/SDL_properties.h>
 #include <dwmapi.h>
+
+#ifndef DWMWA_CLOAK
+/* 老版本 SDK 的 dwmapi.h 里还没有这个名字 (Windows 10 2004+ 才有)。 */
+#define DWMWA_CLOAK 13
+#endif
+
+static const wchar_t capture_only_property[] = L"BongoCat.CaptureOnly";
+
+static HWND platform_native_window(BongoCatPlatform *platform) {
+    if (!platform || !platform->window) return NULL;
+    return (HWND)SDL_GetPointerProperty(SDL_GetWindowProperties(platform->window),
+        SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
+}
 
 static UINT transparency_repair_message;
 static const wchar_t transparent_property[] = L"BongoCat.TransparentWindow";
@@ -128,5 +144,45 @@ bool bongo_cat_windows_capture_handle_transparency_message(
         return true;
     }
     return false;
+}
+
+bool bongo_cat_platform_capture_only_supported(void) { return true; }
+
+/*
+ * "只在录屏软件里显示": 用 DWM 把窗口从桌面合成里摘掉 (DWMWA_CLOAK)。
+ *
+ * 被隐藏的窗口本身照常渲染、照常呈现, 只是 DWM 不再把它画到屏幕上, 因此
+ * 采集侧仍然拿得到画面:
+ *   - 游戏采集 (Graphics Hook) 直接读交换链/GL 呈现, 与窗口是否可见无关;
+ *   - 窗口采集读的是窗口自己的内容, 也与桌面是否显示无关。
+ * 桌面这边则看不到任何东西 —— 主窗口在桌面上完全消失。
+ *
+ * 因为窗口在桌面上不可见, 点击穿透必须整体生效 (见 windows_pointer.c):
+ * 否则用户会在看不见的窗口上点到一只隐形的猫。
+ */
+bool bongo_cat_platform_set_capture_only(BongoCatPlatform *platform, bool enabled) {
+    HWND window = platform_native_window(platform);
+    if (!window) return false;
+    /* 属性已经是我们想要的状态时不再打扰 DWM: 这个函数会被反复调用。 */
+    HANDLE applied = GetPropW(window, capture_only_property);
+    if (applied && (applied == (HANDLE)(INT_PTR)2) == enabled) {
+        platform->capture_only = enabled;
+        return true;
+    }
+    BOOL cloak = enabled ? TRUE : FALSE;
+    HRESULT result = DwmSetWindowAttribute(window, DWMWA_CLOAK, &cloak,
+        sizeof(cloak));
+    if (FAILED(result)) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_VIDEO,
+            "Cannot %s the capture-only window hiding (0x%08lx)",
+            enabled ? "enable" : "disable", (unsigned long)result);
+        return false;
+    }
+    SetPropW(window, capture_only_property, (HANDLE)(INT_PTR)(enabled ? 2 : 1));
+    platform->capture_only = enabled;
+    SDL_LogInfo(BONGO_CAT_LOG_LIFECYCLE,
+        "[runtime] capture-only=%d (仅在录屏软件中显示: %s, 桌面%s显示, 采集仍可捕获)",
+        enabled ? 1 : 0, enabled ? "已开启" : "已关闭", enabled ? "不再" : "恢复");
+    return true;
 }
 #endif

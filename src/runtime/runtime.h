@@ -43,6 +43,8 @@ void bongo_cat_startup_failure(BongoCatApp *app, const BongoCatError *error);
 void bongo_cat_startup_ci_failure(BongoCatApp *app, const BongoCatError *error);
 void bongo_cat_window_destroy(BongoCatApp *app);
 void bongo_cat_window_apply(BongoCatApp *app);
+/* 应用"只在录屏软件里显示"设置 (Windows: DWM 隐藏窗口, 桌面不显示但可采集) */
+void bongo_cat_window_apply_capture_only(BongoCatApp *app);
 bool bongo_cat_window_event(BongoCatApp *app, const SDL_Event *event);
 bool bongo_cat_window_visible_at_pointer(BongoCatApp *app, float x, float y);
 void bongo_cat_window_capture_pointer_hit(BongoCatApp *app, bool pending_frame);

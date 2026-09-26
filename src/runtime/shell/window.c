@@ -128,6 +128,26 @@ void bongo_cat_window_apply(BongoCatApp *app) {
     bongo_cat_window_sync_click_through(app);
     bongo_cat_platform_set_always_on_top(&app->platform,
         preferences->always_on_top);
+    /* 只在录屏软件里显示 (Windows: DWM 隐藏)。放在最后: 上面几个调用都会动窗口
+       样式/位置, 重新应用一次能保证隐藏状态不会在它们之后丢失。 */
+    bongo_cat_platform_set_capture_only(&app->platform,
+        app->settings.window.capture_only);
+}
+
+void bongo_cat_window_apply_capture_only(BongoCatApp *app) {
+    if (!app || !app->window) return;
+    if (!bongo_cat_platform_capture_only_supported()) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_VIDEO,
+            "仅在录屏软件中显示在当前平台不可用, 该设置已忽略");
+        return;
+    }
+    if (!bongo_cat_platform_set_capture_only(&app->platform,
+            app->settings.window.capture_only)) return;
+    /* 桌面不可见时点击穿透必须整体生效: 让下一帧重新下发一次点击穿透状态
+       (平台侧在 capture_only 打开时会强制整体穿透, 不再做逐像素命中测试)。 */
+    app->click_through_valid = false;
+    bongo_cat_window_sync_click_through(app);
+    app->dirty = true;
 }
 
 static bool event_targets_main_window(BongoCatApp *app,
