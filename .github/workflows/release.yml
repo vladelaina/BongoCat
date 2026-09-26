@@ -358,7 +358,7 @@ jobs:
             - [macOS Intel](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/BongoCat-${{ steps.version.outputs.version }}-macos-x64.zip)
             - [Linux x64](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/BongoCat-${{ steps.version.outputs.version }}-linux-x64.tar.gz)
             - [Linux x64 AppImage](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/BongoCat-${{ steps.version.outputs.version }}-linux-x64.AppImage)
-
+            - [Arch Linux x64](https://bongocat.zakofox.cn/)
           generate_release_notes: true
           fail_on_unmatched_files: true
           make_latest: true
