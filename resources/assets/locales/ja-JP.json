@@ -260,6 +260,8 @@
       "openLogsFailed": "ログフォルダーを開けません",
       "latest": "最新バージョンです",
       "checkingUpdate": "確認中...",
+      "downloadingUpdate": "アップデートをダウンロード中...",
+      "updateInstalled": "再起動すると v%s が適用されます",
       "updateAvailable": "新しいバージョンがあります：",
       "updateFailed": "更新を確認できませんでした",
       "updateHttpFailed": "GitHub が HTTP ステータス %s を返しました",

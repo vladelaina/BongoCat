@@ -262,6 +262,8 @@
       "openLogsFailed": "Unable to open logs folder",
       "latest": "Already up to date",
       "checkingUpdate": "Checking...",
+      "downloadingUpdate": "Downloading update...",
+      "updateInstalled": "Restart to apply v%s",
       "updateAvailable": "New version available:",
       "updateFailed": "Unable to check for updates",
       "updateHttpFailed": "GitHub returned HTTP status %s",

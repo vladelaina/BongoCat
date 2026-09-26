@@ -26,7 +26,13 @@ static const char unix_release_json[] =
     "\"draft\":false,\"prerelease\":false,\"assets\":["
     "{\"name\":\"BongoCat-2.0.0-linux-x64.tar.gz\","
     "\"browser_download_url\":\"https://github.com/vladelaina/BongoCat/"
-    "releases/download/v2.0.0/BongoCat-2.0.0-linux-x64.tar.gz\"}]}";
+    "releases/download/v2.0.0/BongoCat-2.0.0-linux-x64.tar.gz\"},"
+    "{\"name\":\"BongoCat-2.0.0-linux-x64.AppImage\","
+    "\"browser_download_url\":\"https://github.com/vladelaina/BongoCat/"
+    "releases/download/v2.0.0/BongoCat-2.0.0-linux-x64.AppImage\"},"
+    "{\"name\":\"BongoCat-2.0.0-linux-x64.AppImage.sha256\","
+    "\"browser_download_url\":\"https://github.com/vladelaina/BongoCat/"
+    "releases/download/v2.0.0/BongoCat-2.0.0-linux-x64.AppImage.sha256\"}]}";
 
 void test_update(void) {
     CHECK(bongo_cat_update_version_valid("1.2.3-rc.1+build.4"));
@@ -48,12 +54,22 @@ void test_update(void) {
     CHECK(strcmp(release.version, "1.2.3") == 0);
     CHECK(strstr(release.installer_url, "windows-x64-setup.exe") != NULL);
     CHECK(strstr(release.portable_url, "windows-x64-portable.exe") != NULL);
+    CHECK(release.appimage_url[0] == '\0');
     CHECK(strcmp(release.notes, "Fixed input and rendering.") == 0);
 
     CHECK(bongo_cat_update_parse_release(unix_release_json, "linux-x64",
         &release, &error));
     CHECK(release.installer_url[0] == '\0');
     CHECK(strstr(release.portable_url, "linux-x64.tar.gz") != NULL);
+    /* The checksum asset must not be mistaken for the bundle itself. */
+    CHECK(strcmp(release.appimage_url,
+        "https://github.com/vladelaina/BongoCat/releases/download/v2.0.0/"
+        "BongoCat-2.0.0-linux-x64.AppImage") == 0);
+
+    CHECK(bongo_cat_update_parse_release(unix_release_json, "macos-arm64",
+        &release, &error));
+    CHECK(release.portable_url[0] == '\0');
+    CHECK(release.appimage_url[0] == '\0');
 
     const char unsafe[] =
         "{\"tag_name\":\"v2.0.0\",\"draft\":false,"

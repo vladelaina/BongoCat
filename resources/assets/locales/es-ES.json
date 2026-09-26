@@ -260,6 +260,8 @@
       "openLogsFailed": "No se pudo abrir la carpeta de registros",
       "latest": "Ya está actualizado",
       "checkingUpdate": "Comprobando...",
+      "downloadingUpdate": "Descargando actualización...",
+      "updateInstalled": "Reinicia para aplicar v%s",
       "updateAvailable": "Nueva versión disponible:",
       "updateFailed": "No se pudieron buscar actualizaciones",
       "updateHttpFailed": "GitHub devolvió el estado HTTP %s",

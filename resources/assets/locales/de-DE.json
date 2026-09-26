@@ -260,6 +260,8 @@
       "openLogsFailed": "Protokollordner konnte nicht geöffnet werden",
       "latest": "Bereits aktuell",
       "checkingUpdate": "Wird geprüft...",
+      "downloadingUpdate": "Update wird heruntergeladen...",
+      "updateInstalled": "Zum Anwenden v%s neu starten",
       "updateAvailable": "Neue Version verfügbar:",
       "updateFailed": "Updates konnten nicht geprüft werden",
       "updateHttpFailed": "GitHub meldete den HTTP-Status %s",

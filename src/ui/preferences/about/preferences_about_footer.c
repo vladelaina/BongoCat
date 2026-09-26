@@ -80,6 +80,7 @@ static void draw_update(BongoCatPreferences *value,
         0, 4, 14, 0, nk_rgba(p.accent.r, p.accent.g, p.accent.b, 89));
     nk_fill_rect(canvas, bounds, 10, p.accent);
     if (snapshot->status == BONGO_CAT_UPDATE_AVAILABLE ||
+            snapshot->status == BONGO_CAT_UPDATE_INSTALLED ||
             (snapshot->status == BONGO_CAT_UPDATE_ERROR &&
                 snapshot->release.version[0])) {
         /* Mark the actionable update without obscuring its label. */
@@ -94,7 +95,9 @@ static void draw_update(BongoCatPreferences *value,
         nk_rgb(255, 255, 255));
     link_cursor(context, bounds);
     if (hit(context, bounds)) {
-        if (snapshot->status == BONGO_CAT_UPDATE_CHECKING) return;
+        if (snapshot->status == BONGO_CAT_UPDATE_CHECKING ||
+            snapshot->status == BONGO_CAT_UPDATE_DOWNLOADING ||
+            snapshot->status == BONGO_CAT_UPDATE_INSTALLED) return;
         if (snapshot->status == BONGO_CAT_UPDATE_AVAILABLE ||
                 (snapshot->status == BONGO_CAT_UPDATE_ERROR &&
                     snapshot->release.version[0])) {
@@ -127,6 +130,13 @@ static const char *update_label(BongoCatPreferences *value,
     switch (snapshot->status) {
     case BONGO_CAT_UPDATE_CHECKING:
         return tr(value, "native.support.checkingUpdate", "Checking...");
+    case BONGO_CAT_UPDATE_DOWNLOADING:
+        return tr(value, "native.support.downloadingUpdate",
+            "Downloading update...");
+    case BONGO_CAT_UPDATE_INSTALLED:
+        snprintf(buffer, capacity, tr(value, "native.support.updateInstalled",
+            "Restart to apply v%s"), snapshot->release.version);
+        return buffer;
     case BONGO_CAT_UPDATE_AVAILABLE:
         snprintf(buffer, capacity, tr(value,
             "native.support.downloadUpdate", "Update to v%s"),
@@ -186,7 +196,7 @@ void bongo_cat_preferences_about_footer(BongoCatPreferences *value,
         "native.support.version", "App version");
     BongoCatUpdateSnapshot update_snapshot;
     bongo_cat_update_snapshot(value->app->update, &update_snapshot);
-    char update_buffer[96];
+    char update_buffer[128];
     const char *update = update_label(value, &update_snapshot,
         update_buffer, sizeof(update_buffer));
     const char *feedback = tr(value, "native.support.feedback", "Feedback");

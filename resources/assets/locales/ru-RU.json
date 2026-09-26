@@ -260,6 +260,8 @@
       "openLogsFailed": "Не удалось открыть папку журналов",
       "latest": "Установлена последняя версия",
       "checkingUpdate": "Проверка...",
+      "downloadingUpdate": "Загрузка обновления...",
+      "updateInstalled": "Перезапустите для v%s",
       "updateAvailable": "Доступна новая версия:",
       "updateFailed": "Не удалось проверить обновления",
       "updateHttpFailed": "GitHub вернул код HTTP %s",
