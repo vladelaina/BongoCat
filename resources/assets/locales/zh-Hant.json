@@ -100,7 +100,8 @@
         "title": "模型",
         "nearbyTitle": "附近模型",
         "labels": {
-          "deleteModel": "刪除模型"
+          "deleteModel": "刪除模型",
+          "hiddenModels": "已隱藏"
         },
         "hints": {
           "deleteSuccess": "已刪除「%s」",

@@ -187,10 +187,18 @@ static void smoke_model_behavior(BongoCatPreferences *value) {
     }
 }
 
-static size_t model_count(const BongoCatPreferences *value, bool managed) {
+static bool model_hidden(const BongoCatPreferences *value, const char *id) {
+    return bongo_cat_settings_model_hidden(&value->app->settings, id);
+}
+
+static size_t visible_model_count(const BongoCatPreferences *value,
+    bool managed, bool hidden) {
     size_t count = 0;
-    for (size_t i = 0; i < value->app->models.count; ++i)
-        if (value->app->models.entries[i].managed == managed) count++;
+    for (size_t i = 0; i < value->app->models.count; ++i) {
+        const BongoCatModelEntry *entry = &value->app->models.entries[i];
+        if (entry->managed == managed &&
+            model_hidden(value, entry->id) == hidden) count++;
+    }
     return count;
 }
 
@@ -203,12 +211,13 @@ static int preset_model_order(const BongoCatModelEntry *entry) {
 }
 
 static void draw_models(BongoCatPreferences *value,
-    struct nk_context *context, bool managed, bool storage_busy) {
+    struct nk_context *context, bool managed, bool storage_busy, bool hidden) {
     for (int order = 0; order <= 3; ++order) {
         for (size_t i = 0; i < value->app->models.count; ++i) {
             const BongoCatModelEntry *entry = &value->app->models.entries[i];
             if (entry->managed != managed || preset_model_order(entry) != order)
                 continue;
+            if (model_hidden(value, entry->id) != hidden) continue;
             bongo_cat_preferences_model_card(value, context, entry,
                 storage_busy);
         }
@@ -219,6 +228,10 @@ void bongo_cat_preferences_page_model(BongoCatPreferences *value,
     struct nk_context *context) {
     BongoCatApp *app = value->app;
     smoke_model_behavior(value);
+    bool show_hidden = value->model_show_hidden &&
+        (visible_model_count(value, false, true) ||
+        visible_model_count(value, true, true));
+    value->model_show_hidden = show_hidden;
     bongo_cat_preferences_model_covers_begin(app);
     bool multiple = app->settings.model.multiple_pets;
     bongo_cat_pref_row_icon(context, BONGO_CAT_PREF_ICON_MULTIPLE_MODELS);
@@ -240,12 +253,12 @@ void bongo_cat_preferences_page_model(BongoCatPreferences *value,
     bool storage_busy = bongo_cat_preferences_import_status(
         value->import_dialog, NULL, NULL, NULL) ||
         bongo_cat_app_model_refresh_busy(app);
-    draw_models(value, context, false, storage_busy);
-    if (model_count(value, true)) {
+    draw_models(value, context, false, storage_busy, show_hidden);
+    if (visible_model_count(value, true, show_hidden)) {
         bongo_cat_pref_section(context,
             tr(app, "pages.preference.model.nearbyTitle", "Nearby models"));
         nk_layout_row_dynamic(context, MODEL_CARD_HEIGHT, columns);
-        draw_models(value, context, true, storage_busy);
+        draw_models(value, context, true, storage_busy, show_hidden);
     }
     context->style.window.spacing = old_spacing;
     bongo_cat_preferences_model_covers_prune(app);

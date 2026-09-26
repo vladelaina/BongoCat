@@ -99,7 +99,8 @@
         "title": "Modèle",
         "nearbyTitle": "Modèles à proximité",
         "labels": {
-          "deleteModel": "Supprimer le modèle"
+          "deleteModel": "Supprimer le modèle",
+          "hiddenModels": "Masqués"
         },
         "hints": {
           "deleteSuccess": "« %s » a été supprimé",

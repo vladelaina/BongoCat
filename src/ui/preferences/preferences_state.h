@@ -75,6 +75,7 @@ struct BongoCatPreferences {
     uint64_t model_directory_watch_xor;
     uint64_t model_directory_watch_due_ns;
     bool smoke_behavior_open_pending;
+    bool model_show_hidden;
     bool model_selection_pending;
     bool pending_model_multiple;
     bool pending_model_active;

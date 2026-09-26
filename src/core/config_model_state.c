@@ -100,6 +100,48 @@ bool bongo_cat_settings_set_model_removed(BongoCatSettings *config,
     return true;
 }
 
+bool bongo_cat_settings_model_hidden(const BongoCatSettings *config,
+    const char *id) {
+    if (!config || !id) return false;
+    size_t count = config->hidden_model_count;
+    if (count > BONGO_CAT_MODEL_CAP) count = BONGO_CAT_MODEL_CAP;
+    for (size_t i = 0; i < count; ++i)
+        if (!strcmp(config->hidden_models[i].id, id)) return true;
+    return false;
+}
+
+bool bongo_cat_settings_set_model_hidden(BongoCatSettings *config,
+    const char *id, bool hidden) {
+    if (!config || !id || !id[0] || strlen(id) >= BONGO_CAT_ID_CAP ||
+        !bongo_cat_utf8_valid(id)) return false;
+    bongo_cat_settings_validate(config);
+    size_t index = config->hidden_model_count;
+    for (size_t i = 0; i < config->hidden_model_count; ++i)
+        if (!strcmp(config->hidden_models[i].id, id)) {
+            index = i;
+            break;
+        }
+    if (hidden) {
+        if (index < config->hidden_model_count) return false;
+        if (config->hidden_model_count >= BONGO_CAT_MODEL_CAP) return false;
+        BongoCatRemovedModel *entry =
+            &config->hidden_models[config->hidden_model_count++];
+        memset(entry, 0, sizeof(*entry));
+        snprintf(entry->id, sizeof(entry->id), "%s", id);
+        return true;
+    }
+    if (index == config->hidden_model_count) return false;
+    if (index + 1 < config->hidden_model_count)
+        memmove(&config->hidden_models[index],
+            &config->hidden_models[index + 1],
+            (config->hidden_model_count - index - 1) *
+            sizeof(config->hidden_models[0]));
+    config->hidden_model_count--;
+    memset(&config->hidden_models[config->hidden_model_count], 0,
+        sizeof(config->hidden_models[0]));
+    return true;
+}
+
 static bool package_model_id(const char *id, const char *package_id) {
     size_t length = package_id ? strlen(package_id) : 0;
     if (!id || !length || strncmp(id, package_id, length) != 0) return false;

@@ -99,7 +99,8 @@
         "title": "Модель",
         "nearbyTitle": "Ближайшие модели",
         "labels": {
-          "deleteModel": "Удалить модель"
+          "deleteModel": "Удалить модель",
+          "hiddenModels": "Скрытые"
         },
         "hints": {
           "deleteSuccess": "Модель \"%s\" удалена",

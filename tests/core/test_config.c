@@ -75,6 +75,7 @@ void test_config(void) {
     CHECK(bongo_cat_settings_set_model_label(&settings, "model", "Display"));
     CHECK(bongo_cat_settings_set_model_removed(&settings, "model~2", true));
     CHECK(bongo_cat_settings_set_model_removed(&settings, "model-extra", true));
+    CHECK(bongo_cat_settings_set_model_hidden(&settings, "model~3", true));
     session.window.x = -321;
     session.window.position_known = true;
     session.window.opacity_percent = 75.0f;
@@ -115,6 +116,8 @@ void test_config(void) {
     CHECK(contains_text(settings_path, "\"multiplePets\": true") && !contains_text(settings_path, "inputReleaseDelaySeconds"));
     CHECK(contains_text(settings_path, "\"removedModels\"") &&
         contains_text(settings_path, "\"model~2\""));
+    CHECK(contains_text(settings_path, "\"hiddenModels\"") &&
+        contains_text(settings_path, "\"model~3\""));
     CHECK(contains_text(settings_path, "\"example\""));
     CHECK(!contains_text(settings_path, "activeModelId"));
     CHECK(contains_text(session_path, "\"format\": \"bongocat/session\""));
@@ -157,6 +160,10 @@ void test_config(void) {
         "Display") == 0);
     CHECK(bongo_cat_settings_model_removed(&loaded_settings, "model~2") &&
         bongo_cat_settings_model_removed(&loaded_settings, "model-extra"));
+    CHECK(bongo_cat_settings_model_hidden(&loaded_settings, "model~3"));
+    CHECK(bongo_cat_settings_set_model_hidden(&loaded_settings, "model~3",
+        false) && !bongo_cat_settings_model_hidden(&loaded_settings,
+        "model~3"));
     CHECK(bongo_cat_settings_restore_model_package(&loaded_settings, "model"));
     CHECK(!bongo_cat_settings_model_removed(&loaded_settings, "model~2") &&
         bongo_cat_settings_model_removed(&loaded_settings, "model-extra"));

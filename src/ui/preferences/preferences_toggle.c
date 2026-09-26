@@ -7,11 +7,9 @@
 
 #include <stdio.h>
 
-static bool toggle_at(struct nk_context *context, const char *id,
-    bool *value, struct nk_rect cell, bool available) {
+static bool toggle_draw(struct nk_context *context, const char *id,
+    bool *value, struct nk_rect track, bool available) {
     const float effect_margin = 18.0f;
-    struct nk_rect track = nk_rect(cell.x + cell.w - 46 - effect_margin,
-        cell.y + (cell.h - 24) * .5f, 46, 24);
     struct nk_rect interaction = nk_rect(track.x, track.y,
         track.w + effect_margin, track.h);
     bool hover = available &&
@@ -53,6 +51,14 @@ static bool toggle_at(struct nk_context *context, const char *id,
     if (hover) bongo_cat_ui_cursor_hover_rect(context, interaction,
         BONGO_CAT_UI_CURSOR_POINTER);
     return changed;
+}
+
+static bool toggle_at(struct nk_context *context, const char *id,
+    bool *value, struct nk_rect cell, bool available) {
+    const float effect_margin = 18.0f;
+    struct nk_rect track = nk_rect(cell.x + cell.w - 46 - effect_margin,
+        cell.y + (cell.h - 24) * .5f, 46, 24);
+    return toggle_draw(context, id, value, track, available);
 }
 
 bool bongo_cat_pref_control_toggle(struct nk_context *context,

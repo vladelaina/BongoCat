@@ -99,7 +99,8 @@
         "title": "모델",
         "nearbyTitle": "주변 모델",
         "labels": {
-          "deleteModel": "모델 삭제"
+          "deleteModel": "모델 삭제",
+          "hiddenModels": "숨김"
         },
         "hints": {
           "deleteSuccess": "\"%s\" 모델을 삭제했습니다",

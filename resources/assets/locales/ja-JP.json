@@ -99,7 +99,8 @@
         "title": "モデル",
         "nearbyTitle": "近くのモデル",
         "labels": {
-          "deleteModel": "モデルを削除"
+          "deleteModel": "モデルを削除",
+          "hiddenModels": "非表示"
         },
         "hints": {
           "deleteSuccess": "「%s」を削除しました",

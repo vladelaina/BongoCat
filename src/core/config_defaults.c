@@ -191,6 +191,32 @@ static void compact_removed_models(BongoCatSettings *config) {
     config->removed_model_count = output_count;
 }
 
+static void compact_hidden_models(BongoCatSettings *config) {
+    size_t input_count = config->hidden_model_count;
+    if (input_count > BONGO_CAT_MODEL_CAP) input_count = BONGO_CAT_MODEL_CAP;
+    size_t output_count = 0;
+    for (size_t i = 0; i < input_count; ++i) {
+        BongoCatRemovedModel entry = config->hidden_models[i];
+        entry.id[sizeof(entry.id) - 1] = '\0';
+        if (!entry.id[0] || !bongo_cat_utf8_valid(entry.id)) continue;
+        bool duplicate = false;
+        for (size_t j = 0; j < output_count; ++j)
+            if (!strcmp(config->hidden_models[j].id, entry.id)) {
+                duplicate = true;
+                break;
+            }
+        if (!duplicate) {
+            BongoCatRemovedModel canonical = {0};
+            snprintf(canonical.id, sizeof(canonical.id), "%s", entry.id);
+            config->hidden_models[output_count++] = canonical;
+        }
+    }
+    memset(&config->hidden_models[output_count], 0,
+        (BONGO_CAT_MODEL_CAP - output_count) *
+        sizeof(config->hidden_models[0]));
+    config->hidden_model_count = output_count;
+}
+
 void bongo_cat_settings_defaults(BongoCatSettings *config) {
     if (!config) return;
     memset(config, 0, sizeof(*config));
@@ -255,6 +281,7 @@ void bongo_cat_settings_validate(BongoCatSettings *config) {
     compact_behavior_overrides(config);
     compact_model_overrides(config);
     compact_removed_models(config);
+    compact_hidden_models(config);
     validate_shortcuts(config);
     compact_behavior_overrides(config);
 }

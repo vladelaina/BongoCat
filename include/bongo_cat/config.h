@@ -151,6 +151,8 @@ typedef struct BongoCatSettings {
     size_t model_label_count;
     BongoCatRemovedModel removed_models[BONGO_CAT_MODEL_CAP];
     size_t removed_model_count;
+    BongoCatRemovedModel hidden_models[BONGO_CAT_MODEL_CAP];
+    size_t hidden_model_count;
     char extensions_json[BONGO_CAT_SETTINGS_EXTENSIONS_CAP];
 } BongoCatSettings;
 
@@ -191,6 +193,10 @@ bool bongo_cat_settings_model_removed(const BongoCatSettings *settings,
     const char *id);
 bool bongo_cat_settings_set_model_removed(BongoCatSettings *settings,
     const char *id, bool removed);
+bool bongo_cat_settings_model_hidden(const BongoCatSettings *settings,
+    const char *id);
+bool bongo_cat_settings_set_model_hidden(BongoCatSettings *settings,
+    const char *id, bool hidden);
 bool bongo_cat_settings_restore_model_package(BongoCatSettings *settings,
     const char *package_id);
 BongoCatResult bongo_cat_settings_load(const char *path,

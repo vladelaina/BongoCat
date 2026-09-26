@@ -139,6 +139,78 @@ static void draw_cover(BongoCatPreferences *value,
     nk_draw_image(canvas, image, &texture, nk_rgb(255, 255, 255));
 }
 
+#define MODEL_HIDE_TAB_RADIUS 40.0f
+#define MODEL_CARD_ROUNDING 14.0f
+
+/* Quarter-circle pocket in the top-right corner, clipped to the card's
+   rounded corner: it follows the top edge, wraps around the card rounding
+   and sweeps back along the right edge. Translucent gray to hide, pink to
+   restore while viewing hidden models. Returns hover state. */
+static bool draw_hide_tab(BongoCatPreferences *value,
+    struct nk_context *context, struct nk_command_buffer *canvas,
+    struct nk_rect bounds, const BongoCatModelEntry *entry,
+    BongoCatUIPalette p, bool hidden_view) {
+    const float pi = 3.14159265358979323846f;
+    const int arc_steps = 8;
+    float radius = MODEL_HIDE_TAB_RADIUS;
+    float cx = bounds.x + bounds.w;
+    float cy = bounds.y;
+    float ox = cx - MODEL_CARD_ROUNDING;
+    float oy = cy + MODEL_CARD_ROUNDING;
+    struct nk_rect hit = nk_rect(cx - radius, cy, radius, radius);
+    bool hover = nk_input_is_mouse_hovering_rect(&context->input, hit);
+    char animation_id[BONGO_CAT_ID_CAP + 32];
+    snprintf(animation_id, sizeof(animation_id), "model-hide-tab-%s",
+        entry->id);
+    float amount = bongo_cat_ui_animate_eased(context, animation_id,
+        hover ? 1.0f : 0.0f, 150.0f, BONGO_CAT_UI_EASE_STANDARD);
+    struct nk_color fill = hidden_view ?
+        bongo_cat_ui_color_alpha(p.pink, .55f + .2f * amount) :
+        bongo_cat_ui_color_alpha(p.muted, .35f + .2f * amount);
+    float pocket[2 * 22];
+    int count = 0;
+    pocket[count++] = cx - radius; /* top edge */
+    pocket[count++] = cy;
+    pocket[count++] = ox;          /* card rounding start */
+    pocket[count++] = cy;
+    for (int i = 1; i < arc_steps; ++i) {
+        float t = -pi * .5f + pi * .5f * (float)i / (float)arc_steps;
+        pocket[count++] = ox + cosf(t) * MODEL_CARD_ROUNDING;
+        pocket[count++] = oy + sinf(t) * MODEL_CARD_ROUNDING;
+    }
+    pocket[count++] = cx;          /* card rounding end, on the right edge */
+    pocket[count++] = oy;
+    pocket[count++] = cx;          /* right edge */
+    pocket[count++] = cy + radius;
+    for (int i = 1; i <= arc_steps; ++i) { /* pocket arc back to the start */
+        float t = pi * .5f + pi * .5f * (float)i / (float)arc_steps;
+        pocket[count++] = cx + cosf(t) * radius;
+        pocket[count++] = cy + sinf(t) * radius;
+    }
+    nk_fill_polygon(canvas, pocket, count / 2, fill);
+    int icon = hidden_view ? BONGO_CAT_UI_ICON_SYNC : BONGO_CAT_UI_ICON_CLOSE;
+    float icon_size = radius * .4f;
+    float inset = radius * .38f;
+    bongo_cat_preferences_icon_draw(value, canvas, icon,
+        nk_rect(cx - inset - icon_size * .5f, cy + inset - icon_size * .5f,
+            icon_size, icon_size),
+        bongo_cat_ui_color_alpha(nk_rgb(255, 255, 255), .8f + .2f * amount));
+    if (hover && nk_input_is_mouse_click_in_rect(&context->input,
+            NK_BUTTON_LEFT, hit)) {
+        bool hidden = bongo_cat_settings_model_hidden(
+            &value->app->settings, entry->id);
+        bongo_cat_settings_set_model_hidden(&value->app->settings,
+            entry->id, !hidden);
+        value->render_dirty = true;
+    }
+    if (hover) {
+        bongo_cat_ui_cursor_hover_rect(context, hit,
+            BONGO_CAT_UI_CURSOR_POINTER);
+        value->render_dirty = true;
+    }
+    return hover;
+}
+
 static void draw_actions(BongoCatPreferences *value,
     struct nk_context *context, struct nk_command_buffer *canvas,
     struct nk_rect bounds, const BongoCatModelEntry *entry,
@@ -242,6 +314,10 @@ void bongo_cat_preferences_model_card(BongoCatPreferences *value,
         bongo_cat_ui_color_mix(
             bongo_cat_ui_color_mix(p.border_subtle, p.accent, lift),
             p.pink, selection_amount);
+    /* The pocket is drawn before the outline so the border line stays
+       visible along its flush edges. */
+    bool tab_hover = draw_hide_tab(value, context, canvas, bounds, entry, p,
+        value->model_show_hidden);
     nk_stroke_rect(canvas, outline, 14.0f - outline_width * .5f,
         outline_width, outline_color);
     bongo_cat_preferences_model_card_draw_progress(canvas, outline,
@@ -249,7 +325,7 @@ void bongo_cat_preferences_model_card(BongoCatPreferences *value,
     if (!name_hover && (action_hover || hover))
         bongo_cat_ui_cursor_hover_rect(context, bounds,
             BONGO_CAT_UI_CURSOR_POINTER);
-    if (!name_hover && !action_hover && hover &&
+    if (!name_hover && !action_hover && !tab_hover && hover &&
         nk_input_is_mouse_click_in_rect(&context->input,
             NK_BUTTON_LEFT, bounds))
         bongo_cat_preferences_model_select(value, entry);

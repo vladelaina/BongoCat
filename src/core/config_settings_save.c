@@ -143,15 +143,26 @@ static bool write_model_labels(yyjson_mut_doc *doc, yyjson_mut_val *root,
     return true;
 }
 
+static bool write_model_id_array(yyjson_mut_doc *doc, yyjson_mut_val *root,
+    const char *key, const BongoCatRemovedModel *entries, size_t count) {
+    yyjson_mut_val *array = yyjson_mut_arr(doc);
+    if (!array || !yyjson_mut_obj_add_val(doc, root, key, array)) return false;
+    for (size_t i = 0; i < count; ++i)
+        if (!yyjson_mut_arr_add_strcpy(doc, array, entries[i].id))
+            return false;
+    return true;
+}
+
 static bool write_removed_models(yyjson_mut_doc *doc, yyjson_mut_val *root,
     const BongoCatSettings *settings) {
-    yyjson_mut_val *array = yyjson_mut_arr(doc);
-    if (!array || !yyjson_mut_obj_add_val(
-            doc, root, "removedModels", array)) return false;
-    for (size_t i = 0; i < settings->removed_model_count; ++i)
-        if (!yyjson_mut_arr_add_strcpy(doc, array,
-                settings->removed_models[i].id)) return false;
-    return true;
+    return write_model_id_array(doc, root, "removedModels",
+        settings->removed_models, settings->removed_model_count);
+}
+
+static bool write_hidden_models(yyjson_mut_doc *doc, yyjson_mut_val *root,
+    const BongoCatSettings *settings) {
+    return write_model_id_array(doc, root, "hiddenModels",
+        settings->hidden_models, settings->hidden_model_count);
 }
 
 static yyjson_mut_val *write_extensions(yyjson_mut_doc *target,
@@ -236,6 +247,7 @@ BongoCatResult bongo_cat_settings_save(const char *path,
         write_behaviors(doc, root, &canonical) &&
         write_model_labels(doc, root, &canonical) &&
         write_removed_models(doc, root, &canonical) &&
+        write_hidden_models(doc, root, &canonical) &&
         yyjson_mut_obj_add_val(doc, root, "extensions", extensions);
     if (!built) {
         yyjson_mut_doc_free(doc);

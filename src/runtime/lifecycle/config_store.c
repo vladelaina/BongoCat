@@ -40,6 +40,12 @@ static uint64_t settings_hash(const BongoCatSettings *settings) {
         removed_count = BONGO_CAT_MODEL_CAP;
     hash = hash_bytes(hash, settings->removed_models,
         removed_count * sizeof(settings->removed_models[0]));
+    HASH_FIELD(settings->hidden_model_count);
+    size_t hidden_count = settings->hidden_model_count;
+    if (hidden_count > BONGO_CAT_MODEL_CAP)
+        hidden_count = BONGO_CAT_MODEL_CAP;
+    hash = hash_bytes(hash, settings->hidden_models,
+        hidden_count * sizeof(settings->hidden_models[0]));
     HASH_FIELD(settings->extensions_json);
 #undef HASH_FIELD
     return hash;

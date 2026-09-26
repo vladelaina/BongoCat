@@ -101,7 +101,8 @@
         "title": "Model",
         "nearbyTitle": "Nearby models",
         "labels": {
-          "deleteModel": "Delete Model"
+          "deleteModel": "Delete Model",
+          "hiddenModels": "Hidden"
         },
         "hints": {
           "deleteSuccess": "Deleted \"%s\"",
