@@ -52,6 +52,7 @@ endif()
 
 include(CPack)
 include(cmake/PackagingAppImage.cmake)
+include(cmake/PackagingRpm.cmake)
 if(WIN32)
   include(cmake/PackagingInno.cmake)
 endif()

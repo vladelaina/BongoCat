@@ -217,6 +217,46 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  rpm:
+    name: build / linux-rpm
+    needs: version-check
+    if: github.repository == 'vladelaina/BongoCat'
+    runs-on: ubuntu-24.04
+    env:
+      CUBISM_SDK_ARCHIVE_URL: ${{ secrets.CUBISM_SDK_ARCHIVE_URL }}
+      CUBISM_SDK_ARCHIVE_SHA256: ${{ secrets.CUBISM_SDK_ARCHIVE_SHA256 }}
+      CUBISM_GLEW_ARCHIVE_URL: ${{ secrets.CUBISM_GLEW_ARCHIVE_URL }}
+      CUBISM_GLEW_ARCHIVE_SHA256: ${{ secrets.CUBISM_GLEW_ARCHIVE_SHA256 }}
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v5
+
+      - name: Restore licensed Cubism SDK
+        shell: pwsh
+        run: ./.github/scripts/restore-cubism-sdk.ps1
+
+      - name: Build EL9 RPM
+        env:
+          RPM_BUILD_JOBS: 2
+        run: bash ./.github/scripts/build-rpm-container.sh
+
+      - name: Verify RPM installation
+        run: |
+          rpm_file=$(find build-rpm-el9/dist -maxdepth 1 -type f -name '*.rpm' -print -quit)
+          test -n "$rpm_file"
+          bash ./.github/scripts/check-rpm.sh "$rpm_file"
+
+      - name: Upload packaged release
+        uses: actions/upload-artifact@v7
+        with:
+          name: bongocat-release-linux-rpm
+          path: |
+            build-rpm-el9/dist/*.rpm
+            build-rpm-el9/dist/*.rpm.sha256
+          if-no-files-found: error
+          retention-days: 7
+
   virus-total:
     name: security / virustotal
     needs: version-check
@@ -266,7 +306,7 @@ jobs:
 
   publish:
     name: publish / all platforms
-    needs: build
+    needs: [build, rpm]
     if: github.repository == 'vladelaina/BongoCat'
     runs-on: ubuntu-24.04
     permissions:
@@ -312,6 +352,13 @@ jobs:
           }
           $files += "release-output/BongoCat-$version-linux-x64.AppImage"
           $files += "release-output/BongoCat-$version-linux-x64.AppImage.sha256"
+          $rpmFiles = @(Get-ChildItem -LiteralPath release-output -File `
+            -Filter "bongocat-$version-*.x86_64.rpm")
+          if ($rpmFiles.Count -ne 1) {
+            throw "Expected one BongoCat RPM, found $($rpmFiles.Count)"
+          }
+          $files += $rpmFiles[0].FullName
+          $files += "$($rpmFiles[0].FullName).sha256"
           foreach ($file in $files) {
             if (-not (Test-Path -LiteralPath $file -PathType Leaf)) {
               throw "Release is incomplete: $file"
@@ -358,6 +405,7 @@ jobs:
             - [macOS Intel](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/BongoCat-${{ steps.version.outputs.version }}-macos-x64.zip)
             - [Linux x64](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/BongoCat-${{ steps.version.outputs.version }}-linux-x64.tar.gz)
             - [Linux x64 AppImage](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/BongoCat-${{ steps.version.outputs.version }}-linux-x64.AppImage)
+            - [RHEL 9 x64 RPM](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/bongocat-${{ steps.version.outputs.version }}-1.el9.x86_64.rpm)
 
           generate_release_notes: true
           fail_on_unmatched_files: true
@@ -368,3 +416,5 @@ jobs:
             release-output/*.zip
             release-output/*.tar.gz
             release-output/*.AppImage
+            release-output/*.rpm
+            release-output/*.rpm.sha256

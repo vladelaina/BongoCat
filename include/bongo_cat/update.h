@@ -11,6 +11,7 @@ typedef struct BongoCatUpdateRelease {
     char release_url[BONGO_CAT_UPDATE_URL_CAP];
     char installer_url[BONGO_CAT_UPDATE_URL_CAP];
     char portable_url[BONGO_CAT_UPDATE_URL_CAP];
+    char package_url[BONGO_CAT_UPDATE_URL_CAP];
     char notes[BONGO_CAT_UPDATE_NOTES_CAP];
 } BongoCatUpdateRelease;
 

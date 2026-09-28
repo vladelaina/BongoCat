@@ -1,0 +1,44 @@
+Name:           bongocat
+Version:        @VERSION@
+Release:        1%{?dist}
+Summary:        Animated desktop cat that reacts to keyboard and mouse input
+%if 0%{?rhel}
+License:        AGPLv3+ and MIT
+%else
+License:        AGPL-3.0-or-later AND MIT
+%endif
+URL:            https://github.com/vladelaina/BongoCat
+Source0:        bongocat-%{version}-runtime.tar.gz
+BuildArch:      x86_64
+AutoReqProv:    yes
+Recommends:     dnf
+Recommends:     polkit
+%global debug_package %{nil}
+
+%description
+BongoCat is an animated desktop pet that reacts to keyboard and mouse input.
+
+%prep
+:
+
+%build
+:
+
+%install
+rm -rf %{buildroot}
+mkdir -p %{buildroot}
+tar -xzf %{_sourcedir}/%{name}-%{version}-runtime.tar.gz \
+  -C %{buildroot}
+
+%files
+%{_bindir}/BongoCat
+%{_bindir}/bongocat
+%{_libexecdir}/bongocat
+%{_datadir}/applications/bongocat.desktop
+%{_datadir}/icons/hicolor/512x512/apps/bongocat.png
+%doc %{_docdir}/bongocat/README.md
+%{_licensedir}/bongocat
+
+%changelog
+* @CHANGELOG_DATE@ BongoCat Packaging <noreply@bongocat.pet> - @VERSION@-1
+- Build the upstream Linux runtime as an RPM package.

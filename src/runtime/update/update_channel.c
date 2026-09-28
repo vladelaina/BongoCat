@@ -1,3 +1,7 @@
+#if defined(__linux__) && !defined(_POSIX_C_SOURCE)
+#define _POSIX_C_SOURCE 200809L
+#endif
+
 #include "update_internal.h"
 #include "bongo_cat/i18n.h"
 #include "preferences_notice.h"
@@ -54,6 +58,11 @@ bool bongo_cat_update_platform_installed(void) {
     return false;
 }
 
+bool bongo_cat_update_start_package(const char *url) {
+    (void)url;
+    return false;
+}
+
 const char *bongo_cat_update_platform_asset(void) {
 #ifdef _WIN64
     return "windows-x64";
@@ -64,9 +73,14 @@ const char *bongo_cat_update_platform_asset(void) {
 
 #else
 
-/* Unix packages are published as a single archive for each architecture.
- * They do not have an installer registration to inspect, but they can still
- * use the release API and open the matching archive when an update exists. */
+#include <errno.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
+/* Unix packages are published as portable archives by default. The RPM
+ * package uses a private runtime directory and an updater helper so its
+ * package-managed installation can be upgraded in place. */
 bool bongo_cat_update_platform_supported(void) {
 #if defined(__APPLE__)
 #if defined(__aarch64__) || defined(__arm64__) || defined(__x86_64__)
@@ -81,7 +95,56 @@ bool bongo_cat_update_platform_supported(void) {
 #endif
 }
 bool bongo_cat_update_platform_store(void) { return false; }
-bool bongo_cat_update_platform_installed(void) { return false; }
+bool bongo_cat_update_platform_installed(void) {
+#if defined(__linux__)
+    static const char runtime_prefix[] = "/usr/libexec/bongocat/";
+    char executable[4096];
+    ssize_t length = readlink("/proc/self/exe", executable,
+        sizeof(executable) - 1);
+    if (length <= 0 || (size_t)length >= sizeof(executable)) return false;
+    executable[length] = '\0';
+    if (strncmp(executable, runtime_prefix,
+            sizeof(runtime_prefix) - 1) != 0) return false;
+    return access("/usr/bin/dnf", X_OK) == 0 &&
+        access("/usr/bin/pkexec", X_OK) == 0;
+#else
+    return false;
+#endif
+}
+bool bongo_cat_update_start_package(const char *url) {
+#if defined(__linux__)
+    static const char helper[] =
+        "/usr/libexec/bongocat/bongocat-update-rpm.sh";
+    if (!url || access(helper, X_OK) != 0) return false;
+    char parent_pid[32];
+    int length = snprintf(parent_pid, sizeof(parent_pid), "%ld",
+        (long)getpid());
+    if (length < 0 || (size_t)length >= sizeof(parent_pid)) return false;
+    pid_t first = fork();
+    if (first < 0) return false;
+    if (first == 0) {
+        if (setsid() < 0) _exit(127);
+        pid_t second = fork();
+        if (second < 0) _exit(127);
+        if (second == 0) {
+            execl(helper, helper, "--url", url, "--pid", parent_pid,
+                (char *)NULL);
+            _exit(127);
+        }
+        _exit(0);
+    }
+    int status = 0;
+    pid_t waited;
+    do {
+        waited = waitpid(first, &status, 0);
+    } while (waited < 0 && errno == EINTR);
+    return waited == first && WIFEXITED(status) &&
+        WEXITSTATUS(status) == 0;
+#else
+    (void)url;
+    return false;
+#endif
+}
 const char *bongo_cat_update_platform_asset(void) {
 #if defined(__APPLE__)
 #if defined(__aarch64__) || defined(__arm64__)

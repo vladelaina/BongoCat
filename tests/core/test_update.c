@@ -26,7 +26,10 @@ static const char unix_release_json[] =
     "\"draft\":false,\"prerelease\":false,\"assets\":["
     "{\"name\":\"BongoCat-2.0.0-linux-x64.tar.gz\","
     "\"browser_download_url\":\"https://github.com/vladelaina/BongoCat/"
-    "releases/download/v2.0.0/BongoCat-2.0.0-linux-x64.tar.gz\"}]}";
+    "releases/download/v2.0.0/BongoCat-2.0.0-linux-x64.tar.gz\"},"
+    "{\"name\":\"bongocat-2.0.0-1.el9.x86_64.rpm\","
+    "\"browser_download_url\":\"https://github.com/vladelaina/BongoCat/"
+    "releases/download/v2.0.0/bongocat-2.0.0-1.el9.x86_64.rpm\"}]}";
 
 void test_update(void) {
     CHECK(bongo_cat_update_version_valid("1.2.3-rc.1+build.4"));
@@ -54,6 +57,8 @@ void test_update(void) {
         &release, &error));
     CHECK(release.installer_url[0] == '\0');
     CHECK(strstr(release.portable_url, "linux-x64.tar.gz") != NULL);
+    CHECK(strstr(release.package_url,
+        "bongocat-2.0.0-1.el9.x86_64.rpm") != NULL);
 
     const char unsafe[] =
         "{\"tag_name\":\"v2.0.0\",\"draft\":false,"

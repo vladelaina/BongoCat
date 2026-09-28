@@ -109,6 +109,26 @@ The executable is written to `build/BongoCat` on Linux, to
 `build/BongoCat.app/Contents/MacOS/BongoCat` on macOS, and to
 `build/Release/BongoCat.exe` for Visual Studio builds.
 
+### 📦 Linux Packages
+
+From a Cubism-enabled Linux x64 build, create the optional release packages:
+
+```bash
+cmake --build build --target package-appimage
+cmake --build build --target package-rpm
+```
+
+The RPM is written to `build/dist/` and requires `rpmbuild` on the build host.
+Package-managed installations use the About update action to download the
+matching release RPM, authorize `dnf install`, and restart the application.
+The container helper can build and verify an EL9 package without installing
+those tools locally:
+
+```bash
+bash .github/scripts/build-rpm-container.sh
+bash .github/scripts/check-rpm.sh build-rpm-el9/dist/*.rpm
+```
+
 ### 🧪 Tests
 
 CTest targets are enabled by default. Run them after building:
