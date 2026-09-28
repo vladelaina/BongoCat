@@ -31,7 +31,7 @@ set(FORBIDDEN_APIS
   AuthorizationCreate AuthorizationExecuteWithPrivileges SMJobBless
   XTestFakeKeyEvent XTestFakeButtonEvent XTestFakeMotionEvent XWarpPointer
   XGrabKey XGrabButton process_vm_readv process_vm_writev ptrace ioctl
-  setuid seteuid setgid setegid capset)
+  seteuid setegid capset)
 set(FORBIDDEN_TOKENS
   SE_DEBUG_NAME SeDebugPrivilege PROCESS_VM_READ PROCESS_VM_WRITE
   PROCESS_VM_OPERATION PROCESS_ALL_ACCESS THREAD_SET_CONTEXT
@@ -84,7 +84,10 @@ set(SENSITIVE_RULES
   "CGEventTapEnable|src/platform/macos/macos_input.m"
   "CGPreflightListenEventAccess|src/platform/macos/macos_input.m"
   "CGRequestListenEventAccess|src/platform/macos/macos_input.m"
-  "/dev/input|src/platform/linux/linux_evdev_devices.c"
+  "/dev/input|src/platform/linux/linux_evdev_devices.c|src/platform/linux/linux_evdev_bootstrap.c"
+  "setuid|src/platform/linux/linux_evdev_bootstrap.c"
+  "setgid|src/platform/linux/linux_evdev_bootstrap.c"
+  "setgroups|src/platform/linux/linux_evdev_bootstrap.c"
   "XISelectEvents|src/platform/linux/linux_x11.c"
   "XFixesSetWindowShapeRegion|src/platform/linux/linux_x11.c"
   "XSendEvent|src/platform/linux/linux.c|src/platform/linux/linux_x11.c"
@@ -115,9 +118,9 @@ foreach(RULE IN LISTS SENSITIVE_RULES)
   endforeach()
 endforeach()
 
-# The reviewed evdev exception permits read-only observation, not device writes
-# or permission changes.
-file(READ "${ROOT}/src/platform/linux/linux_evdev_devices.c" LINUX_EVDEV)
+# The reviewed evdev bootstrap may open input devices before dropping privilege,
+# but it may only pass read-only descriptors to the unprivileged application.
+file(READ "${ROOT}/src/platform/linux/linux_evdev_bootstrap.c" LINUX_EVDEV)
 foreach(TOKEN O_WRONLY O_RDWR O_CREAT O_TRUNC)
   string(FIND "${LINUX_EVDEV}" "${TOKEN}" POSITION)
   if(NOT POSITION EQUAL -1)

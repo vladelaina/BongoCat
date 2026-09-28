@@ -152,6 +152,13 @@ configuration fail instead of silently selecting the diagnostic backend.
 | `BONGO_CAT_CUBISM_SDK` | `vendor/CubismSdkForNative` | Path to the Cubism SDK for Native. |
 | `BONGO_CAT_REQUIRE_CUBISM` | `OFF` | Fail configuration when a usable Cubism SDK is unavailable. |
 | `BONGO_CAT_WARNINGS_AS_ERRORS` | `OFF` | Treat native compiler warnings as errors. |
+| `BONGO_CAT_SUDO_EXECUTABLE` | `/usr/bin/sudo` | Linux-only absolute path to the trusted `sudo` executable used for Wayland evdev access. |
+
+Linux distributions with `sudo` in a nonstandard location can set it while configuring:
+
+```bash
+cmake -S . -B build -DBONGO_CAT_SUDO_EXECUTABLE=/absolute/path/to/sudo
+```
 
 For an offline build with `BONGO_CAT_FETCH_DEPS=OFF`, provide CMake package
 configurations for SDL3 (including `SDL3-static`) and yyjson, plus the include
@@ -336,19 +343,31 @@ configuration, or usage data.
 
 X11 uses XInput2 by default. Experimental evdev input for Wayland is off by
 default. After reviewing [the input permission risks](SECURITY.md#linux-input),
-it can be explicitly selected for one launch:
+enable it explicitly for one launch:
 
 ```sh
 BONGOCAT_ENABLE_EVDEV=1 ./build/BongoCat
 ```
 
-This does not grant device permissions. Do not run the app as root or add
-your account to the `input` group to make it work. Raw input can include
-password keystrokes and is not paused on screen lock or session switching.
-Close the app to stop monitoring; hiding it does not stop input. Launch
-without the variable to return to the default backend. Evdev mouse following
-uses unaccelerated device motion; Wayland placement, click-through, and
-always-on-top support still depend on the compositor.
+BongoCat first tries to open all event devices. If that fails, it enters the
+automatic elevation flow:
+
+```
+Request `sudo` and restart itself;
+Open all existing event devices with elevated privileges;
+Drop all elevated privileges and restart as the original user;
+Pass the read-only event-device descriptors to the new process.
+```
+
+Do not run BongoCat directly as root or add your account to the `input` group.
+Raw input can include password keystrokes, and monitoring is not paused on
+screen lock or session switching. Close the app to stop monitoring; hiding it
+does not stop input. Restart without the variable to return to the default
+backend. Evdev mouse following uses unaccelerated device motion; Wayland
+placement, click-through, and always-on-top support still depend on the
+compositor. Cubism-enabled Linux builds always use XWayland to create a GLX
+rendering window because the GLEW loader bundled with Cubism may not support a
+native Wayland/EGL context.
 
 ### 🖼️ Why OpenGL instead of Vulkan?
 

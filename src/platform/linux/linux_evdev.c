@@ -17,9 +17,7 @@ static LinuxEvdevState *evdev_state(const BongoCatPlatform *platform) {
 
 static int SDLCALL evdev_thread(void *userdata) {
     LinuxEvdevState *state = userdata;
-    bongo_cat_evdev_scan(state);
     struct epoll_event events[EVDEV_MAX_DEVICES];
-    uint64_t next_scan = SDL_GetTicksNS() + EVDEV_SCAN_INTERVAL_NS;
     while (atomic_load(&state->running)) {
         int ready = epoll_wait(state->epoll_fd, events, EVDEV_MAX_DEVICES,
             EVDEV_POLL_MS);
@@ -37,11 +35,6 @@ static int SDLCALL evdev_thread(void *userdata) {
                 !bongo_cat_evdev_read(state, &state->devices[index]))
                 bongo_cat_evdev_remove(state, index);
         }
-        uint64_t now = SDL_GetTicksNS();
-        if (now >= next_scan) {
-            next_scan = now + EVDEV_SCAN_INTERVAL_NS;
-            bongo_cat_evdev_scan(state);
-        }
     }
     while (state->device_count) bongo_cat_evdev_remove(state, 0);
     atomic_store(&state->running, false);
@@ -52,15 +45,27 @@ bool bongo_cat_linux_evdev_start(BongoCatPlatform *platform, BongoCatError *erro
     LinuxPlatformState *native = platform ? platform->native : NULL;
     if (!native || !native->evdev_selected || !platform->input) return false;
     if (native->evdev) return true;
+    const char *inherited = getenv("BONGOCAT_EVDEV_FDS");
     LinuxEvdevState *state = calloc(1, sizeof(*state));
-    if (!state) goto failed;
+    if (!state) {
+        bongo_cat_evdev_discard(inherited);
+        goto failed;
+    }
     state->platform = platform;
     state->epoll_fd = epoll_create1(EPOLL_CLOEXEC);
     state->motion_lock = SDL_CreateMutex();
     atomic_init(&state->running, true);
     atomic_init(&state->pointer_active, false);
     state->reported_count = SIZE_MAX;
-    if (state->epoll_fd < 0 || !state->motion_lock) goto failed;
+    if (state->epoll_fd < 0 || !state->motion_lock) {
+        bongo_cat_evdev_discard(inherited);
+        goto failed;
+    }
+    if (!bongo_cat_evdev_import(state, inherited)) {
+        bongo_cat_error_set(error, BONGO_CAT_ERROR_PLATFORM,
+            "No inherited evdev devices; restart with BONGOCAT_ENABLE_EVDEV=1");
+        goto failed;
+    }
     state->thread = SDL_CreateThread(evdev_thread, BONGO_CAT_SLUG "-evdev-input", state);
     if (!state->thread) goto failed;
     native->evdev = state;
@@ -68,11 +73,14 @@ bool bongo_cat_linux_evdev_start(BongoCatPlatform *platform, BongoCatError *erro
     return true;
 failed:
     if (state) {
+        while (state->device_count) bongo_cat_evdev_remove(state, 0);
         if (state->epoll_fd >= 0) close(state->epoll_fd);
         SDL_DestroyMutex(state->motion_lock);
         free(state);
     }
-    bongo_cat_error_set(error, BONGO_CAT_ERROR_PLATFORM, "Cannot start evdev input listener");
+    if (!error || !error->message[0])
+        bongo_cat_error_set(error, BONGO_CAT_ERROR_PLATFORM,
+            "Cannot start evdev input listener");
     return false;
 }
 

@@ -13,6 +13,7 @@ typedef struct LinuxPlatformState {
 } LinuxPlatformState;
 
 bool bongo_cat_linux_evdev_requested(const char *option, bool wayland);
+void bongo_cat_evdev_discard(const char *descriptors);
 
 bool bongo_cat_linux_x11_start(BongoCatPlatform *platform, BongoCatError *error);
 void bongo_cat_linux_x11_stop(BongoCatPlatform *platform);

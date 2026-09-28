@@ -71,6 +71,7 @@ else()
     src/platform/linux/linux_evdev_devices.c
     src/platform/linux/linux_evdev_events.c
     src/platform/linux/linux_evdev_keys.c
+    src/platform/linux/linux_evdev_probe.c
     src/platform/linux/linux_shape.c
     src/platform/linux/linux_wayland_shape.c
     src/platform/linux/linux_x11.c)

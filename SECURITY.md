@@ -39,25 +39,28 @@ testing the actual release build.
 ## Linux Input
 
 X11 uses XInput2 by default. Experimental Wayland input through evdev is
-disabled unless the process is started with `BONGOCAT_ENABLE_EVDEV=1` in a
-Wayland session. Restart without that variable to disable it. This opt-in
-selects evdev for the entire session; unreadable devices do not trigger
-automatic backend switching. Window placement still depends on the compositor.
+disabled unless BongoCat is started with `BONGOCAT_ENABLE_EVDEV=1`. It attempts
+to open keyboard and pointer event devices as the current user first. If any
+device denies access, BongoCat restarts itself through `sudo` in an internal
+early-startup mode. It does not monitor hot-plugged devices. Window placement
+still depends on the compositor.
 
-The evdev backend opens existing input event devices read-only and never
-changes permissions, installs udev rules, requests root, grabs devices, or
-injects input. Do not run BongoCat as root or add your account to the
-`input` group just to enable this feature. Broad input-group membership or
-generic udev rules can also grant other processes under your account access
-to your keyboard. Device access must be managed separately by your system
-administrator with the narrowest permissions appropriate for the machine.
+The elevated branch is the first operation in `main`: it identifies and opens
+existing input devices read-only, removes supplementary groups, restores the
+invoking user's UID and GID, and immediately re-executes BongoCat. No SDL, UI,
+configuration, model, or application initialization runs before privileges are
+dropped, although the executable and its dynamic dependencies are necessarily
+loaded by the elevated process. BongoCat never changes permissions, installs
+udev rules, grabs devices, or injects input. Do not run it directly as root or
+add your account to the `input` group. Inherited descriptors are marked
+close-on-exec immediately so programs launched by BongoCat do not inherit them.
 
 Raw device input is more sensitive than compositor-mediated input: it can
 include keys entered in password fields, and this backend does not detect
 screen locking or session changes. Hiding the pet does not stop monitoring.
 Do not enable evdev where this scope is unacceptable; exit BongoCat before
-locking or switching sessions when using this experimental backend. Removing
-a device ACL is not a guarantee that already-open descriptors are revoked.
+locking or switching sessions when using this experimental backend. Closing
+or changing permissions on a device node does not revoke an already-open descriptor.
 Key events stay in memory for animation and shortcuts; diagnostics contain
 device counts, not key names or input contents. They are not uploaded.
 

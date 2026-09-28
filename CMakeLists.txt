@@ -136,6 +136,16 @@ include(cmake/AboutWebP.cmake)
 add_executable(bongo_cat src/main.c)
 target_link_libraries(bongo_cat PRIVATE bongo_cat_runtime bongo_cat_warnings)
 set_target_properties(bongo_cat PROPERTIES OUTPUT_NAME "BongoCat")
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  target_sources(bongo_cat PRIVATE src/platform/linux/linux_evdev_bootstrap.c)
+  set(BONGO_CAT_SUDO_EXECUTABLE "/usr/bin/sudo" CACHE FILEPATH
+    "Absolute path to the trusted sudo executable")
+  if(NOT IS_ABSOLUTE "${BONGO_CAT_SUDO_EXECUTABLE}")
+    message(FATAL_ERROR "BONGO_CAT_SUDO_EXECUTABLE must be an absolute path")
+  endif()
+  target_compile_definitions(bongo_cat PRIVATE
+    BONGO_CAT_SUDO_EXECUTABLE="${BONGO_CAT_SUDO_EXECUTABLE}")
+endif()
 bongo_cat_enable_release_ipo(Framework bongo_cat_core bongo_cat_runtime bongo_cat)
 
 include(cmake/ValidationTools.cmake)

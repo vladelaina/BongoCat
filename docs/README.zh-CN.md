@@ -114,6 +114,7 @@ SDK 必须包含 Core 库、Framework 源码，以及 `cmake/Cubism.cmake` 所�
 | `BONGO_CAT_CUBISM_SDK` | `vendor/CubismSdkForNative` | Cubism SDK for Native 的路径。 |
 | `BONGO_CAT_REQUIRE_CUBISM` | `OFF` | SDK 不可用时使配置失败。 |
 | `BONGO_CAT_WARNINGS_AS_ERRORS` | `OFF` | 将本地编译器警告视为错误。 |
+| `BONGO_CAT_SUDO_EXECUTABLE` | `/usr/bin/sudo` | 仅 Linux：用于 Wayland evdev 提权访问的可信 `sudo` 绝对路径。 |
 
 离线构建时将 `BONGO_CAT_FETCH_DEPS=OFF`，并提供 SDL3（包括 `SDL3-static`）和 yyjson 的 CMake 包配置；如果 stb、Nuklear 和 miniaudio 无法自动发现，还需提供其包含目录：
 
@@ -237,10 +238,19 @@ X11 默认使用 XInput2。Wayland 的实验性 evdev 输入默认关闭；阅�
 BONGOCAT_ENABLE_EVDEV=1 ./build/BongoCat
 ```
 
-这个开关不会授予设备权限。不要为此以 root 身份运行程序，或把账户加入
-`input` 组。原始输入可能包含密码框里的按键，监听不会在锁屏或切换会话时自动暂停。
+BongoCat 会先尝试打开所有 event 设备。如果失败，程序会进入自动提权流程：
+
+```
+申请 `sudo` 重新启动自己；
+以高权限打开所有存在的event设备；
+清除全部提权，降回原用户身份重新启动。
+将event设备只读描述符传递给新程序。
+```
+
+不要以 root 直接运行 BongoCat，也不要将账户加入 `input` 组。原始输入可能包含密码框里的按键，监听不会在锁屏或切换会话时自动暂停。
 退出程序才会停止监听，隐藏宠物不会停止；不带该变量重新启动即可恢复默认后端。
 鼠标跟随使用未经加速的设备位移，窗口定位、点击穿透和置顶仍取决于 Wayland 合成器。
+启用 Cubism 的 Linux 构建始终使用 XWayland 创建 GLX 渲染窗口，因为当前随 Cubism 构建的 GLEW 加载器可能不支持原生 Wayland/EGL 上下文。
 
 ### 🖼️ 为什么使用 OpenGL 而不是 Vulkan？
 

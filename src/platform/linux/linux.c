@@ -111,7 +111,9 @@ BongoCatResult bongo_cat_platform_init(BongoCatPlatform *platform, SDL_Window *w
         input_error = (BongoCatError){0};
         if (!bongo_cat_linux_evdev_start(platform, &input_error) && input_error.message[0])
             SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "%s", input_error.message);
-    }
+    } else bongo_cat_evdev_discard(getenv("BONGOCAT_EVDEV_FDS"));
+    unsetenv("BONGOCAT_EVDEV_FDS");
+    unsetenv("BONGOCAT_ENABLE_EVDEV");
     return BONGO_CAT_OK;
 }
 void bongo_cat_platform_shutdown(BongoCatPlatform *platform) {

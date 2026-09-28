@@ -23,10 +23,13 @@ Keyboard, mouse, and gamepad input is processed locally to animate the pet and
 is not sent to a remote service.
 
 On Linux, experimental Wayland evdev monitoring is disabled by default and
-requires explicit opt-in with `BONGOCAT_ENABLE_EVDEV=1`. When enabled and
-device permissions allow it, raw keyboard events can include input in other
-applications and password fields. Hiding the pet does not stop this listener,
-and it does not detect screen locking or session switching. See
+requires explicit opt-in with `BONGOCAT_ENABLE_EVDEV=1`. BongoCat first tries
+to open current input devices directly; on permission denial it uses `sudo` for
+an early open-only startup stage, drops back to the invoking user, and restarts
+with inherited read-only descriptors. It does not grant device access to the
+user's other programs. Raw keyboard events can include input in other applications
+and password fields. Hiding the pet does not stop this listener, and it does not
+detect screen locking or session switching. See
 [Linux Input in SECURITY.md](SECURITY.md#linux-input) before enabling it.
 
 ### Locally Stored Data

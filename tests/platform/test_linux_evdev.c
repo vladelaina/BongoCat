@@ -1,7 +1,9 @@
 #include "linux_evdev_internal.h"
 #include "test.h"
+#include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
+#include <stdio.h>
 #include <string.h>
 #include <sys/epoll.h>
 #include <unistd.h>
@@ -58,6 +60,20 @@ static void test_policy_and_masks(void) {
     CHECK(!bongo_cat_evdev_mask_bit("10000000000000000", 64, 0));
     CHECK(!bongo_cat_evdev_mask_bit("", 64, 0));
     CHECK(!bongo_cat_evdev_mask_bit("1", 64, KEY_CNT));
+    int inherited[2];
+    CHECK(pipe(inherited) == 0);
+    char descriptor[64];
+    snprintf(descriptor, sizeof(descriptor), "%d:event0", inherited[0]);
+    bongo_cat_evdev_discard(descriptor);
+    errno = 0;
+    CHECK(fcntl(inherited[0], F_GETFD) == -1 && errno == EBADF);
+    close(inherited[1]);
+    int unrelated = open("/dev/null", O_RDONLY | O_NONBLOCK);
+    CHECK(unrelated >= 3);
+    snprintf(descriptor, sizeof(descriptor), "%d:event0", unrelated);
+    CHECK(!bongo_cat_evdev_import(&state, descriptor));
+    errno = 0;
+    CHECK(fcntl(unrelated, F_GETFD) == -1 && errno == EBADF);
 }
 
 static void test_multiple_devices(void) {
