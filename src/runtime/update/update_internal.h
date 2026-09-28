@@ -26,6 +26,11 @@ struct BongoCatUpdateService {
     bool manual;
     bool open_after_check;
     bool installed;
+    /* Set when the running build is an AppImage that can replace itself. */
+    bool appimage;
+    char appimage_path[BONGO_CAT_PATH_CAP];
+    /* An install that failed must not repeat the download on every launch. */
+    bool install_failed;
     bool shutting_down;
     bool http_cancelled;
     void *http_session;
@@ -42,5 +47,8 @@ bool bongo_cat_update_platform_supported(void);
 bool bongo_cat_update_platform_store(void);
 bool bongo_cat_update_platform_installed(void);
 const char *bongo_cat_update_platform_asset(void);
+bool bongo_cat_update_platform_appimage(char *path, size_t capacity);
+bool bongo_cat_update_appimage_install(BongoCatUpdateService *service,
+    const char *url, const char *target, char *error, size_t error_capacity);
 
 #endif

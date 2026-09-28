@@ -51,8 +51,8 @@ static bool read_assets(yyjson_val *root, const char *platform,
     BongoCatUpdateRelease *release) {
     yyjson_val *assets = yyjson_obj_get(root, "assets");
     if (!yyjson_is_arr(assets)) return false;
-    char installer[128] = {0}, portable[128] = {0};
-    int installer_length = 0, portable_length = 0;
+    char installer[128] = {0}, portable[128] = {0}, appimage[128] = {0};
+    int installer_length = 0, portable_length = 0, appimage_length = 0;
     if (strncmp(platform, "windows-", 8) == 0) {
         installer_length = snprintf(installer, sizeof(installer),
             "BongoCat-%s-%s-setup.exe", release->version, platform);
@@ -61,13 +61,16 @@ static bool read_assets(yyjson_val *root, const char *platform,
     } else if (strcmp(platform, "linux-x64") == 0) {
         portable_length = snprintf(portable, sizeof(portable),
             "BongoCat-%s-%s.tar.gz", release->version, platform);
+        appimage_length = snprintf(appimage, sizeof(appimage),
+            "BongoCat-%s-%s.AppImage", release->version, platform);
     } else if (strcmp(platform, "macos-x64") == 0 ||
         strcmp(platform, "macos-arm64") == 0) {
         portable_length = snprintf(portable, sizeof(portable),
             "BongoCat-%s-%s.zip", release->version, platform);
     } else return false;
     if (installer_length < 0 || (size_t)installer_length >= sizeof(installer) ||
-        portable_length < 0 || (size_t)portable_length >= sizeof(portable))
+        portable_length < 0 || (size_t)portable_length >= sizeof(portable) ||
+        appimage_length < 0 || (size_t)appimage_length >= sizeof(appimage))
         return false;
     size_t index, count;
     yyjson_val *asset;
@@ -78,6 +81,9 @@ static bool read_assets(yyjson_val *root, const char *platform,
                 sizeof(release->installer_url));
         if (!release->portable_url[0]) copy_asset_url(asset, portable,
             release->portable_url, sizeof(release->portable_url));
+        if (appimage[0] && !release->appimage_url[0])
+            copy_asset_url(asset, appimage, release->appimage_url,
+                sizeof(release->appimage_url));
     }
     return true;
 }

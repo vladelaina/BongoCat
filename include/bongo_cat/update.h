@@ -11,6 +11,8 @@ typedef struct BongoCatUpdateRelease {
     char release_url[BONGO_CAT_UPDATE_URL_CAP];
     char installer_url[BONGO_CAT_UPDATE_URL_CAP];
     char portable_url[BONGO_CAT_UPDATE_URL_CAP];
+    /* Linux AppImage releases can replace themselves; empty elsewhere. */
+    char appimage_url[BONGO_CAT_UPDATE_URL_CAP];
     char notes[BONGO_CAT_UPDATE_NOTES_CAP];
 } BongoCatUpdateRelease;
 
