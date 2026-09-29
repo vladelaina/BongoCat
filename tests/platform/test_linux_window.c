@@ -3,6 +3,7 @@
 #include <stdlib.h>
 
 int bongo_cat_test_failures;
+void bongo_cat_test_linux_click_through(BongoCatApp *app);
 
 int main(int argc, char **argv) {
     BongoCatApp *app = calloc(1, sizeof(*app));
@@ -15,7 +16,6 @@ int main(int argc, char **argv) {
         return 1;
     }
     app->startup_visibility_pending = false;
-    app->settings.window.keep_in_screen = true;
     app->settings.window.always_on_top = true;
     bongo_cat_platform_set_always_on_top(&app->platform, true);
     bongo_cat_window_set_visible(app, true);
@@ -33,7 +33,7 @@ int main(int argc, char **argv) {
     bongo_cat_window_set_visible(app, true);
     SDL_SyncWindow(app->window);
     CHECK(SDL_GetWindowPosition(app->window, &x, &y));
-    CHECK(x >= bounds.x && y >= bounds.y);
+    CHECK(x == bounds.x - 10000 && y == bounds.y - 10000);
     CHECK(!(SDL_GetWindowFlags(app->window) & SDL_WINDOW_HIDDEN));
     CHECK(SDL_GetWindowFlags(app->window) & SDL_WINDOW_ALWAYS_ON_TOP);
     SDL_Event exposed = {.type = SDL_EVENT_WINDOW_EXPOSED};
@@ -47,6 +47,7 @@ int main(int argc, char **argv) {
         bongo_cat_window_set_visible(app, true);
     }
     CHECK(!app->startup_visibility_pending && app->session.window.visible);
+    bongo_cat_test_linux_click_through(app);
     bongo_cat_app_shutdown(app, "test:complete", bongo_cat_test_failures ? 1 : 0);
     free(app);
     return bongo_cat_test_failures ? 1 : 0;

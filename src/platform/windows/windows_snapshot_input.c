@@ -19,7 +19,7 @@ bool bongo_cat_windows_snapshot_hit(BongoCatWindowsSnapshot *s, float x, float y
     int px = SDL_clamp((int)(x * s->width / destination.w), 0, s->width - 1);
     int py = s->height - 1 - SDL_clamp(
         (int)(y * s->height / destination.h), 0, s->height - 1);
-    return s->pixels[((size_t)py * s->width + px) * 4 + 3] > 8;
+    return s->pixels[(size_t)py * s->width + px] > 8;
 }
 
 void bongo_cat_windows_snapshot_pointer(BongoCatWindowsSnapshot *s) {

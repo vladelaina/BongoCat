@@ -69,7 +69,8 @@ bool bongo_cat_ui_resize_cache_present(BongoCatUIBackend *ui) {
     glClearColor(0, 0, 0, 0); glClear(GL_COLOR_BUFFER_BIT);
     glEnable(GL_BLEND);
     ui->gl.blend_equation(GL_FUNC_ADD);
-    ui->gl.blend_func_separate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA,
+    /* The cached framebuffer already contains premultiplied RGB. */
+    ui->gl.blend_func_separate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA,
         GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
     ui->gl.use_program(ui->program);
     ui->gl.uniform_1i(ui->texture_location, 0);

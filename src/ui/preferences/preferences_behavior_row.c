@@ -2,6 +2,8 @@
 #include "bongo_cat/audio.h"
 #include "bongo_cat/shortcut.h"
 #include "preferences_overlay.h"
+#include "preferences_notice.h"
+#include "runtime.h"
 #include "preferences_shortcut_clear.h"
 #include "ui_animation.h"
 #include "ui_backend.h"
@@ -28,11 +30,11 @@ static bool hit(struct nk_context *context, struct nk_rect bounds, bool enabled)
         nk_input_is_mouse_click_in_rect(&context->input, NK_BUTTON_LEFT, bounds);
 }
 
-static BongoCatBehaviorShortcut *binding_for(BongoCatSettings *config,
+static BongoCatBehaviorShortcut *binding_for(BongoCatApp *app,
     const char *id) {
-    for (size_t i = 0; i < config->behavior_shortcut_count; ++i)
-        if (!strcmp(config->behavior_shortcuts[i].id, id))
-            return &config->behavior_shortcuts[i];
+    BongoCatBehaviorShortcut *existing = bongo_cat_app_behavior_binding_mut(app, id);
+    if (existing) return existing;
+    BongoCatSettings *config = &app->settings;
     if (config->behavior_shortcut_count >= BONGO_CAT_BEHAVIOR_BINDING_CAP) return NULL;
     BongoCatBehaviorShortcut *binding =
         &config->behavior_shortcuts[config->behavior_shortcut_count++];
@@ -43,8 +45,9 @@ static BongoCatBehaviorShortcut *binding_for(BongoCatSettings *config,
 
 static const char *display_label(BongoCatPreferences *value, const BongoCatBehaviorEntry *entry,
     const BongoCatBehaviorShortcut *binding) {
-    if (binding && binding->label[0])
-        return binding->label;
+    (void)binding;
+    const char *label = bongo_cat_app_behavior_label(value->app, entry->id);
+    if (label) return label;
     if (entry->sound_clear) return bongo_cat_i18n_get(value->app->i18n,
         "pages.preference.model.behaviorModal.labels.stopAllAudio", "Stop all audio");
     return entry->label;
@@ -90,6 +93,16 @@ static bool shortcut_editor(BongoCatPreferences *value,
         bounds.y + 8, 17, 20);
     if (bongo_cat_pref_shortcut_clear(context, canvas, id, clear, p,
         opacity, enabled && !active && shortcut->shortcut[0])) {
+        BongoCatError error = {0};
+        if (!bongo_cat_model_shortcut_save(value->app, shortcut->id, "", &error)) {
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
+                "Model shortcut clear failed: %s", error.message);
+            bongo_cat_preferences_notice_show(value->app,
+                bongo_cat_i18n_get(value->app->i18n,
+                    "pages.preference.model.hints.shortcutSaveFailed",
+                    "Unable to save the model shortcut. Check file permissions and available disk space"), true);
+            return false;
+        }
         shortcut->shortcut[0] = '\0';
         shortcut->shortcut_disabled = true;
         value->render_dirty = true; return false;
@@ -101,7 +114,7 @@ static bool shortcut_editor(BongoCatPreferences *value,
 
 static void draw_name(BongoCatPreferences *value, struct nk_context *context,
     struct nk_command_buffer *canvas, struct nk_rect bounds,
-    BongoCatBehaviorEntry *entry, BongoCatBehaviorShortcut *binding,
+    const BongoCatBehaviorEntry *entry, BongoCatBehaviorShortcut *binding,
     BongoCatUIPalette p, float opacity, bool enabled) {
     const char *label = display_label(value, entry, binding);
     BongoCatPreferencesTextSession *session = &value->behavior_rename;
@@ -142,16 +155,17 @@ static void draw_name(BongoCatPreferences *value, struct nk_context *context,
 
 void bongo_cat_preferences_behavior_row_draw(BongoCatPreferences *value,
     struct nk_context *context, struct nk_command_buffer *canvas,
-    struct nk_rect row, BongoCatBehaviorEntry *entry, BongoCatUIPalette p,
+    struct nk_rect row, const BongoCatBehaviorEntry *entry, BongoCatUIPalette p,
     float opacity, bool enabled) {
     struct nk_rect play = nk_rect(row.x + row.w - 52, row.y + 10, 36, 36);
     struct nk_rect shortcut_bounds = nk_rect(play.x - 188, row.y + 10, 180, 36);
     struct nk_rect name = nk_rect(row.x + 8, row.y + 9,
         NK_MAX(48.0f, shortcut_bounds.x - row.x - 16), 38);
-    BongoCatBehaviorShortcut *binding = binding_for(&value->app->settings,
+    BongoCatBehaviorShortcut *binding = binding_for(value->app,
         entry->id);
     draw_name(value, context, canvas, name, entry, binding, p, opacity, enabled);
-    bool play_enabled = enabled;
+    bool play_enabled = enabled && (entry->kind == BONGO_CAT_BEHAVIOR_SOUND ||
+        bongo_cat_preferences_behavior_model_loaded(value));
     bool play_hover = play_enabled && nk_input_is_mouse_hovering_rect(
         &context->input, play);
     nk_fill_rect(canvas, play, 10, alpha(play_hover ? p.hover : p.field, opacity));
@@ -173,7 +187,7 @@ void bongo_cat_preferences_behavior_row_draw(BongoCatPreferences *value,
         value->render_dirty = true;
     }
     if (!binding) return;
-    char id[BONGO_CAT_ID_CAP + 16];
+    char id[BONGO_CAT_BEHAVIOR_ID_CAP + 16];
     snprintf(id, sizeof(id), "behavior-%.*s", (int)sizeof(id) - 10, entry->id);
     if (shortcut_editor(value, context, canvas, shortcut_bounds, id, binding,
         p, opacity, enabled))

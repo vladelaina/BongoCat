@@ -1,6 +1,7 @@
 #include "preferences_widgets.h"
 #include "preferences_widgets_internal.h"
 #include "preferences_controls.h"
+#include "preferences_theme.h"
 #include "ui_backend.h"
 #include "ui_catime.h"
 #include "ui_paint.h"
@@ -214,6 +215,18 @@ bool bongo_cat_pref_toggle(struct nk_context *context, const char *id,
     nk_layout_row_end(context); bongo_cat_pref_description(context, detail, lines);
     form_end(context, &saved); return changed;
 }
+bool bongo_cat_pref_toggle_help(struct nk_context *context, const char *id,
+    const char *title, const char *description, const char *help, bool *value) {
+    FormStyle saved;
+    int lines = bongo_cat_pref_detail_lines(context, description);
+    if (!form_begin(context, id, lines, &saved)) return false;
+    bongo_cat_pref_form_title_sized(context, title, 80.0f);
+    bool changed = bongo_cat_pref_control_toggle(context, id, value);
+    nk_layout_row_end(context);
+    bongo_cat_ui_question_tooltip(context, description, help);
+    form_end(context, &saved);
+    return changed;
+}
 bool bongo_cat_pref_obs_background(struct nk_context *context, const char *id,
     const char *title, const char *question, const char *reply, bool *enabled,
     BongoCatObsBackgroundColor *color) {
@@ -235,6 +248,40 @@ bool bongo_cat_pref_float(struct nk_context *context, const char *id,
         minimum, value, maximum, step, default_value);
     nk_layout_row_end(context); bongo_cat_pref_description(context, detail, lines);
     form_end(context, &saved); return changed;
+}
+bool bongo_cat_pref_float_action(struct nk_context *context, const char *id,
+    const char *title, const char *detail, float minimum, float *value,
+    float maximum, float step, float default_value, const char *button) {
+    float detail_width = NK_MAX(1.0f,
+        nk_window_get_content_region(context).w - 26.0f - 33.0f);
+    int lines = bongo_cat_pref_detail_text(context, detail,
+        nk_rect(0, 0, detail_width, 0), false);
+    FormStyle saved;
+    if (!form_begin(context, id, lines, &saved)) return false;
+    const struct nk_user_font *font = context->style.font;
+    float button_width = NK_MAX(88.0f, font->width(font->userdata,
+        font->height, button, nk_strlen(button)) + 24.0f);
+    float available = nk_window_get_content_region(context).w;
+    nk_layout_row_begin(context, NK_STATIC, 36, 3);
+    nk_layout_row_push(context, NK_MAX(1.0f, available - 124.0f -
+        button_width - 16.0f));
+    bongo_cat_pref_form_label(context, title);
+    nk_layout_row_push(context, 124.0f);
+    bongo_cat_pref_control_float(context, id,
+        minimum, value, maximum, step, default_value);
+    nk_layout_row_push(context, button_width);
+    bool clicked = bongo_cat_pref_capsule_button(context, id, button);
+    nk_layout_row_end(context);
+    if (lines) {
+        nk_layout_row_dynamic(context, 19.0f * lines, 1);
+        struct nk_rect bounds;
+        if (nk_widget(&bounds, context) != NK_WIDGET_INVALID) {
+            bounds.x += 33.0f;
+            bounds.w = detail_width;
+            bongo_cat_pref_detail_text(context, detail, bounds, true);
+        }
+    }
+    form_end(context, &saved); return clicked;
 }
 bool bongo_cat_pref_int(struct nk_context *context, const char *id,
     const char *title, const char *detail, int minimum, int *value,

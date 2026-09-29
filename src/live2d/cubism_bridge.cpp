@@ -1,9 +1,11 @@
 #include "bongo_cat/file.h"
 #include "bongo_cat/model.h"
+#include "bongo_cat/resource_trace.h"
 #if defined(CSM_TARGET_WIN_GL) || defined(CSM_TARGET_LINUX_GL) || defined(CSM_TARGET_MAC_GL)
 #include <GL/glew.h>
 #endif
 #include "cubism_runtime.hpp"
+#include "cubism_render_resources.hpp"
 
 #include <CubismFramework.hpp>
 #include <SDL3/SDL_filesystem.h>
@@ -139,12 +141,11 @@ extern "C" BongoCatLive2D *bongo_cat_live2d_create(const char *asset_root,
 
 extern "C" void bongo_cat_live2d_destroy(BongoCatLive2D *runtime) {
     if (!runtime) return;
-    if (runtime->retired_count) SDL_Log("[runtime] Live2D resource handoff: "
-        "stage=retirement-flush queue=%u current_context=%p",
-        runtime->retired_count, (void *)SDL_GL_GetCurrentContext());
-    for (unsigned i = 0; i < runtime->retired_count; ++i)
-        delete runtime->retired[i].model;
     delete runtime->model;
+    bongo_cat_resource_trace_atlas(0.0);
+    /* Retire the renderer before its unused singleton targets, while the
+       owning GL context is still available. */
+    if (runtime_count == 1) bongo_cat::release_offscreen_pool();
     delete runtime;
     stop_framework();
 }
@@ -188,28 +189,50 @@ extern "C" void bongo_cat_live2d_reshape(BongoCatLive2D *runtime, int width, int
 }
 extern "C" bool bongo_cat_live2d_update(BongoCatLive2D *runtime, float elapsed) {
     if (!runtime) return false;
-    bool changed = runtime->model && runtime->model->update(elapsed);
-    // Finish deferred releases even when the replacement model is static.
-    return changed || runtime->retired_count > 0;
+    return runtime->model && runtime->model->update(elapsed);
+}
+
+extern "C" bool bongo_cat_live2d_texture_refresh_pending(const BongoCatLive2D *runtime, bool active) {
+    return runtime && runtime->model && runtime->model->texture_refresh_pending(active);
+}
+
+extern "C" bool bongo_cat_live2d_texture_refresh_due(const BongoCatLive2D *runtime,
+    bool active, bool allow_start) {
+    return runtime && runtime->model && runtime->model->texture_refresh_due(active, allow_start);
+}
+
+extern "C" bool bongo_cat_live2d_try_reuse_texture_quality(BongoCatLive2D *runtime,
+    float quality_percent) {
+    return runtime && runtime->model && runtime->model->try_reuse_texture_quality(quality_percent);
+}
+
+extern "C" bool bongo_cat_live2d_measure_frame(BongoCatLive2D *runtime,
+    BongoCatLive2DFrame *required) {
+    return runtime && runtime->model && runtime->model->measure_frame(required);
+}
+
+extern "C" void bongo_cat_live2d_set_frame(BongoCatLive2D *runtime,
+    const BongoCatLive2DFrame *frame) {
+    if (runtime && runtime->model && frame) runtime->model->set_frame(*frame);
+}
+extern "C" bool bongo_cat_live2d_refresh_textures(BongoCatLive2D *runtime,
+    bool active, bool allow_start) {
+    return runtime && runtime->model && runtime->model->refresh_texture_resolution(active, allow_start);
+}
+extern "C" bool bongo_cat_live2d_texture_refresh_busy(const BongoCatLive2D *runtime) {
+    return runtime && runtime->model && runtime->model->texture_refresh_busy();
+}
+extern "C" void bongo_cat_live2d_cancel_texture_refresh(BongoCatLive2D *runtime) {
+    if (runtime && runtime->model) runtime->model->cancel_texture_refresh_async();
 }
 extern "C" void bongo_cat_live2d_draw(BongoCatLive2D *runtime) {
     if (!runtime) return;
-    unsigned keep = 0, released = 0;
-    for (unsigned i = 0; i < runtime->retired_count; ++i) {
-        BongoCatRetiredModel item = runtime->retired[i];
-        if (item.frames_remaining) item.frames_remaining--;
-        if (!item.frames_remaining) {
-            delete item.model;
-            released++;
-        } else runtime->retired[keep++] = item;
-    }
-    runtime->retired_count = keep;
-    if (released) SDL_Log("[runtime] Live2D resource handoff: "
-        "stage=retirement-complete released=%u queue=%u current_context=%p "
-        "gl_error=0x%x", released, keep, (void *)SDL_GL_GetCurrentContext(),
-        (unsigned)glGetError());
     if (runtime->model) runtime->model->draw();
 }
+extern "C" void bongo_cat_live2d_set_vertical_flip(BongoCatLive2D *runtime, bool flipped) {
+    if (runtime && runtime->model) runtime->model->set_vertical_flip(flipped);
+}
+
 extern "C" void bongo_cat_live2d_set_mirror(BongoCatLive2D *runtime, bool mirror) {
     if (runtime && runtime->model) runtime->model->set_mirror(mirror); }
 extern "C" void bongo_cat_live2d_set_render_options(BongoCatLive2D *runtime,

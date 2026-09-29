@@ -43,38 +43,15 @@ static BongoCatResult scan_nearby_root(BongoCatApp *app, const char *root) {
     return result;
 }
 
-bool bongo_cat_model_catalog_add_bundled(BongoCatApp *app, bool replace) {
-    char root[BONGO_CAT_PATH_CAP];
-    if (!app || !bongo_cat_path_join(root, sizeof(root), app->asset_root,
-            "models")) return false;
-    BongoCatModelCatalog *bundled = calloc(1, sizeof(*bundled));
-    if (!bundled) return false;
-    BongoCatError error = {0};
-    BongoCatResult result = bongo_cat_models_scan(bundled, root, true, &error);
-    for (size_t i = 0; i < bundled->count; ++i) {
-        const BongoCatModelEntry *entry = &bundled->entries[i];
-        size_t index = 0;
-        while (index < app->models.count &&
-            strcmp(app->models.entries[index].id, entry->id)) index++;
-        if (index < app->models.count && !replace) continue;
-        if (index >= BONGO_CAT_MODEL_CAP) continue;
-        app->models.entries[index] = *entry;
-        if (index == app->models.count) app->models.count++;
-    }
-    bool available = bundled->count > 0 && result == BONGO_CAT_OK;
-    if (!available) SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
-        "Bundled model scan failed: path=%s error=%s", root,
-        error.message[0] ? error.message : "no bundled models found");
-    free(bundled);
-    return available;
-}
-
 static BongoCatResult scan_owned_models(BongoCatApp *app, bool cleanup) {
     BongoCatError error = {0};
     bongo_cat_models_init(&app->models);
     bongo_cat_import_storage_lock();
     BongoCatResult result = bongo_cat_model_install_builtins(app->asset_root,
-        app->models_root, &error);
+        app->models_root,
+        !bongo_cat_path_is_file(app->settings_path) &&
+        !bongo_cat_path_is_file(app->session_path), &error);
+    BongoCatResult installation = result;
     if (result != BONGO_CAT_OK)
         SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
             "Built-in model installation failed; using available models: "
@@ -91,9 +68,6 @@ static BongoCatResult scan_owned_models(BongoCatApp *app, bool cleanup) {
     if (result != BONGO_CAT_OK) SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
         "Stored built-in model scan incomplete: path=%s error=%s",
         app->models_root, error.message);
-    /* Establish fallback entries before optional discovery can fail or fill
-       the catalog. Bundled assets do not depend on writable model storage. */
-    bongo_cat_model_catalog_add_bundled(app, false);
     error = (BongoCatError){0};
     result = bongo_cat_import_installed_models(app, app->models_root, &error);
     if (result != BONGO_CAT_OK)
@@ -102,17 +76,19 @@ static BongoCatResult scan_owned_models(BongoCatApp *app, bool cleanup) {
             app->models_root, (int)result,
             error.message[0] ? error.message : "scan unavailable");
     return app->models.count ? BONGO_CAT_OK :
-        (result != BONGO_CAT_OK ? result : BONGO_CAT_ERROR_IO);
+        (installation != BONGO_CAT_OK ? installation : result);
 }
 
 void bongo_cat_model_catalog_finish(BongoCatApp *app) {
     if (!app) return;
     /* Absence from a partial scan does not mean the user deleted a model. */
     bool selection_changed = bongo_cat_model_catalog_reconcile(app);
+    if (app->preferences && (selection_changed || app->model_shortcuts))
+        bongo_cat_preferences_models_changed(app->preferences);
+    else if (!app->preferences) bongo_cat_app_model_shortcuts_prune(app);
     for (size_t i = 0; i < app->models.count; ++i)
         bongo_cat_import_apply_metadata(app, app->models.entries[i].id,
             app->models.entries[i].adapter_directory);
-    if (selection_changed && app->preferences) bongo_cat_preferences_models_changed(app->preferences);
 }
 
 BongoCatResult bongo_cat_model_catalog_scan(BongoCatApp *app, bool cleanup,

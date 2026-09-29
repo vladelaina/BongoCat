@@ -7,6 +7,8 @@
 #define BONGO_CAT_INPUT_QUEUE_CAP 256u
 #define BONGO_CAT_INPUT_RECOVERY_CAP 65u
 #define BONGO_CAT_INPUT_KEY_STATE_CAP 256u
+/* Ignore small analog stick offsets around the resting position. */
+#define BONGO_CAT_GAMEPAD_STICK_DEADZONE 0.10f
 
 typedef enum BongoCatInputKind {
     BONGO_CAT_INPUT_NONE,

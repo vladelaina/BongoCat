@@ -6,6 +6,7 @@
 #include "bongo_cat/common.h"
 #include "bongo_cat/path.h"
 #include "linux_internal.h"
+#include "linux_shape.h"
 
 #if !defined(_WIN32) && !defined(__APPLE__)
 #include <SDL3/SDL.h>
@@ -93,6 +94,7 @@ BongoCatResult bongo_cat_platform_init(BongoCatPlatform *platform, SDL_Window *w
         return BONGO_CAT_ERROR_PLATFORM;
     }
     platform->native = native;
+    bongo_cat_linux_shape_init(platform);
     active_platform = platform;
     publish_instance_window(window);
     const char *wayland = getenv("WAYLAND_DISPLAY");
@@ -116,13 +118,20 @@ void bongo_cat_platform_shutdown(BongoCatPlatform *platform) {
     if (!platform) return;
     bongo_cat_linux_x11_stop(platform);
     bongo_cat_linux_evdev_stop(platform);
+    bongo_cat_linux_shape_destroy(platform);
     free(platform->native);
     platform->native = NULL;
     if (active_platform == platform) active_platform = NULL;
 }
 void bongo_cat_platform_set_click_through(BongoCatPlatform *platform,
     bool forced, bool pointer_transparent) {
-    bongo_cat_linux_x11_click_through(platform, forced || pointer_transparent);
+    const LinuxInputShape *shape = platform ? platform->presenter : NULL;
+    if (shape && shape->available) bongo_cat_linux_shape_force(platform, forced);
+    else bongo_cat_linux_x11_click_through(platform, forced || pointer_transparent);
+}
+bool bongo_cat_platform_native_hit_test(const BongoCatPlatform *platform) {
+    const LinuxInputShape *shape = platform ? platform->presenter : NULL;
+    return shape && shape->valid && shape->applied;
 }
 bool bongo_cat_platform_set_opacity(BongoCatPlatform *platform, float opacity) {
     if (!platform || !platform->window) return false;
@@ -136,18 +145,26 @@ float bongo_cat_platform_get_opacity(const BongoCatPlatform *platform) {
     return platform ? platform->window_opacity : 1.0f;
 }
 bool bongo_cat_platform_present(BongoCatPlatform *platform, int width, int height) {
-    (void)width; (void)height;
-    return platform && platform->window && SDL_GL_SwapWindow(platform->window);
+    if (!platform || !platform->window) return false;
+    bongo_cat_linux_shape_capture(platform, width, height);
+    if (SDL_GL_SwapWindow(platform->window)) return true;
+    bongo_cat_linux_shape_reset(platform);
+    return false;
 }
 bool bongo_cat_platform_frame_alpha(const BongoCatPlatform *platform,
     int width, int height, int x, int y, uint8_t *alpha) {
-    (void)platform; (void)width; (void)height; (void)x; (void)y; (void)alpha;
-    return false;
+    return bongo_cat_linux_shape_alpha(platform, width, height, x, y, alpha);
 }
 void bongo_cat_platform_set_visible(BongoCatPlatform *platform, bool visible) {
     if (!platform || !platform->window) return;
     visible ? SDL_ShowWindow(platform->window) : SDL_HideWindow(platform->window);
     if (visible) {
+        /* Reapply after mapping: a Wayland surface/role may have been rebuilt. */
+        LinuxInputShape *shape = platform->presenter;
+        if (shape) {
+            shape->applied = false;
+            bongo_cat_linux_shape_force(platform, shape->forced);
+        }
         bongo_cat_linux_x11_configure_capture_window(platform);
         const LinuxPlatformState *native = platform->native;
         if (native) bongo_cat_linux_x11_set_above(platform, native->always_on_top);
@@ -249,11 +266,14 @@ bool bongo_cat_platform_single_instance_begin(void) {
     restore_instance_window(); close(instance_lock); instance_lock = -1; return false;
 }
 bool bongo_cat_platform_single_instance_take_wake(void) { return false; }
+bool bongo_cat_platform_single_instance_take_settings(void) { return false; }
 void bongo_cat_platform_single_instance_end(void) {
     if (instance_lock >= 0) close(instance_lock);
     instance_lock = -1;
 }
-BongoCatResult bongo_cat_platform_set_autostart(bool enabled, BongoCatError *error) {
+BongoCatResult bongo_cat_platform_set_autostart(bool enabled, bool administrator,
+    BongoCatError *error) {
+    (void)administrator;
     const char *base = getenv("XDG_CONFIG_HOME"), *home = getenv("HOME");
     char config[BONGO_CAT_PATH_CAP], directory[BONGO_CAT_PATH_CAP], path[BONGO_CAT_PATH_CAP];
     if (base && base[0]) snprintf(config, sizeof(config), "%s", base);

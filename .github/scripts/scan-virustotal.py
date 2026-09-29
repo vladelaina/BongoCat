@@ -310,30 +310,23 @@ def write_summary(
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
     if not summary_path:
         return
+    report_url = f"https://www.virustotal.com/gui/file/{sha256}"
     lines = [
-        "## VirusTotal scan",
+        f"## [{path.name}]({report_url})  {counts['malicious']}",
         "",
-        f"- File: `{path.name}`",
-        f"- SHA-256: `{sha256}`",
-        "- Report: "
-        f"[open in VirusTotal](https://www.virustotal.com/gui/file/{sha256})",
-        "- Policy: advisory; review malicious or suspicious engine results",
-        "- Counts: "
-        + ", ".join(f"{key}={counts[key]}" for key in keys),
+        f"* **SHA-256:** `{sha256}`",
     ]
     if detections:
         lines.extend(
             [
                 "",
-                "### Malicious or suspicious engines",
-                "",
                 "| Engine | Category | Result |",
-                "| --- | --- | --- |",
+                "| --------- | --------- | --------- |",
             ]
         )
         lines.extend(
-            f"| `{escape_markdown_cell(item['engine'])}` | "
-            f"`{escape_markdown_cell(item['category'])}` | "
+            f"| {escape_markdown_cell(item['engine'])} | "
+            f"{escape_markdown_cell(item['category'])} | "
             f"`{escape_markdown_cell(item['result'])}` |"
             for item in detections[:50]
         )

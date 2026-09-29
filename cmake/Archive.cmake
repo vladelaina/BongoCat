@@ -12,6 +12,10 @@ if(BONGO_CAT_FETCH_DEPS)
     "${miniz_SOURCE_DIR}/miniz_tinfl.c" "${miniz_SOURCE_DIR}/miniz_tdef.c")
   target_include_directories(bongo_cat_archive SYSTEM PUBLIC
     "${miniz_SOURCE_DIR}" "${miniz_BINARY_DIR}")
+  if(UNIX)
+    # Strict C11 hides the POSIX ftello/fseeko declarations used by miniz.
+    target_compile_definitions(bongo_cat_archive PRIVATE _POSIX_C_SOURCE=200809L)
+  endif()
 else()
   find_package(miniz CONFIG REQUIRED)
   add_library(bongo_cat_archive INTERFACE)

@@ -58,6 +58,8 @@ static uint64_t session_hash(const BongoCatSessionState *session) {
     HASH_FIELD(session->window.height);
     HASH_FIELD(session->window.content_width);
     HASH_FIELD(session->window.content_height);
+    HASH_FIELD(session->window.content_left);
+    HASH_FIELD(session->window.content_top);
     HASH_FIELD(session->active_model_id);
     HASH_FIELD(session->last_update_check_day);
     HASH_FIELD(session->last_update_check_version);
@@ -189,6 +191,7 @@ static bool save_session(BongoCatApp *app) {
 
 void bongo_cat_config_store_update(BongoCatApp *app, uint64_t now) {
     if (!app || app->smoke || !app->settings_path[0] || !app->session_path[0]) return;
+    bongo_cat_window_store_content_origin(app);
     uint64_t settings = settings_hash(&app->settings);
     uint64_t session = session_hash(&app->session);
     if (!app->secondary_pet && !app->settings_store_blocked) {
@@ -220,6 +223,7 @@ void bongo_cat_config_store_update(BongoCatApp *app, uint64_t now) {
 
 void bongo_cat_config_store_flush(BongoCatApp *app) {
     if (!app || app->smoke || !app->settings_path[0] || !app->session_path[0]) return;
+    bongo_cat_window_store_content_origin(app);
     uint64_t settings = settings_hash(&app->settings);
     uint64_t session = session_hash(&app->session);
     if (!app->secondary_pet && !app->settings_store_blocked &&

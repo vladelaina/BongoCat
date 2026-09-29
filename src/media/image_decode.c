@@ -71,12 +71,6 @@ BongoCatResult bongo_cat_image_decode_pixels_responsive(const char *path,
 }
 
 #ifdef _WIN32
-bool bongo_cat_image_needs_wic_scaling(const char *path, int limit) {
-    int width = 0, height = 0;
-    bool known = bongo_cat_image_info(path, &width, &height);
-    return !known || width > limit || height > limit;
-}
-
 static wchar_t *wide_path(const char *path) {
     int count = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS,
         path, -1, NULL, 0);
@@ -91,8 +85,9 @@ static wchar_t *wide_path(const char *path) {
 
 static bool decode_wic(const char *path, BongoCatImage *image,
     UINT max_width, UINT max_height, BongoCatImageProgress progress,
-    void *userdata) {
+    void *userdata, BongoCatImageCancelled cancelled, void *cancel_data) {
     memset(image, 0, sizeof(*image));
+    if (cancelled && cancelled(cancel_data)) return false;
     HRESULT initialized = CoInitializeEx(NULL, COINIT_MULTITHREADED);
     bool uninitialize = initialized == S_OK || initialized == S_FALSE;
     if (FAILED(initialized) && initialized != RPC_E_CHANGED_MODE) return false;
@@ -114,6 +109,9 @@ static bool decode_wic(const char *path, BongoCatImage *image,
     if (SUCCEEDED(result))
         result = IWICBitmapFrameDecode_GetSize(frame,
             &source_width, &source_height);
+    if (!source_width || !source_height || source_width > INT_MAX / 4 ||
+        source_height > INT_MAX) result = E_FAIL;
+    if (cancelled && cancelled(cancel_data)) result = E_ABORT;
     UINT target_width = source_width, target_height = source_height;
     if (max_width && max_height &&
         (source_width > max_width || source_height > max_height)) {
@@ -129,8 +127,8 @@ static bool decode_wic(const char *path, BongoCatImage *image,
         }
         if (!target_width) target_width = 1;
         if (!target_height) target_height = 1;
-        /* Keep transparent RGB out of the resize filter. WIC pulls pixels
-         * lazily, so this does not allocate a full-size RGBA atlas. */
+        /* Keep transparent RGB out of the resize filter. Only the output is
+           explicitly bounded here; the codec may retain source storage. */
         if (SUCCEEDED(result))
             result = IWICImagingFactory_CreateFormatConverter(factory, &premultiplied);
         if (SUCCEEDED(result))
@@ -156,9 +154,12 @@ static bool decode_wic(const char *path, BongoCatImage *image,
         ? (size_t)target_width * 4 : 0;
     size_t bytes = stride && target_height <= SIZE_MAX / stride
         ? stride * target_height : 0;
-    unsigned char *pixels = bytes <= UINT_MAX ? malloc(bytes) : NULL;
+    if (cancelled && cancelled(cancel_data)) result = E_ABORT;
+    unsigned char *pixels = SUCCEEDED(result) && bytes && bytes <= UINT_MAX
+        ? malloc(bytes) : NULL;
     if (SUCCEEDED(result) && pixels) {
         for (UINT y = 0; y < target_height && SUCCEEDED(result); y += 256) {
+            if (cancelled && cancelled(cancel_data)) { result = E_ABORT; break; }
             UINT rows = SDL_min(256u, target_height - y);
             WICRect rect = {0, (INT)y, (INT)target_width, (INT)rows};
             result = IWICFormatConverter_CopyPixels(converter, &rect,
@@ -169,7 +170,7 @@ static bool decode_wic(const char *path, BongoCatImage *image,
                     (float)(y + rows) / (float)target_height);
         }
     }
-    bool ok = SUCCEEDED(result) && pixels;
+    bool ok = SUCCEEDED(result) && pixels && !(cancelled && cancelled(cancel_data));
     if (ok) {
         image->pixels = pixels;
         image->width = (int)target_width;
@@ -199,7 +200,7 @@ typedef struct WicDecodeJob {
 static int SDLCALL decode_wic_worker(void *userdata) {
     WicDecodeJob *job = userdata;
     job->result = decode_wic(job->path, job->image,
-        job->max_width, job->max_height, NULL, NULL);
+        job->max_width, job->max_height, NULL, NULL, NULL, NULL);
     return job->result ? 0 : -1;
 }
 
@@ -208,14 +209,21 @@ bool bongo_cat_image_decode_wic_responsive(const char *path,
     BongoCatImageProgress progress, void *userdata) {
     if (!progress)
         return decode_wic(path, image, (UINT)max_width,
-            (UINT)max_height, NULL, NULL);
+            (UINT)max_height, NULL, NULL, NULL, NULL);
     WicDecodeJob job = {path, image, (UINT)max_width, (UINT)max_height, false};
     SDL_Thread *worker = SDL_CreateThread(decode_wic_worker,
         BONGO_CAT_SLUG "-wic-decode", &job);
     if (!worker)
         return decode_wic(path, image, (UINT)max_width,
-            (UINT)max_height, progress, userdata);
+            (UINT)max_height, progress, userdata, NULL, NULL);
     wait_for_decode(worker, progress, userdata);
     return job.result;
+}
+
+bool bongo_cat_image_decode_wic_cancellable(const char *path,
+    BongoCatImage *image, int max_width, int max_height,
+    BongoCatImageCancelled cancelled, void *cancel_data) {
+    return decode_wic(path, image, (UINT)max_width, (UINT)max_height,
+        NULL, NULL, cancelled, cancel_data);
 }
 #endif

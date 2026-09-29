@@ -25,38 +25,67 @@ static bool hidden_toggle_has_visible_binding(BongoCatApp *app,
             !bongo_cat_live2d_motion_same_toggle(app->live2d,
                 behavior->group, behavior->index,
                 candidate->group, candidate->index)) continue;
-        for (size_t j = 0; j < app->settings.behavior_shortcut_count; ++j) {
-            const BongoCatBehaviorShortcut *binding =
-                &app->settings.behavior_shortcuts[j];
-            if (strcmp(binding->id, candidate->id) == 0 &&
-                strcmp(binding->shortcut, shortcut) == 0) return true;
-        }
+        const BongoCatBehaviorShortcut *binding =
+            bongo_cat_app_behavior_binding(app, candidate->id);
+        if (binding && !binding->shortcut_disabled &&
+            bongo_cat_shortcut_equal(binding->shortcut, shortcut)) return true;
     }
     return false;
 }
 
 static bool behavior_shortcut(BongoCatApp *app, const BongoCatInputEvent *event,
     bool handled, bool sound_edge) {
-    for (size_t i = 0; i < app->settings.behavior_shortcut_count; ++i) {
-        BongoCatBehaviorShortcut *shortcut = &app->settings.behavior_shortcuts[i];
-        for (size_t j = 0; j < app->behaviors.count; ++j) {
-            BongoCatBehaviorEntry *behavior = &app->behaviors.entries[j];
-            if (behavior->kind == BONGO_CAT_BEHAVIOR_SOUND) continue;
-            if (strcmp(shortcut->id, behavior->id) != 0) continue;
-            if (behavior->momentary &&
-                bongo_cat_shortcut_release_matches(event, shortcut->shortcut)) {
-                if (behavior->kind == BONGO_CAT_BEHAVIOR_EFFECT)
-                    handled = bongo_cat_overlay_effect(app->overlay, NULL) || handled;
-            } else if (bongo_cat_shortcut_matches(&app->shortcut_state,
-                event, shortcut->shortcut) &&
-                !hidden_toggle_has_visible_binding(app, behavior,
-                    shortcut->shortcut)) handled =
-                        bongo_cat_app_run_behavior(app, behavior) || handled;
+    const BongoCatModelEntry *model = bongo_cat_models_find(&app->models, app->loaded_model);
+    bool mver = model && (model->source_format == BONGO_CAT_MODEL_SOURCE_MVER ||
+        model->source_format == BONGO_CAT_MODEL_SOURCE_MVER_PATCH);
+    for (size_t i = 0; i < app->behaviors.count; ++i) {
+        BongoCatBehaviorEntry *behavior = &app->behaviors.entries[i];
+        if (behavior->kind == BONGO_CAT_BEHAVIOR_SOUND) continue;
+        const BongoCatBehaviorShortcut *shortcut = bongo_cat_app_behavior_binding(app, behavior->id);
+        if (!shortcut || shortcut->shortcut_disabled || !shortcut->shortcut[0]) {
+            if (behavior->shortcut_active && behavior->momentary &&
+                behavior->kind == BONGO_CAT_BEHAVIOR_EFFECT)
+                handled = bongo_cat_overlay_effect(app->overlay, NULL) || handled;
+            behavior->shortcut_active = false;
+            continue;
+        }
+        if (mver) {
+            /* The held-key state also supports Mver's multi-primary chords.
+               Trigger once when the whole chord becomes held, in either order. */
+            if (!sound_edge) continue;
+            bool down = bongo_cat_sound_shortcut_down(&app->sound_shortcut_state,
+                shortcut->shortcut);
+            bool pressed = down && !behavior->shortcut_active;
+            bool released = !down && behavior->shortcut_active;
+            behavior->shortcut_active = down;
+            if (released && behavior->momentary &&
+                    behavior->kind == BONGO_CAT_BEHAVIOR_EFFECT)
+                handled = bongo_cat_overlay_effect(app->overlay, NULL) || handled;
+            if (pressed && !hidden_toggle_has_visible_binding(app, behavior,
+                    shortcut->shortcut))
+                handled = bongo_cat_app_run_behavior(app, behavior) || handled;
+            continue;
+        }
+        if (behavior->shortcut_active &&
+            bongo_cat_shortcut_release_matches(event, shortcut->shortcut) &&
+            (event->kind == BONGO_CAT_INPUT_GAMEPAD_BUTTON ||
+             !bongo_cat_sound_shortcut_down(&app->shortcut_state.held, shortcut->shortcut))) {
+            behavior->shortcut_active = false;
+            if (behavior->momentary && behavior->kind == BONGO_CAT_BEHAVIOR_EFFECT)
+                handled = bongo_cat_overlay_effect(app->overlay, NULL) || handled;
+        } else if (!behavior->shortcut_active && bongo_cat_shortcut_matches(&app->shortcut_state,
+            event, shortcut->shortcut) &&
+            !hidden_toggle_has_visible_binding(app, behavior, shortcut->shortcut)) {
+            behavior->shortcut_active = true;
+            handled = bongo_cat_app_run_behavior(app, behavior) || handled;
         }
     }
     if (handled) return true;
+    if (mver) return false;
     size_t limit = app->behaviors.count < 10 ? app->behaviors.count : 10;
     for (size_t i = 0; i < limit; ++i) {
+        /* An explicit binding (including a cleared one) replaces the legacy alias. */
+        if (bongo_cat_app_behavior_binding(app, app->behaviors.entries[i].id)) continue;
         if (app->behaviors.entries[i].kind == BONGO_CAT_BEHAVIOR_SOUND && !sound_edge) continue;
         char alias[8];
         snprintf(alias, sizeof(alias), "Alt+%c", i == 9 ? '0' : (char)('1' + i));
@@ -75,7 +104,9 @@ void bongo_cat_app_shortcuts(BongoCatApp *app, const BongoCatInputEvent *event) 
         return;
     }
     bool primary = bongo_cat_shortcut_update(&app->shortcut_state, event);
-    if (!primary) {
+    /* Each pet handles its own behaviors; application-wide commands belong
+       to the primary process (which also synchronizes child visibility). */
+    if (!primary || app->secondary_pet) {
         behavior_shortcut(app, event, sound_handled, sound_edge);
         return;
     }
@@ -87,9 +118,16 @@ void bongo_cat_app_shortcuts(BongoCatApp *app, const BongoCatInputEvent *event) 
         shortcuts->visible_preferences)) {
         bongo_cat_preferences_visible(app->preferences) ?
             bongo_cat_preferences_close(app->preferences) : bongo_cat_preferences_show(app->preferences);
+    } else if (bongo_cat_shortcut_matches(&app->shortcut_state, event,
+        shortcuts->open_menu)) {
+        /* Open after this input batch, so the modal loop cannot process a
+           key release before the triggering key-down reaches the model. */
+        if (app->context_menu_active) app->context_menu_close_requested = true;
+        else app->context_menu_requested = !app->context_menu_requested;
     } else if (bongo_cat_shortcut_matches(&app->shortcut_state, event, shortcuts->mirror)) {
         app->settings.model.mirror = !app->settings.model.mirror;
         app->model_pointer_anchor_ready = false;
+        app->pointer_known = false;
         app->dirty = true;
         bongo_cat_preferences_invalidate(app->preferences);
     } else if (bongo_cat_shortcut_matches(&app->shortcut_state, event, shortcuts->pass_through)) {

@@ -16,6 +16,7 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_opengl.h>
 #include "bongo_cat/platform.h"
+#include "runtime.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -107,6 +108,54 @@ static void fail(const char *what) {
     exit(1);
 }
 
+static void check_rendered_alpha(SDL_Window *window, SDL_GLContext context) {
+    if (!context) fail("pixel hit testing requires an OpenGL context");
+    BongoCatApp *app = calloc(1, sizeof(*app));
+    if (!app) fail("allocate pointer hit test state");
+    app->window = window;
+    app->gl_context = context;
+    app->platform.window = window;
+    app->session.window.visible = true;
+    app->pointer_known = true;
+    int x, y, width, height;
+    SDL_GetWindowPosition(window, &x, &y);
+    SDL_GetWindowSize(window, &width, &height);
+    app->pointer_x = x + width / 2;
+    app->pointer_y = y + height / 2;
+    expect(bongo_cat_platform_dynamic_hit_supported(),
+        "pixel hit testing works without starting the Input Monitoring listener");
+    NSWindow *native = cocoa_window(window);
+    NSWindow *key = NSApp.keyWindow;
+    const unsigned char values[] = {255, 0, 8, 9, 0, 255};
+    for (size_t i = 0; i < sizeof(values); ++i) {
+        glDisable(GL_SCISSOR_TEST);
+        glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+        glClearColor(0, 0, 0, values[i] / 255.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+        bongo_cat_window_capture_pointer_hit(app, true);
+        bongo_cat_window_sync_click_through(app);
+        expect(native.ignoresMouseEvents == (values[i] <= 8),
+            "current rendered alpha controls blank-area routing, including threshold edges");
+        expect(SDL_GL_SwapWindow(window), "present the sampled frame");
+        post_mouse_move(native);
+        expect(native.ignoresMouseEvents == (values[i] <= 8),
+            "automatic blank-area routing survives SDL motion");
+        expect(NSApp.keyWindow == key, "alpha changes do not activate the pet");
+    }
+    app->left_mouse_down = true;
+    glClearColor(0, 0, 0, 0);
+    glClear(GL_COLOR_BUFFER_BIT);
+    bongo_cat_window_capture_pointer_hit(app, true);
+    bongo_cat_window_sync_click_through(app);
+    expect(!native.ignoresMouseEvents, "an active drag keeps model interaction");
+    app->left_mouse_down = false;
+    bongo_cat_window_capture_pointer_hit(app, true);
+    bongo_cat_window_sync_click_through(app);
+    expect(native.ignoresMouseEvents, "blank-area routing resumes after drag release");
+    bongo_cat_platform_set_click_through(&app->platform, false, false);
+    free(app);
+}
+
 int main(void) {
     setvbuf(stdout, NULL, _IONBF, 0);
     [NSApplication.sharedApplication setActivationPolicy:NSApplicationActivationPolicyAccessory];
@@ -123,6 +172,11 @@ int main(void) {
         snprintf(reason, sizeof(reason), "SDL video driver is %s, not cocoa", driver ? driver : "absent");
         skip(reason);
     }
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+    SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
     SDL_Window *window = SDL_CreateWindow("bongo-cat-click-through-check", PET_SIZE, PET_SIZE,
         SDL_WINDOW_OPENGL | SDL_WINDOW_BORDERLESS | SDL_WINDOW_HIGH_PIXEL_DENSITY |
         SDL_WINDOW_HIDDEN | SDL_WINDOW_TRANSPARENT);
@@ -198,6 +252,7 @@ int main(void) {
         expect(mouse_target_at(centre) == native.windowNumber, label);
     }
 
+    check_rendered_alpha(window, context);
     if (context) SDL_GL_DestroyContext(context);
     SDL_DestroyWindow(window);
     SDL_Quit();

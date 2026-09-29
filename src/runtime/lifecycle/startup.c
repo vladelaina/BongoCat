@@ -111,7 +111,12 @@ static void begin_log(BongoCatApp *app) {
     /* The primary process owns the session log. Secondary pets append to it
        instead of erasing diagnostics already written by the primary. */
     if (runtime_log_path[0] && !app->secondary_pet) {
-        FILE *fresh_log = bongo_cat_file_open(runtime_log_path, "wb");
+        char previous_log[BONGO_CAT_PATH_CAP];
+        bool preserved = !bongo_cat_path_is_file(runtime_log_path) ||
+            (bongo_cat_path_join(previous_log, sizeof(previous_log),
+                app->log_root, "BongoCat.previous.log") &&
+             bongo_cat_file_replace(runtime_log_path, previous_log, false));
+        FILE *fresh_log = preserved ? bongo_cat_file_open(runtime_log_path, "wb") : NULL;
         if (fresh_log) fclose(fresh_log);
     }
     set_log_source(app);
@@ -136,6 +141,7 @@ static void begin_log(BongoCatApp *app) {
     SDL_SetLogPriority(BONGO_CAT_LOG_LIFECYCLE, SDL_LOG_PRIORITY_INFO);
     SDL_SetLogPriority(BONGO_CAT_LOG_UPDATE, SDL_LOG_PRIORITY_INFO);
     SDL_SetLogPriority(BONGO_CAT_LOG_INPUT, SDL_LOG_PRIORITY_INFO);
+    bongo_cat_diagnostics_start(app->state_root);
     SDL_LogInfo(BONGO_CAT_LOG_LIFECYCLE,
         "[runtime] Process started: version=%s platform=%s",
         BONGO_CAT_VERSION, SDL_GetPlatform());

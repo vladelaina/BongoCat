@@ -5,13 +5,13 @@
 static const char *vertex_source =
     "#version 330 core\n"
     "layout(location=0) in vec2 pos; layout(location=1) in vec2 uv;\n"
-    "out vec2 tex; uniform bool mirror;\n"
+    "out vec2 tex; uniform bool mirror; uniform bool vertical_flip;\n"
     "uniform sampler2D image; uniform int reference_width,reference_height;\n"
     "void main(){vec2 p=pos;"
     "if(reference_width>0&&reference_height>0){"
     "vec2 extent=vec2(textureSize(image,0))/vec2(reference_width,reference_height);"
     "p=(p+vec2(1,-1))*extent+vec2(-1,1);}"
-    "if(mirror)p.x=-p.x;gl_Position=vec4(p,0,1);tex=uv;}";
+    "if(mirror)p.x=-p.x;if(vertical_flip)p.y=-p.y;gl_Position=vec4(p,0,1);tex=uv;}";
 static const char *fragment_source =
     "#version 330 core\n"
     "in vec2 tex; out vec4 color; uniform sampler2D image;\n"
@@ -30,6 +30,7 @@ BongoCatOverlay *bongo_cat_overlay_create(BongoCatError *error) {
     }
     value->program = bongo_cat_gl_program(&value->gl, vertex_source, fragment_source, error);
     if (!value->program) { free(value); return NULL; }
+    value->vertical_flip_location = value->gl.uniform_location(value->program, "vertical_flip");
     value->mirror_location = value->gl.uniform_location(value->program, "mirror");
     value->image_location = value->gl.uniform_location(value->program, "image");
     value->reference_width_location = value->gl.uniform_location(value->program,
@@ -55,6 +56,12 @@ BongoCatOverlay *bongo_cat_overlay_create(BongoCatError *error) {
         return NULL;
     }
     return value;
+}
+
+void bongo_cat_overlay_set_vertical_flip(BongoCatOverlay *value, bool flipped) {
+    if (!value) return;
+    value->vertical_flip = flipped;
+    bongo_cat_mver_pointer_overlay_set_vertical_flip(value->mver_pointer, flipped);
 }
 
 void bongo_cat_overlay_destroy(BongoCatOverlay *value) {

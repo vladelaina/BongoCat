@@ -18,7 +18,7 @@ BongoCatImportDialog *bongo_cat_preferences_import_create(void) {
 bool bongo_cat_preferences_import_is_open(const BongoCatImportDialog *dialog) {
     if (!dialog) return false;
     SDL_LockMutex(dialog->mutex);
-    bool open = dialog->open || dialog->busy;
+    bool open = dialog->open;
     SDL_UnlockMutex(dialog->mutex);
     return open;
 }
@@ -27,7 +27,7 @@ bool bongo_cat_preferences_import_status(const BongoCatImportDialog *dialog,
     uint64_t *started_ns, size_t *completed, size_t *total) {
     if (!dialog) return false;
     SDL_LockMutex(dialog->mutex);
-    bool busy = dialog->busy;
+    bool busy = dialog->busy || dialog->pending_head != NULL;
     if (started_ns) *started_ns = dialog->started_ns;
     if (completed) *completed = dialog->completed;
     if (total) *total = dialog->total;

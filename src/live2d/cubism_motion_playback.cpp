@@ -128,10 +128,7 @@ bool NativeModel::motion_selected(const char *group, int index) const {
 }
 
 bool NativeModel::motion_visible(const char *group, int index) const {
-    if (!group || index < 0) return false;
-    std::string key = std::string(group) + "_" + std::to_string(index);
-    auto owner = motion_toggle_owners_.find(key);
-    return owner == motion_toggle_owners_.end() || owner->second == key;
+    return group && index >= 0;
 }
 
 bool NativeModel::motion_same_toggle(const char *left_group, int left_index,

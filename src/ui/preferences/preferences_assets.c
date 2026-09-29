@@ -36,10 +36,12 @@ static int raster_size(const BongoCatPreferences *value, int logical) {
 }
 
 void bongo_cat_preferences_assets_load(BongoCatPreferences *value) {
-    value->logo_texture = load(value, "bongocat.png", raster_size(value, 192),
-        &value->logo_width, &value->logo_height);
+    if (!value->logo_texture)
+        value->logo_texture = load(value, "bongocat.png", raster_size(value, 192),
+            &value->logo_width, &value->logo_height);
     int width = 0, height = 0;
-    value->icon_texture = load(value, "ui-symbols.png", 0, &width, &height);
+    if (!value->icon_texture)
+        value->icon_texture = load(value, "ui-symbols.png", 0, &width, &height);
     value->icon_hidpi_attempted = false;
 }
 
@@ -97,6 +99,8 @@ void bongo_cat_preferences_support_assets_clear(BongoCatPreferences *value) {
 
 void bongo_cat_preferences_assets_clear(BongoCatPreferences *value) {
     if (!value) return;
+    value->asset_retry_count = 0;
+    value->asset_retry_ns = 0;
     bongo_cat_about_assets_clear(value, true);
     clear(&value->logo_texture);
     clear(&value->icon_texture);
@@ -107,6 +111,8 @@ void bongo_cat_preferences_assets_clear(BongoCatPreferences *value) {
 
 void bongo_cat_preferences_assets_abandon(BongoCatPreferences *value) {
     if (!value) return;
+    value->asset_retry_count = 0;
+    value->asset_retry_ns = 0;
     bongo_cat_about_assets_clear(value, false);
     value->logo_texture = 0;
     value->icon_texture = 0;

@@ -3,6 +3,9 @@
 #include "bongo_cat/file.h"
 #include "bongo_cat/image.h"
 #include "bongo_cat/json.h"
+extern "C" {
+#include "bongo_cat/sha256.h"
+}
 
 #include <Effect/CubismBreath.hpp>
 #include <Effect/CubismEyeBlink.hpp>
@@ -23,20 +26,6 @@
 #include <new>
 
 namespace bongo_cat {
-
-struct TextureProgressContext {
-    BongoCatLive2DLoadProgress callback;
-    void *userdata;
-    float start;
-    float span;
-};
-
-static void texture_progress(void *userdata, float progress) {
-    auto *context = static_cast<TextureProgressContext *>(userdata);
-    if (context && context->callback)
-        context->callback(context->userdata,
-            context->start + context->span * progress);
-}
 
 NativeModel::NativeModel() {
     _mocConsistency = true;
@@ -75,12 +64,13 @@ std::string NativeModel::path(const char *relative) const {
 }
 
 bool NativeModel::load(const char *directory, const char *setting_file,
-    bool direct_textures, BongoCatLive2DLoadProgress progress, void *userdata,
-    BongoCatError *error) {
+    bool direct_textures, bool dynamic_texture_resolution,
+    BongoCatLive2DLoadProgress progress, void *userdata, BongoCatError *error) {
     if (!directory || !setting_file) return false;
     visual_state_ready_ = false;
     visual_state_ = BongoCatLive2DVisualState{};
     direct_textures_ = direct_textures;
+    dynamic_texture_resolution_ = dynamic_texture_resolution;
     directory_ = directory;
     if (!directory_.empty() && directory_.back() != '/' && directory_.back() != '\\')
         directory_ += '/';
@@ -146,7 +136,27 @@ bool NativeModel::load_model(BongoCatError *error) {
     for (size_t i = 0; i < parameter_count; ++i)
         parameter_baseline_values_[i] = _model->GetParameterValue((int)i);
     parameter_overrides_applied_ = false;
+    configure_builtin_accessories(bytes);
     return true;
+}
+
+void NativeModel::configure_builtin_accessories(const std::vector<unsigned char> &moc) {
+    builtin_accessory_parameter_ = builtin_accessory_part_ = -1;
+    /* Only these shipped moc3 files park the thug-life accessories outside the
+       canvas instead of hiding them. Names/parameter IDs alone are not enough
+       to identify them: imported models may reuse both. */
+    char digest[65];
+    bongo_cat_sha256_bytes(moc.data(), moc.size(), digest);
+    if (std::strcmp(digest, "7bbcdb3df4fe085b0cbd9dc3a1cf32d351bd56787d0ddd1c238e50a5dcb6729a") &&
+        std::strcmp(digest, "03ed67f3ee2ea612aba4da0d42874f8879853d69043c9aae98af440d1f66965e") &&
+        std::strcmp(digest, "e7f11d627011bb2c65d8b0882ce4545115d2256672dca256b674a713e3e5f3d6")) return;
+    auto *ids = Csm::CubismFramework::GetIdManager();
+    int parameter = _model->GetParameterIndex(ids->GetId("Param4"));
+    int part = _model->GetPartIndex(ids->GetId("Part8"));
+    if (parameter < 0 || parameter >= _model->GetParameterCount() ||
+        part < 0 || part >= _model->GetPartCount()) return;
+    builtin_accessory_parameter_ = parameter;
+    builtin_accessory_part_ = part;
 }
 void NativeModel::load_expressions() {
     expression_names_.resize((size_t)setting_->GetExpressionCount());
@@ -157,8 +167,9 @@ void NativeModel::load_expressions() {
         Csm::ACubismMotion *motion = LoadExpression(bytes.data(),
             (Csm::csmSizeInt)bytes.size(), name);
         if (!motion) continue;
-        expressions_[name] = motion;
-        expression_names_[(size_t)i] = name;
+        std::string key = std::to_string(i);
+        expressions_[key] = motion;
+        expression_names_[(size_t)i] = key;
     }
     if (!expressions_.empty())
         _updateScheduler.AddUpdatableList(
@@ -245,40 +256,7 @@ void NativeModel::load_motions(BongoCatLive2DLoadProgress progress,
             if (std::strcmp(group, "Idle") == 0) idle_motion_keys_.push_back(key);
         }
     }
-    pair_motion_states();
     _motionManager->StopAllMotions();
 }
 
-bool NativeModel::load_textures(BongoCatError *error,
-    BongoCatLive2DLoadProgress progress, void *userdata) {
-    release_textures();
-    int count = setting_->GetTextureCount();
-    textures_.assign((size_t)count, 0);
-    texture_alpha_.assign((size_t)count, {});
-    TextureProgressContext texture_context = {progress, userdata, .50f,
-        .45f / (float)(count > 0 ? count : 1)};
-    for (int i = 0; i < count; ++i) {
-        texture_context.start = .50f + .45f * (float)i /
-            (float)(count > 0 ? count : 1);
-        textures_[(size_t)i] = bongo_cat_image_texture_model(
-            path(setting_->GetTextureFileName(i)).c_str(), direct_textures_,
-            nullptr, nullptr, &texture_alpha_[(size_t)i],
-            progress ? texture_progress : nullptr, &texture_context, error);
-        if (!textures_[(size_t)i]) {
-            release_textures();
-            return false;
-        }
-        if (progress) progress(userdata, .50f + .45f * (float)(i + 1) /
-            (float)(count > 0 ? count : 1));
-    }
-    prepare_expression_frame();
-    release_renderer();
-    if (!create_renderer(error)) {
-        release_textures();
-        return false;
-    }
-    renderer_width_ = width_;
-    renderer_height_ = height_;
-    return true;
-}
 } // namespace bongo_cat

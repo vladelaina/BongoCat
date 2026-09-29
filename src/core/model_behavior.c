@@ -4,13 +4,68 @@
 #include "bongo_cat/path.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <yyjson.h>
 
+bool bongo_cat_behaviors_reserve(BongoCatBehaviorCatalog *catalog, size_t capacity,
+    BongoCatError *error) {
+    if (!catalog || capacity > BONGO_CAT_BEHAVIOR_LIMIT) {
+        bongo_cat_error_set(error, BONGO_CAT_ERROR_FORMAT,
+            "Model behavior count exceeds the %u-entry safety limit", (unsigned)BONGO_CAT_BEHAVIOR_LIMIT);
+        return false;
+    }
+    if (capacity <= catalog->capacity) return true;
+    BongoCatBehaviorEntry *entries = realloc(catalog->entries, capacity * sizeof(*entries));
+    if (!entries) {
+        bongo_cat_error_set(error, BONGO_CAT_ERROR_MEMORY, "Cannot allocate model behaviors");
+        return false;
+    }
+    memset(entries + catalog->capacity, 0, (capacity - catalog->capacity) * sizeof(*entries));
+    catalog->entries = entries;
+    catalog->capacity = capacity;
+    return true;
+}
+void bongo_cat_behaviors_clear(BongoCatBehaviorCatalog *catalog) {
+    if (!catalog) return;
+    free(catalog->entries);
+    *catalog = (BongoCatBehaviorCatalog){0};
+}
+void bongo_cat_behaviors_move(BongoCatBehaviorCatalog *target, BongoCatBehaviorCatalog *source) {
+    if (!target || !source || target == source) return;
+    bongo_cat_behaviors_clear(target);
+    *target = *source;
+    *source = (BongoCatBehaviorCatalog){0};
+}
+bool bongo_cat_behaviors_copy(BongoCatBehaviorCatalog *target,
+    const BongoCatBehaviorCatalog *source, BongoCatError *error) {
+    if (!target || !source) return false;
+    if (target == source) return true;
+    BongoCatBehaviorCatalog copy = {0};
+    if (!bongo_cat_behaviors_reserve(&copy, source->count, error)) return false;
+    if (source->count) memcpy(copy.entries, source->entries, source->count * sizeof(*source->entries));
+    copy.count = source->count;
+    for (size_t i = 0; i < copy.count; ++i) {
+        copy.entries[i].shortcut_active = false;
+        copy.entries[i].audio_playing = false;
+    }
+    bongo_cat_behaviors_move(target, &copy);
+    return true;
+}
+
 static bool add_behavior(BongoCatBehaviorCatalog *catalog, const BongoCatModelEntry *model,
     BongoCatBehaviorKind kind, const char *group, int index, const char *label,
-    const char *asset, const char *asset_root) {
-    if (catalog->count >= BONGO_CAT_BEHAVIOR_CAP) return false;
+    const char *asset, const char *asset_root, BongoCatError *error) {
+    size_t capacity = catalog->capacity ? catalog->capacity * 2 : 16;
+    if (capacity > BONGO_CAT_BEHAVIOR_LIMIT) capacity = BONGO_CAT_BEHAVIOR_LIMIT;
+    if (catalog->count == BONGO_CAT_BEHAVIOR_LIMIT ||
+        (catalog->count == catalog->capacity &&
+         !bongo_cat_behaviors_reserve(catalog, capacity, error))) {
+        if (catalog->count == BONGO_CAT_BEHAVIOR_LIMIT)
+            bongo_cat_error_set(error, BONGO_CAT_ERROR_FORMAT,
+                "Model behavior count exceeds the %u-entry safety limit", (unsigned)BONGO_CAT_BEHAVIOR_LIMIT);
+        return false;
+    }
     BongoCatBehaviorEntry *entry = &catalog->entries[catalog->count++];
     entry->kind = kind;
     entry->index = index;
@@ -37,7 +92,7 @@ static bool add_behavior(BongoCatBehaviorCatalog *catalog, const BongoCatModelEn
 }
 
 static bool read_motions(BongoCatBehaviorCatalog *catalog, const BongoCatModelEntry *model,
-    yyjson_val *motions) {
+    yyjson_val *motions, BongoCatError *error) {
     if (!yyjson_is_obj(motions)) return true;
     size_t group_index, group_count;
     yyjson_val *group_key, *items;
@@ -50,14 +105,14 @@ static bool read_motions(BongoCatBehaviorCatalog *catalog, const BongoCatModelEn
             char label[BONGO_CAT_ID_CAP];
             snprintf(label, sizeof(label), "%s %zu", group, index + 1);
             if (!add_behavior(catalog, model, BONGO_CAT_BEHAVIOR_MOTION, group,
-                (int)index, label, sound, NULL)) return false;
+                (int)index, label, sound, NULL, error)) return false;
         }
     }
     return true;
 }
 
 static bool read_expressions(BongoCatBehaviorCatalog *catalog,
-    const BongoCatModelEntry *model, yyjson_val *expressions) {
+    const BongoCatModelEntry *model, yyjson_val *expressions, BongoCatError *error) {
     if (!yyjson_is_arr(expressions)) return true;
     size_t index, count; yyjson_val *item;
     yyjson_arr_foreach(expressions, index, count, item) {
@@ -65,13 +120,13 @@ static bool read_expressions(BongoCatBehaviorCatalog *catalog,
         char label[BONGO_CAT_ID_CAP];
         snprintf(label, sizeof(label), "%s", name ? name : "Expression");
         if (!add_behavior(catalog, model, BONGO_CAT_BEHAVIOR_EXPRESSION, NULL,
-            (int)index, label, NULL, NULL)) return false;
+            (int)index, label, NULL, NULL, error)) return false;
     }
     return true;
 }
 
 static bool read_adapter_assets(BongoCatBehaviorCatalog *catalog,
-    const BongoCatModelEntry *model) {
+    const BongoCatModelEntry *model, BongoCatError *error) {
     char path[BONGO_CAT_PATH_CAP];
     if (!bongo_cat_model_adapter_metadata_path(model->adapter_directory,
         path, sizeof(path))) return false;
@@ -94,7 +149,7 @@ static bool read_adapter_assets(BongoCatBehaviorCatalog *catalog,
             if (!add_behavior(catalog, model, effect ? BONGO_CAT_BEHAVIOR_EFFECT :
                 BONGO_CAT_BEHAVIOR_SOUND, NULL,
                 effect ? effect_index++ : sound_index++, label, NULL,
-                model->adapter_directory)) {
+                model->adapter_directory, error)) {
                 ok = false; break;
             }
             catalog->entries[catalog->count - 1].sound_clear = sound;
@@ -109,7 +164,7 @@ static bool read_adapter_assets(BongoCatBehaviorCatalog *catalog,
             effect ? "Effect" : "Sound", current + 1);
         if (!add_behavior(catalog, model, effect ? BONGO_CAT_BEHAVIOR_EFFECT :
             BONGO_CAT_BEHAVIOR_SOUND, NULL, current, label, asset,
-            model->adapter_directory)) { ok = false; break; }
+            model->adapter_directory, error)) { ok = false; break; }
         BongoCatBehaviorEntry *entry = &catalog->entries[catalog->count - 1];
         bool momentary = yyjson_get_bool(yyjson_obj_get(item, "momentary"));
         entry->momentary = effect && momentary;
@@ -123,7 +178,7 @@ static bool read_adapter_assets(BongoCatBehaviorCatalog *catalog,
 BongoCatResult bongo_cat_behaviors_load(BongoCatBehaviorCatalog *catalog,
     const BongoCatModelEntry *model, BongoCatError *error) {
     if (!catalog || !model) return BONGO_CAT_ERROR_ARGUMENT;
-    memset(catalog, 0, sizeof(*catalog));
+    BongoCatBehaviorCatalog loaded = {0};
     char path[BONGO_CAT_PATH_CAP];
     if (!bongo_cat_path_join(path, sizeof(path), model->directory, model->setting_file))
         return BONGO_CAT_ERROR_FORMAT;
@@ -134,13 +189,18 @@ BongoCatResult bongo_cat_behaviors_load(BongoCatBehaviorCatalog *catalog,
         return BONGO_CAT_ERROR_FORMAT;
     }
     yyjson_val *references = yyjson_obj_get(yyjson_doc_get_root(document), "FileReferences");
-    bool ok = read_motions(catalog, model, yyjson_obj_get(references, "Motions")) &&
-        read_expressions(catalog, model, yyjson_obj_get(references, "Expressions")) &&
-        read_adapter_assets(catalog, model);
+    BongoCatError failure = {0};
+    bool ok = read_motions(&loaded, model, yyjson_obj_get(references, "Motions"), &failure) &&
+        read_expressions(&loaded, model, yyjson_obj_get(references, "Expressions"), &failure) &&
+        read_adapter_assets(&loaded, model, &failure);
     yyjson_doc_free(document);
     if (!ok) {
-        bongo_cat_error_set(error, BONGO_CAT_ERROR_FORMAT, "Too many model behaviors");
-        return BONGO_CAT_ERROR_FORMAT;
+        bongo_cat_behaviors_clear(&loaded);
+        if (!failure.message[0]) bongo_cat_error_set(&failure, BONGO_CAT_ERROR_FORMAT,
+            "Cannot read model behavior metadata");
+        if (error) *error = failure;
+        return failure.code;
     }
+    bongo_cat_behaviors_move(catalog, &loaded);
     return BONGO_CAT_OK;
 }

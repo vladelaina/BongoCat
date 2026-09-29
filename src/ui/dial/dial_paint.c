@@ -1,4 +1,5 @@
 #include "dial_internal.h"
+#include "ui_present.h"
 #include <stddef.h>
 #include <stdlib.h>
 
@@ -75,7 +76,7 @@ bool dial_paint_frame(Dial *d) {
         glDrawArrays(GL_TRIANGLES,b.first,b.count);
     }
     if (glGetError() != GL_NO_ERROR) return SDL_SetError("Radial menu OpenGL draw failed");
-    return SDL_GL_SwapWindow(d->window);
+    return bongo_cat_ui_present(d->window);
 }
 
 void dial_paint_free(Dial *d) {

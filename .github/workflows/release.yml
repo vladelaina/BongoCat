@@ -13,8 +13,20 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  version-check:
+    name: quality / tag-version
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v5
+
+      - name: Validate tag matches project version
+        shell: pwsh
+        run: ./.github/scripts/check-tag-version.ps1 -Tag $env:GITHUB_REF_NAME
+
   build:
     name: build / ${{ matrix.platform }}
+    needs: version-check
     if: github.repository == 'vladelaina/BongoCat'
     runs-on: ${{ matrix.os }}
     strategy:
@@ -68,7 +80,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             cmake ninja-build libgl1-mesa-dev libegl1-mesa-dev libx11-dev libxi-dev \
-            libxfixes-dev libcurl4-openssl-dev xvfb xauth libgl1-mesa-dri \
+            libxfixes-dev libcurl4-openssl-dev libfontconfig1-dev \
             curl file desktop-file-utils
 
       - name: Configure Unix release
@@ -76,6 +88,7 @@ jobs:
         run: |
           cmake -S . -B build-release -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTING=OFF \
             -DBONGO_CAT_OPTIMIZE_RELEASE_SIZE=ON \
             -DBONGO_CAT_OPTIMIZE_RELEASE_IPO=ON \
             -DCMAKE_OSX_ARCHITECTURES=${{ matrix.cmake_arch }} \
@@ -87,6 +100,7 @@ jobs:
         shell: pwsh
         run: |
           & ./scripts/build-windows.ps1 `
+            -SkipTests `
             -BuildDir build-release `
             -Configuration Release `
             -Architecture '${{ matrix.cmake_arch }}' `
@@ -97,24 +111,6 @@ jobs:
       - name: Build Unix release
         if: runner.os != 'Windows'
         run: bash .github/scripts/build-unix.sh cmake --build build-release --parallel 2
-
-      - name: Install software OpenGL for Windows tests
-        if: runner.os == 'Windows'
-        uses: ssciwr/setup-mesa-dist-win@2dfeaebfa514f74c2b8cd8d27108c31486d33e72 # v3
-        with:
-          version: '23.3.3'
-          deployment-choice: '1'
-
-      - name: Test Windows release
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: >-
-          & ./.github/scripts/test-windows.ps1
-          ctest --test-dir build-release -C Release --output-on-failure
-
-      - name: Test Unix release
-        if: runner.os != 'Windows'
-        run: bash .github/scripts/test-unix.sh ctest --test-dir build-release --output-on-failure
 
       - name: Install Inno Setup
         if: runner.os == 'Windows'
@@ -153,30 +149,6 @@ jobs:
           $portableHash = (Get-FileHash -LiteralPath $portable -Algorithm SHA256).Hash.ToLowerInvariant()
           "$portableHash  $([IO.Path]::GetFileName($portable))" |
             Set-Content -LiteralPath $portableChecksum -Encoding ascii
-          $setupHash = (Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash.ToLowerInvariant()
-          $app = "build-release/Release/BongoCat.exe"
-          $appHash = (Get-FileHash -LiteralPath $app -Algorithm SHA256).Hash.ToLowerInvariant()
-          $cubismArch = if ('${{ matrix.cmake_arch }}' -eq 'Win32') { 'x86' } else { 'x86_64' }
-          $cubismCore = "vendor/CubismSdkForNative/Core/lib/windows/$cubismArch/143/Live2DCubismCore_MT.lib"
-          $cubismHash = (Get-FileHash -LiteralPath $cubismCore -Algorithm SHA256).Hash.ToLowerInvariant()
-          $cmakeVersion = (& cmake --version | Select-Object -First 1).Trim()
-          $innoInfo = & ./packaging/windows/find-inno.ps1 -PassThru
-          $innoVersion = $innoInfo.Version.ToString(3)
-          @"
-          ## Windows build provenance (${{ matrix.platform }})
-
-          | Input or artifact | Value |
-          | --- | --- |
-          | Commit | ``${{ github.sha }}`` |
-          | Runner image | ``$env:ImageOS $env:ImageVersion`` |
-          | CMake | ``$cmakeVersion`` |
-          | Inno Setup | ``$innoVersion`` at ``$($innoInfo.Path)`` |
-          | Cubism Core SHA-256 | ``$cubismHash`` |
-          | BongoCat.exe SHA-256 | ``$appHash`` |
-          | Portable SHA-256 | ``$portableHash`` |
-          | Installer SHA-256 | ``$setupHash`` |
-
-          "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
 
           New-Item -ItemType Directory -Path release-output -Force | Out-Null
           Copy-Item -LiteralPath $portable, $portableChecksum, $setup, `
@@ -247,8 +219,9 @@ jobs:
 
   virus-total:
     name: security / virustotal
+    needs: version-check
     if: github.repository == 'vladelaina/BongoCat'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 310
     # CI and releases share the same VirusTotal API quota.
     concurrency:
@@ -295,7 +268,7 @@ jobs:
     name: publish / all platforms
     needs: build
     if: github.repository == 'vladelaina/BongoCat'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
 

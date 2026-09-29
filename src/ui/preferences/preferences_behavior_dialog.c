@@ -1,5 +1,8 @@
 #include "preferences_state.h"
+#include "runtime.h"
 #include "preferences_overlay.h"
+#include "preferences_notice.h"
+#include "preferences_model_glyphs.h"
 #include "ui_animation.h"
 #include "ui_backend.h"
 #include "ui_icons.h"
@@ -7,6 +10,8 @@
 
 #include <SDL3/SDL.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 static const char *tr(BongoCatPreferences *value, const char *key,
     const char *fallback) {
@@ -37,15 +42,18 @@ static bool hit(struct nk_context *context, struct nk_rect bounds, bool enabled)
 static bool matches(const BongoCatPreferences *value,
     const BongoCatBehaviorEntry *entry, int tab) {
     if (tab == 0) return entry->kind == BONGO_CAT_BEHAVIOR_MOTION &&
+        (!bongo_cat_preferences_behavior_model_loaded(value) ||
         bongo_cat_live2d_motion_visible(value->app->live2d,
-            entry->group, entry->index);
+            entry->group, entry->index));
     if (tab == 1) return entry->kind == BONGO_CAT_BEHAVIOR_EXPRESSION;
     return entry->kind == BONGO_CAT_BEHAVIOR_SOUND && (entry->sound[0] || entry->sound_clear);
 }
 
 static bool tab_available(const BongoCatPreferences *value, int tab) {
-    for (size_t i = 0; i < value->app->behaviors.count; ++i) {
-        const BongoCatBehaviorEntry *entry = &value->app->behaviors.entries[i];
+    const BongoCatBehaviorCatalog *catalog =
+        bongo_cat_preferences_behavior_catalog(value);
+    for (size_t i = 0; i < catalog->count; ++i) {
+        const BongoCatBehaviorEntry *entry = &catalog->entries[i];
         if (matches(value, entry, tab) && (tab != 2 || entry->sound[0])) return true;
     }
     return false;
@@ -54,8 +62,10 @@ static bool tab_available(const BongoCatPreferences *value, int tab) {
 static size_t row_count(const BongoCatPreferences *value) {
     if (!tab_available(value, value->behavior_tab)) return 0;
     size_t count = 0;
-    for (size_t i = 0; i < value->app->behaviors.count; ++i)
-        if (matches(value, &value->app->behaviors.entries[i],
+    const BongoCatBehaviorCatalog *catalog =
+        bongo_cat_preferences_behavior_catalog(value);
+    for (size_t i = 0; i < catalog->count; ++i)
+        if (matches(value, &catalog->entries[i],
             value->behavior_tab))
             count++;
     return count;
@@ -66,12 +76,62 @@ bool bongo_cat_preferences_behavior_dialog_active(
     return value && value->behavior_dialog;
 }
 
-void bongo_cat_preferences_behavior_dialog_open(
-    BongoCatPreferences *value) {
+const BongoCatBehaviorCatalog *bongo_cat_preferences_behavior_catalog(
+    const BongoCatPreferences *value) {
+    return value->behavior_catalog ? value->behavior_catalog : &value->app->behaviors;
+}
+
+bool bongo_cat_preferences_behavior_model_loaded(const BongoCatPreferences *value) {
+    return !strcmp(value->behavior_model_id, value->app->loaded_model);
+}
+
+void bongo_cat_preferences_behavior_dialog_open(BongoCatPreferences *value) {
     if (!value) return;
+    bongo_cat_preferences_behavior_dialog_open_model(value,
+        bongo_cat_models_find(&value->app->models, value->app->loaded_model));
+}
+
+void bongo_cat_preferences_behavior_dialog_open_model(
+    BongoCatPreferences *value, const BongoCatModelEntry *model) {
+    if (!value || !model) return;
+    bongo_cat_preferences_shortcut_cancel(value);
+    BongoCatError shortcut_error = {0};
+    if (!bongo_cat_mver_shortcuts_load(value->app, model, &shortcut_error)) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
+            "Model shortcuts load failed: %s", shortcut_error.message);
+        bongo_cat_preferences_notice_show(value->app, tr(value,
+            "pages.preference.model.hints.shortcutLoadFailed",
+            "Unable to load model shortcuts. Check the model configuration files"), true);
+        return;
+    }
+    BongoCatBehaviorCatalog *catalog = calloc(1, sizeof(*catalog));
+    if (!catalog) return;
+    BongoCatError error = {0};
+    if (bongo_cat_behaviors_load(catalog, model, &error) != BONGO_CAT_OK) {
+        bongo_cat_behaviors_clear(catalog); free(catalog);
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
+            "Model actions load failed: %s", error.message);
+        bongo_cat_preferences_notice_show(value->app, tr(value,
+            "pages.preference.model.hints.behaviorLoadFailed",
+            "Unable to load model actions. Check that the model files are complete and readable"), true);
+        return;
+    }
+    bongo_cat_preferences_behavior_rename_finish(value, true);
+    bongo_cat_preferences_shortcut_cancel(value);
+    bongo_cat_behaviors_clear(value->behavior_catalog); free(value->behavior_catalog);
+    value->behavior_catalog = catalog;
+    snprintf(value->behavior_model_id, sizeof(value->behavior_model_id), "%s", model->id);
+    memset(value->behavior_scroll, 0, sizeof(value->behavior_scroll));
+    bongo_cat_preferences_scrollbar_reset(&value->behavior_scrollbar);
+    value->behavior_tab_transition_ns = 0;
     SDL_Log("Preferences behavior dialog opened with %llu behaviors",
-        (unsigned long long)value->app->behaviors.count);
+        (unsigned long long)bongo_cat_preferences_behavior_catalog(value)->count);
     value->behavior_dialog = true;
+    if (value->ui_initialized &&
+        !bongo_cat_preferences_behavior_glyphs_ready(value)) {
+        value->font_reload_pending = true;
+        value->font_reload_defer_once = false;
+    }
     value->behavior_dialog_input_armed = false;
     value->behavior_dialog_opened_ns = SDL_GetTicksNS();
     value->behavior_dialog_closing_ns = 0;
@@ -92,9 +152,12 @@ void bongo_cat_preferences_behavior_dialog_close(
 static bool draw_header(BongoCatPreferences *value, struct nk_context *context,
     struct nk_command_buffer *canvas, struct nk_rect panel,
     BongoCatUIPalette p, float opacity, bool enabled) {
+    const BongoCatModelEntry *model = bongo_cat_models_find(
+        &value->app->models, value->behavior_model_id);
+    const char *name = model ?
+        bongo_cat_model_name(&value->app->settings, model) : value->behavior_model_id;
     text(canvas, nk_rect(panel.x + 20, panel.y + 21, panel.w - 74, 24),
-        tr(value, "pages.preference.model.behaviorModal.title",
-        "Motions, expressions and audio"), value->ui.label_font, alpha(p.text, opacity));
+        name, value->ui.label_font, alpha(nk_rgb(247, 125, 170), opacity));
     struct nk_rect close = nk_rect(panel.x + panel.w - 52, panel.y + 17, 32, 32);
     return bongo_cat_ui_close_button(context, canvas, close,
         alpha(p.muted, opacity), alpha(p.accent, opacity), enabled);
@@ -180,8 +243,10 @@ static void draw_rows(BongoCatPreferences *value, struct nk_context *context,
     }
     nk_push_scissor(canvas, viewport);
     size_t shown = 0;
-    for (size_t i = 0; i < value->app->behaviors.count; ++i) {
-        BongoCatBehaviorEntry *entry = &value->app->behaviors.entries[i];
+    const BongoCatBehaviorCatalog *catalog =
+        bongo_cat_preferences_behavior_catalog(value);
+    for (size_t i = 0; i < catalog->count; ++i) {
+        const BongoCatBehaviorEntry *entry = &catalog->entries[i];
         if (!matches(value, entry, value->behavior_tab)) continue;
         struct nk_rect row = nk_rect(viewport.x,
             viewport.y + shown++ * 56.0f - render_offset, row_width, 56);
@@ -191,8 +256,6 @@ static void draw_rows(BongoCatPreferences *value, struct nk_context *context,
                 content_opacity, enabled);
     }
     nk_push_scissor(canvas, nk_window_get_content_region(context));
-    if (!shown) centered(canvas, viewport, tr(value, "native.noBehaviors",
-        "No items"), value->ui.caption_font, alpha(p.muted, content_opacity));
 }
 
 void bongo_cat_preferences_behavior_dialog_draw(
@@ -211,6 +274,8 @@ void bongo_cat_preferences_behavior_dialog_draw(
         region, width, height, value->behavior_dialog_opened_ns,
         value->behavior_dialog_closing_ns);
     if (frame.finished) {
+        bongo_cat_behaviors_clear(value->behavior_catalog); free(value->behavior_catalog);
+        value->behavior_catalog = NULL;
         value->behavior_dialog = false;
         value->behavior_dialog_opened_ns = value->behavior_dialog_closing_ns = 0;
         return;

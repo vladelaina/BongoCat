@@ -1,14 +1,3 @@
-> [!TIP]
->
-> ### 💼 Looking for Remote Work Opportunities
->
-> I'm currently looking for a **remote development position**. If your team is looking for a developer and you think my experience or open-source work could be a good fit, feel free to contact me at:
->
->
-> 我目前正在寻找一份远程开发相关的工作。如果您的团队正在寻找开发者，并且认为我的经验或开源项目经历可能适合你们，欢迎通过以下邮箱联系我：
->
-> 📧 [**vladelaina@gmail.com**](mailto:vladelaina@gmail.com)
-
 
 <div align="center">
   <a href="https://bongocat.pet" target="_blank">
@@ -93,7 +82,7 @@ Run the commands below from the project root (the directory containing
   ```bash
   sudo apt-get update
   sudo apt-get install -y build-essential cmake ninja-build \
-    libgl1-mesa-dev libx11-dev libxi-dev libxfixes-dev
+    libgl1-mesa-dev libx11-dev libxi-dev libxfixes-dev libfontconfig1-dev fonts-noto-cjk
   ```
 
 ### 🔧 Configure and Build

@@ -29,6 +29,21 @@ function(bongo_cat_remove_cubism_section variable anchor start_marker end_marker
   set(${variable} "${prefix}${suffix}" PARENT_SCOPE)
 endfunction()
 
+function(bongo_cat_patch_cubism_texture_sampling variable)
+  set(source "${${variable}}")
+  # Atlas uploads own persistent sampler state, including the linear fallback
+  # when mip allocation fails. Both mask and color draws retain that state.
+  foreach(parameter IN ITEMS
+      "GL_TEXTURE_WRAP_S, GL_REPEAT" "GL_TEXTURE_WRAP_T, GL_REPEAT"
+      "GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR"
+      "GL_TEXTURE_MAG_FILTER, GL_LINEAR")
+    bongo_cat_replace_cubism_text(source
+      "glTexParameteri(GL_TEXTURE_2D, ${parameter});"
+      "/* Atlas upload owns ${parameter}. */" "texture sampling ownership")
+  endforeach()
+  set(${variable} "${source}" PARENT_SCOPE)
+endfunction()
+
 function(bongo_cat_optimize_cubism_shaders target)
   set(shader_dir "${CUBISM_FRAMEWORK_PATH}/src/Rendering/OpenGL")
   set(source_path "${shader_dir}/CubismShader_OpenGLES2.cpp")
@@ -36,13 +51,7 @@ function(bongo_cat_optimize_cubism_shaders target)
   set(output_source "${output_dir}/CubismShader_OpenGLES2.cpp")
   file(READ "${source_path}" source)
   string(REPLACE "\r\n" "\n" source "${source}")
-  # The uploader selects trilinear filtering after building a complete,
-  # alpha-safe mip chain and retains linear filtering if that work fails.
-  # Do not overwrite that per-texture decision on every drawable.
-  bongo_cat_replace_cubism_text(source
-    "glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);"
-    "/* Model upload owns minification filtering and fallback. */"
-    "model texture minification ownership")
+  bongo_cat_patch_cubism_texture_sampling(source)
 
   set(compile_anchor [=[
 _shaderSets[ShaderNames_MultMaskedInvertedPremultipliedAlpha]->ShaderProgram = _shaderSets[ShaderNames_NormalMaskedInvertedPremultipliedAlpha]->ShaderProgram;]=])

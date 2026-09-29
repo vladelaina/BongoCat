@@ -6,16 +6,19 @@
 #include "bongo_cat/overlay.h"
 #include "bongo_cat/preferences.h"
 #include "bongo_cat/tray.h"
+#include "bongo_cat/resource_trace.h"
 
 #include <stdlib.h>
 
 void bongo_cat_app_shutdown(BongoCatApp *app, const char *stage,
     int exit_code) {
+    bongo_cat_diagnostics_phase("shutdown");
     bongo_cat_runtime_stage(app, stage);
     SDL_LogInfo(BONGO_CAT_LOG_LIFECYCLE,
         "[runtime] Shutdown started: stage=%s exit_code=%d",
         stage, exit_code);
     bongo_cat_app_capture_behavior_state(app);
+    bongo_cat_app_log_input(app, true);
     bongo_cat_window_snapshot_discard(app);
     bongo_cat_config_store_flush(app);
     bongo_cat_multi_pet_shutdown(app);
@@ -30,10 +33,14 @@ void bongo_cat_app_shutdown(BongoCatApp *app, const char *stage,
     bongo_cat_audio_destroy(app->audio);
     bongo_cat_overlay_destroy(app->overlay);
     bongo_cat_live2d_destroy(app->live2d);
-    free(app->behavior_cache);
+    bongo_cat_resource_trace_shutdown();
+    bongo_cat_behaviors_clear(&app->behaviors);
+    bongo_cat_app_model_shortcuts_clear(app);
+    bongo_cat_behaviors_clear(app->behavior_cache); free(app->behavior_cache);
     app->behavior_cache = NULL;
     bongo_cat_platform_shutdown(&app->platform);
     bongo_cat_runtime_log_stop();
     bongo_cat_window_destroy(app);
     bongo_cat_runtime_clean_shutdown(app, exit_code);
+    bongo_cat_diagnostics_stop();
 }

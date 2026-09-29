@@ -18,10 +18,15 @@ const char *bongo_cat_ui_system_font(char *path, size_t capacity, bool multiling
     const char *windows = SDL_getenv("WINDIR");
     if (!windows) windows = SDL_getenv("SystemRoot");
     if (windows) {
-        const char *multi[] = {"Fonts/msyh.ttc", "Fonts/msyhl.ttc"};
+        /* Windows 7 ships YaHei as TTF; newer Windows uses TTC. Probe
+           both filenames instead of assuming the installed font format. */
+        const char *multi[] = {"Fonts/msyh.ttc", "Fonts/msyh.ttf",
+            "Fonts/msyhl.ttc", "Fonts/simsun.ttc"};
         const char *latin[] = {"Fonts/segoeui.ttf", "Fonts/msyhl.ttc"};
         const char **candidates = multilingual ? multi : latin;
-        for (size_t i = 0; i < 2; ++i) {
+        size_t count = multilingual ?
+            sizeof(multi) / sizeof(multi[0]) : sizeof(latin) / sizeof(latin[0]);
+        for (size_t i = 0; i < count; ++i) {
             bongo_cat_path_join(path, capacity, windows, candidates[i]);
             if (readable(path)) return path;
         }
@@ -36,10 +41,8 @@ const char *bongo_cat_ui_system_font(char *path, size_t capacity, bool multiling
         return path;
     }
 #else
-    /* Every Linux distribution ships fonts to different directories, so the
-       candidate lists must cover the common layouts. CJK-capable fonts come
-       first for multilingual fallbacks; the CJK-less DejaVu remains last as a
-       final resort so Chinese text never silently falls back to it. */
+    /* Keep known faces first; Fontconfig below also finds fonts installed
+       by users or distributions with different directory layouts. */
     static const char *const cjk[] = {
         /* Arch/Manjaro and openSUSE: noto-fonts-cjk */
         "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
@@ -77,12 +80,12 @@ const char *bongo_cat_ui_system_font(char *path, size_t capacity, bool multiling
         snprintf(path, capacity, "%s", candidates[i]);
         return path;
     }
-    if (multilingual)
-        for (size_t i = 0; i < sizeof(latin) / sizeof(latin[0]); ++i) {
-            if (!readable(latin[i])) continue;
-            snprintf(path, capacity, "%s", latin[i]);
-            return path;
-        }
+#ifdef BONGO_CAT_HAS_FONTCONFIG
+    if (bongo_cat_ui_fontconfig_font(path, capacity,
+        multilingual ? "zh-cn" : "en", false)) return path;
+#endif
+    if (multilingual) SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
+        "No Chinese UI font found; install a CJK font such as Noto Sans CJK");
 #endif
     return NULL;
 }
@@ -93,10 +96,15 @@ const char *bongo_cat_ui_system_heading_font(char *path, size_t capacity,
     const char *windows = SDL_getenv("WINDIR");
     if (!windows) windows = SDL_getenv("SystemRoot");
     if (windows) {
-        const char *multi[] = {"Fonts/msyhbd.ttc", "Fonts/msyhl.ttc"};
+        /* Prefer bold in either format, then a regular Chinese face. */
+        const char *multi[] = {"Fonts/msyhbd.ttc", "Fonts/msyhbd.ttf",
+            "Fonts/msyh.ttc", "Fonts/msyh.ttf", "Fonts/msyhl.ttc",
+            "Fonts/simsun.ttc"};
         const char *latin[] = {"Fonts/seguisb.ttf", "Fonts/segoeui.ttf"};
         const char **candidates = multilingual ? multi : latin;
-        for (size_t i = 0; i < 2; ++i) {
+        size_t count = multilingual ?
+            sizeof(multi) / sizeof(multi[0]) : sizeof(latin) / sizeof(latin[0]);
+        for (size_t i = 0; i < count; ++i) {
             bongo_cat_path_join(path, capacity, windows, candidates[i]);
             if (readable(path)) return path;
         }
@@ -140,12 +148,12 @@ const char *bongo_cat_ui_system_heading_font(char *path, size_t capacity,
         snprintf(path, capacity, "%s", candidates[i]);
         return path;
     }
-    if (multilingual)
-        for (size_t i = 0; i < sizeof(latin) / sizeof(latin[0]); ++i) {
-            if (!readable(latin[i])) continue;
-            snprintf(path, capacity, "%s", latin[i]);
-            return path;
-        }
+#ifdef BONGO_CAT_HAS_FONTCONFIG
+    if (bongo_cat_ui_fontconfig_font(path, capacity,
+        multilingual ? "zh-cn" : "en", true)) return path;
+#endif
+    /* A regular face with the right script is preferable to Latin-only bold. */
+    return bongo_cat_ui_system_font(path, capacity, multilingual);
 #endif
     return NULL;
 }
@@ -187,6 +195,9 @@ const char *bongo_cat_ui_system_korean_font(char *path, size_t capacity) {
         return path;
     }
 #endif
+#ifdef BONGO_CAT_HAS_FONTCONFIG
+    if (bongo_cat_ui_fontconfig_font(path, capacity, "ko", false)) return path;
+#endif
     return bongo_cat_ui_system_font(path, capacity, true);
 }
 
@@ -227,5 +238,8 @@ const char *bongo_cat_ui_system_korean_heading_font(char *path,
         return path;
     }
 #endif
-    return bongo_cat_ui_system_heading_font(path, capacity, true);
+#ifdef BONGO_CAT_HAS_FONTCONFIG
+    if (bongo_cat_ui_fontconfig_font(path, capacity, "ko", true)) return path;
+#endif
+    return bongo_cat_ui_system_korean_font(path, capacity);
 }

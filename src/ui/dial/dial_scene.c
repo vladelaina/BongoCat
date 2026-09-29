@@ -54,8 +54,7 @@ static void text(Dial *d, const char *s, float x, float y, float width, bool tit
     dial_text(d,s,x,y,width,title ? 19.0f : 14.0f,color);
 }
 static int item_icon(DialItem item) {
-    return item.checked && item.icon == 2 ? 12 :
-        (item.checked && item.icon == 3 ? 13 : item.icon);
+    return item.checked && item.icon == 3 ? 13 : item.icon;
 }
 
 static void root(Dial *d, int index, uint64_t now) {
@@ -74,13 +73,17 @@ static void root(Dial *d, int index, uint64_t now) {
     float opacity = ease;
     int tint = active ? (index >= 10 ? 3 : 1) : 0;
     surface(d, &d->paint.roots[index], tint, opacity);
-    uint32_t color = active ? 0xffffffff : (item.checked ? 0xfff77daa : item.color);
+    bool top_checked = item.command == BONGO_CAT_MENU_ALWAYS_ON_TOP && item.checked;
+    uint32_t color = active ? 0xffffffff :
+        (item.checked ? (top_checked ? 0xff60a5fa : 0xfff77daa) : item.color);
     if (index >= 6 && index <= 8 && !item.children) opacity *= .4f;
     dial_icon(d, item_icon(item), x, y, 28 * (1 + .15f * lift), alpha(color, opacity));
     if (item.checked && item.command != BONGO_CAT_MENU_ALWAYS_ON_TOP) {
         for (int i = 4; i > 0; --i)
-            dial_dot(d, x + 17, y - 17, 3.2f + i * 1.5f, alpha(0x0af77daa, ease));
-        dial_dot(d, x + 17, y - 17, 3.2f, alpha(0xfff77daa, ease));
+            dial_dot(d, x + 17, y - 17, 3.2f + i * 1.5f,
+                alpha(top_checked ? 0x0a60a5fa : 0x0af77daa, ease));
+        dial_dot(d, x + 17, y - 17, 3.2f,
+            alpha(top_checked ? 0xff60a5fa : 0xfff77daa, ease));
     }
 }
 

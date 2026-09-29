@@ -5,8 +5,9 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_properties.h>
 
-BongoCatResult bongo_cat_platform_set_autostart(bool enabled,
+BongoCatResult bongo_cat_platform_set_autostart(bool enabled, bool administrator,
     BongoCatError *error) {
+    (void)administrator;
     @autoreleasepool {
         NSString *directory = [NSHomeDirectory()
             stringByAppendingPathComponent:@"Library/LaunchAgents"];

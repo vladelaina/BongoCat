@@ -91,7 +91,14 @@ bool dial_fonts_init(Dial *d) {
         glTexImage2D(GL_TEXTURE_2D,0,GL_R8,width,rows,0,GL_RED,GL_UNSIGNED_BYTE,pixels);
         glPixelStorei(GL_UNPACK_ALIGNMENT,4);
         ok = p->font_texture && glGetError() == GL_NO_ERROR;
+        if (ok) { p->font_width = width; p->font_height = rows; }
         nk_font_atlas_end(&p->atlas,nk_handle_id((int)p->font_texture),NULL);
+        if (ok && !bongo_cat_ui_font_has_ranges(p->font,p->ranges[0]))
+            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
+                "Dial font atlas is missing requested glyphs (body=%s, CJK=%s, Korean=%s)",
+                names[0] ? names[0] : "built-in",
+                names[1] ? names[1] : "none",
+                names[2] ? names[2] : "none");
     }
     for (int i = 0; i < 3; ++i) {
         bongo_cat_ui_font_detach_source(&p->atlas,&sources[i]);

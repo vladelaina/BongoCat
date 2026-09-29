@@ -4,6 +4,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifndef _WIN32
+#include <strings.h>
+#endif
 
 static BongoCatPathVisit collect_keys(void *userdata,
     const char *dirname, const char *name) {

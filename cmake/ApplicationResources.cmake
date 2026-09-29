@@ -77,7 +77,8 @@ if(WIN32)
   configure_file(cmake/windows_resources.rc.in
     "${CMAKE_CURRENT_BINARY_DIR}/windows_resources.rc" @ONLY)
   set_property(SOURCE "${CMAKE_CURRENT_BINARY_DIR}/windows_resources.rc"
-    APPEND PROPERTY OBJECT_DEPENDS "${BONGO_CAT_ASSET_PACK}")
+    APPEND PROPERTY OBJECT_DEPENDS "${BONGO_CAT_ASSET_PACK}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/icon.ico")
   target_sources(bongo_cat PRIVATE
     "${CMAKE_CURRENT_BINARY_DIR}/windows_resources.rc")
   add_dependencies(bongo_cat bongo_cat_asset_pack)

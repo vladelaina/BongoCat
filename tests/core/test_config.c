@@ -43,14 +43,24 @@ void test_config(void) {
     bongo_cat_settings_defaults(&settings);
     bongo_cat_session_defaults(&session);
     CHECK(!settings.window.pass_through);
+    CHECK(!settings.app.game_compatibility);
+    settings.app.game_compatibility = true;
     settings.model.max_fps = 30;
     settings.model.multiple_pets = true;
+    CHECK(!settings.model.vertical_flip);
+    CHECK(!settings.model.mouse_vertical_flip);
+    settings.model.mouse_vertical_flip = true;
     settings.model.mirror = true;
+    settings.model.vertical_flip = true;
     settings.model.mouse_centered = false;
+    settings.model.gamepad_four_hands = true;
+    settings.model.dynamic_texture_resolution = false;
     settings.window.pass_through = true;
     settings.window.obs_background = true;
     settings.window.random_expression = true;
     settings.window.random_expression_interval_seconds = 12.0f;
+    settings.window.random_motion = true;
+    settings.window.random_motion_interval_seconds = 17.0f;
     settings.window.obs_background_color = BONGO_CAT_OBS_BACKGROUND_BLUE;
     settings.app.language = BONGO_CAT_LANG_ZH_CN;
     memcpy(settings.extensions_json, "{\"example\":{\"enabled\":true}}",
@@ -72,6 +82,8 @@ void test_config(void) {
     session.window.height = 500;
     session.window.content_width = 612;
     session.window.content_height = 354;
+    session.window.content_left = 44;
+    session.window.content_top = 96;
     memcpy(session.active_model_id, "model", sizeof("model"));
     session.last_update_check_day = 20260827;
     memcpy(session.last_update_check_version, "0.1.0", sizeof("0.1.0"));
@@ -96,6 +108,7 @@ void test_config(void) {
         BONGO_CAT_OK);
     CHECK(contains_text(settings_path, "\"format\": \"bongocat/settings\""));
     CHECK(contains_text(settings_path, "\"captureBackground\": true"));
+    CHECK(contains_text(settings_path, "\"gameCompatibility\": true"));
     CHECK(contains_text(settings_path, "\"randomExpression\": true"));
     CHECK(contains_text(settings_path,
         "\"randomExpressionIntervalSeconds\": 12.0"));
@@ -125,11 +138,18 @@ void test_config(void) {
         BONGO_CAT_OK);
     CHECK(loaded_settings.model.max_fps == 30 && loaded_settings.model.mirror &&
         loaded_settings.model.multiple_pets);
+    CHECK(loaded_settings.model.vertical_flip);
+    CHECK(loaded_settings.model.mouse_vertical_flip);
     CHECK(loaded_settings.window.pass_through &&
         loaded_settings.window.obs_background &&
         loaded_settings.window.random_expression &&
         loaded_settings.window.random_expression_interval_seconds == 12.0f);
+    CHECK(loaded_settings.window.random_motion &&
+        loaded_settings.window.random_motion_interval_seconds == 17.0f);
     CHECK(loaded_settings.app.language == BONGO_CAT_LANG_ZH_CN);
+    CHECK(loaded_settings.app.game_compatibility);
+    CHECK(loaded_settings.model.gamepad_four_hands);
+    CHECK(!loaded_settings.model.dynamic_texture_resolution);
     CHECK(strstr(loaded_settings.extensions_json,
         "\"enabled\":true") != NULL);
     CHECK(strcmp(bongo_cat_model_name(&loaded_settings,
@@ -145,7 +165,9 @@ void test_config(void) {
         loaded_session.window.width == 700 &&
         loaded_session.window.height == 500 &&
         loaded_session.window.content_width == 612 &&
-        loaded_session.window.content_height == 354);
+        loaded_session.window.content_height == 354 &&
+        loaded_session.window.content_left == 44 &&
+        loaded_session.window.content_top == 96);
     CHECK(strcmp(loaded_session.active_model_id, "model") == 0);
     CHECK(loaded_session.last_update_check_day == 20260827 &&
         strcmp(loaded_session.last_update_check_version, "0.1.0") == 0);
@@ -158,7 +180,48 @@ void test_config(void) {
     CHECK(strcmp(loaded_session.active_behaviors[1].behavior_id,
         "model:expression:2") == 0);
 
+    settings.model.max_fps = BONGO_CAT_DISPLAY_MAX_FPS;
+    CHECK(bongo_cat_settings_save(settings_path, &settings, &error) == BONGO_CAT_OK);
+    CHECK(bongo_cat_settings_load(settings_path, &loaded_settings, &error) == BONGO_CAT_OK);
+    CHECK(loaded_settings.model.max_fps == BONGO_CAT_DISPLAY_MAX_FPS);
+
+    // Fractional quality must survive persistence, not round to zero and
+    // silently revert to full-size textures on the next application start.
+    const float quality_levels[] = {0.1f, 1.0f, 10.0f, 100.0f};
+    for (size_t i = 0; i < sizeof(quality_levels) / sizeof(quality_levels[0]); ++i) {
+        settings.model.render_quality_percent = quality_levels[i];
+        CHECK(bongo_cat_settings_save(settings_path, &settings, &error) == BONGO_CAT_OK);
+        loaded_settings.model.render_quality_percent = -1.0f;
+        CHECK(bongo_cat_settings_load(settings_path, &loaded_settings, &error) == BONGO_CAT_OK);
+        CHECK(loaded_settings.model.render_quality_percent == quality_levels[i]);
+    }
+
     const char *unsupported = "bongocat-unsupported.json";
+    write_text(unsupported,
+        "{\"format\":\"bongocat/settings\",\"schemaVersion\":1,"
+        "\"application\":{\"gameCompatibility\":false}}");
+    CHECK(bongo_cat_settings_load(unsupported, &loaded_settings, &error) == BONGO_CAT_OK);
+    CHECK(!loaded_settings.app.game_compatibility);
+    write_text(unsupported,
+        "{\"format\":\"bongocat/settings\",\"schemaVersion\":1,"
+        "\"application\":{\"gameCompatibility\":\"true\"}}");
+    CHECK(bongo_cat_settings_load(unsupported, &loaded_settings, &error) == BONGO_CAT_ERROR_FORMAT);
+    CHECK(!loaded_settings.app.game_compatibility);
+    write_text(unsupported,
+        "{\"format\":\"bongocat/settings\",\"schemaVersion\":1,"
+        "\"rendering\":{\"gamepadFourHands\":false}}");
+    CHECK(bongo_cat_settings_load(unsupported, &loaded_settings, &error) == BONGO_CAT_OK);
+    CHECK(!loaded_settings.model.gamepad_four_hands);
+    write_text(unsupported,
+        "{\"format\":\"bongocat/settings\",\"schemaVersion\":1,"
+        "\"rendering\":{\"gamepadFourHands\":\"true\"}}");
+    CHECK(bongo_cat_settings_load(unsupported, &loaded_settings, &error) == BONGO_CAT_ERROR_FORMAT);
+    CHECK(!loaded_settings.model.gamepad_four_hands);
+    write_text(unsupported,
+        "{\"format\":\"bongocat/settings\",\"schemaVersion\":1,"
+        "\"rendering\":{\"gamepadFourHands\":true,\"gamepadFourHands\":false}}");
+    CHECK(bongo_cat_settings_load(unsupported, &loaded_settings, &error) == BONGO_CAT_ERROR_FORMAT);
+    CHECK(!loaded_settings.model.gamepad_four_hands);
     write_text(unsupported,
         "{\"format\":\"bongocat/settings\",\"schemaVersion\":2}");
     CHECK(bongo_cat_settings_load(unsupported, &loaded_settings, &error) ==
@@ -170,6 +233,8 @@ void test_config(void) {
 
     write_text(unsupported, "{\"format\":\"bongocat/settings\",\"schemaVersion\":1,\"rendering\":{\"inputReleaseDelaySeconds\":3,\"maximumFps\":30}}");
     CHECK(bongo_cat_settings_load(unsupported, &loaded_settings, &error) == BONGO_CAT_OK && loaded_settings.model.max_fps == 30);
+    CHECK(!loaded_settings.model.gamepad_four_hands); /* older files omit the option */
+    CHECK(!loaded_settings.app.game_compatibility);
 
     write_text(unsupported,
         "{\"format\":\"bongocat/settings\",\"schemaVersion\":1,"
@@ -199,7 +264,8 @@ void test_config(void) {
     bongo_cat_session_defaults(&loaded_session);
     CHECK(bongo_cat_session_load(unsupported, &loaded_session, &error) ==
         BONGO_CAT_OK && loaded_session.window.content_width == 700 &&
-        loaded_session.window.content_height == 500);
+        loaded_session.window.content_height == 500 &&
+        loaded_session.window.content_left == 0 && loaded_session.window.content_top == 0);
 
     static BongoCatSettings canonical_settings;
     static BongoCatSessionState canonical_session;

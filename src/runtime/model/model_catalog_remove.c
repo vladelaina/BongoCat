@@ -38,10 +38,9 @@ BongoCatResult bongo_cat_app_remove_model(BongoCatApp *app, const char *id,
             "Model is not installed: %s", id);
         return BONGO_CAT_ERROR_ARGUMENT;
     }
-    if (entry->preset || entry->managed) {
-        bongo_cat_error_set(error, BONGO_CAT_ERROR_ARGUMENT, entry->managed
-            ? "Nearby models are managed by their source directory: %s"
-            : "Built-in models cannot be removed: %s", id);
+    if (entry->managed) {
+        bongo_cat_error_set(error, BONGO_CAT_ERROR_ARGUMENT,
+            "Nearby models are managed by their source directory: %s", id);
         return BONGO_CAT_ERROR_ARGUMENT;
     }
     bool primary = !strcmp(id, app->session.active_model_id) ||
@@ -86,7 +85,7 @@ BongoCatResult bongo_cat_app_remove_model(BongoCatApp *app, const char *id,
                 replacement = true;
                 break;
             }
-        if (!replacement) {
+        if (!replacement && app->models.count > 1) {
             bongo_cat_error_set(error, BONGO_CAT_ERROR_CUBISM,
                 "Cannot delete the active model because no replacement could be displayed: %s",
                 load_error.message[0] ? load_error.message :

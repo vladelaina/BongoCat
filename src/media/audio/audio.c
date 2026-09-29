@@ -27,6 +27,9 @@ BongoCatAudio *bongo_cat_audio_create(BongoCatError *error) {
 void bongo_cat_audio_stop(BongoCatAudio *audio) {
     if (!audio) return;
     for (size_t i = 0; i < AUDIO_VOICES; ++i) bongo_cat_audio_voice_release(&audio->voices[i]);
+#ifdef _WIN32
+    SDL_SetAtomicInt(&audio->mixing, 0);
+#endif
 }
 
 void bongo_cat_audio_reset(BongoCatAudio *audio) {
@@ -53,12 +56,29 @@ void bongo_cat_audio_collect(BongoCatAudio *audio, uint64_t now) {
             if (now - voice->used >= AUDIO_IDLE_MS) bongo_cat_audio_voice_release(voice);
         } else active = true;
     }
-    /* Idle players retain neither device callbacks nor decoder workers. */
+#ifdef _WIN32
+    if (ma_engine_get_device(&audio->engine)) {
+        bool retained = false;
+        for (size_t i = 0; i < AUDIO_VOICES; ++i)
+            retained |= audio->voices[i].ready;
+        if (!retained) SDL_SetAtomicInt(&audio->mixing, 0);
+        return;
+    }
+#endif
     if (!active && now - audio->last_play >= AUDIO_IDLE_MS) bongo_cat_audio_reset(audio);
 }
 
 void bongo_cat_audio_update(BongoCatAudio *audio) {
-    bongo_cat_audio_collect(audio, SDL_GetTicks());
+    uint64_t now = SDL_GetTicks();
+#ifdef _WIN32
+    if (audio && audio->enabled && !audio->initialized && now >= audio->next_collect) {
+        audio->next_collect = now + AUDIO_IDLE_MS;
+        ma_result result = bongo_cat_audio_initialize(audio);
+        if (result != MA_SUCCESS)
+            SDL_LogWarn(SDL_LOG_CATEGORY_AUDIO, "Audio initialization failed: %d", result);
+    }
+#endif
+    bongo_cat_audio_collect(audio, now);
 }
 
 void bongo_cat_audio_set_enabled(BongoCatAudio *audio, bool enabled) {

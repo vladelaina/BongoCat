@@ -24,13 +24,18 @@ static bool add_rows(yyjson_mut_doc *output, yyjson_mut_val *items,
         if (index >= limit) break;
         if (yyjson_is_null(row) || (yyjson_is_arr(row) && !yyjson_arr_size(row)))
             continue;
+        bool disabled = yyjson_arr_size(row) == 1 &&
+            yyjson_is_int(yyjson_arr_get_first(row)) &&
+            (yyjson_get_int(yyjson_arr_get_first(row)) == 0 ||
+             yyjson_get_int(yyjson_arr_get_first(row)) == 255);
         const char *file = yyjson_get_str(yyjson_obj_get(
             yyjson_arr_get(available, index), "File"));
         char path[BONGO_CAT_PATH_CAP];
         if (!file || !bongo_cat_path_join(path, sizeof(path), candidate->directory,
                 file) || !bongo_cat_path_is_file(path)) continue;
-        char shortcut[BONGO_CAT_SHORTCUT_CAP];
-        if (!bongo_cat_mver_chord(candidate, row, shortcut, sizeof(shortcut))) {
+        char shortcut[BONGO_CAT_SHORTCUT_CAP] = {0};
+        /* Live2D bindings use Windows keys, including in gamepad mode. */
+        if (!disabled && !bongo_cat_mver_keyboard_chord(row, shortcut, sizeof(shortcut))) {
             bongo_cat_error_set(error, BONGO_CAT_ERROR_FORMAT,
                 "Mver %s binding %zu is not a supported input chord", kind, index);
             return false;
@@ -67,23 +72,30 @@ static bool add_motion_group(yyjson_mut_doc *output, yyjson_mut_val *items,
         group, available, labels, error);
 }
 
+static yyjson_val *binding_rows(yyjson_val *config,
+    const BongoCatImportCandidate *candidate, const char *field) {
+    const char *mode = bongo_cat_mver_binding_mode(
+        bongo_cat_mode_name(candidate->mode), field);
+    return yyjson_obj_get(yyjson_obj_get(config, mode), field);
+}
+
 bool bongo_cat_mver_add_behaviors(void *raw_output, void *raw_items,
-    void *raw_mode, const BongoCatImportCandidate *candidate,
+    void *raw_config, const BongoCatImportCandidate *candidate,
     const BongoCatMverLabels *labels, BongoCatError *error) {
     yyjson_mut_doc *output = raw_output;
     yyjson_mut_val *items = raw_items;
-    yyjson_val *mode = raw_mode, *references = NULL;
+    yyjson_val *config = raw_config, *references = NULL;
     yyjson_doc *document = manifest(candidate, &references);
     yyjson_val *expressions = yyjson_obj_get(references, "Expressions");
     yyjson_val *motions = yyjson_obj_get(references, "Motions");
     bool ok = document && add_rows(output, items,
-        yyjson_obj_get(mode, "l2d_expression"), candidate, "expression",
+        binding_rows(config, candidate, "l2d_expression"), candidate, "expression",
         "l2d_expression", NULL,
         expressions, labels, error) &&
-        add_motion_group(output, items, yyjson_obj_get(mode, "l2d_motion"),
+        add_motion_group(output, items, binding_rows(config, candidate, "l2d_motion"),
             motions, "l2d_motion", "CAT_motion", candidate, labels, error) &&
         add_motion_group(output, items,
-            yyjson_obj_get(mode, "l2d_motion_lockhand"), motions,
+            binding_rows(config, candidate, "l2d_motion_lockhand"), motions,
             "l2d_motion_lockhand", "CAT_motion_lock", candidate, labels, error);
     yyjson_doc_free(document);
     if (!ok && error && !error->message[0])

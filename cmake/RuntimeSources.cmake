@@ -18,8 +18,17 @@ set(BONGO_CAT_MEDIA_SOURCES
   src/media/audio/audio_playback.c
   src/media/image.c
   src/media/image_decode.c
+  src/media/image_wic_stream.c
+  src/media/image_png_stream.c
+  src/media/image_png_scaled.c
+  src/media/image_texture_cache.c
+  src/media/image_texture_cache_storage.c
+  src/media/image_texture_job.c
   src/media/image_info.c
+  src/media/image_model.c
   src/media/image_mipmap.c
+  src/media/image_upload.c
+  src/media/image_upload_sync.c
   src/media/image_resize.c
   src/media/image_alpha.c
   src/media/stb_image_impl.c)
@@ -57,6 +66,8 @@ set(BONGO_CAT_RUNTIME_UPDATE_SOURCES
   src/runtime/update/update_service.c)
 
 set(BONGO_CAT_RUNTIME_DIAGNOSTIC_SOURCES
+  src/runtime/diagnostics/resource_trace.c
+  src/runtime/diagnostics/model_memory.c
   src/runtime/diagnostics/frame_audit.c
   src/runtime/diagnostics/frame_presentation_audit.c
   src/runtime/diagnostics/live2d_audit.c
@@ -79,6 +90,7 @@ set(BONGO_CAT_RUNTIME_INPUT_SOURCES
 set(BONGO_CAT_RUNTIME_MODEL_SOURCES
   src/runtime/model/model_behavior.c
   src/runtime/model/model_behavior_cache.c
+  src/runtime/model/model_texture_refresh.c
   src/runtime/model/model_behavior_state.c
   src/runtime/model/model_catalog_runtime.c
   src/runtime/model/model_catalog_builtins.c
@@ -95,6 +107,7 @@ set(BONGO_CAT_RUNTIME_MODEL_SOURCES
   src/runtime/model/multi_pet_process.c
   src/runtime/model/multi_pet_settings.c
   src/runtime/model/model_storage.c
+  src/runtime/model/model_random_behavior.c
   src/runtime/model/model_update.c)
 
 set(BONGO_CAT_RUNTIME_IMPORT_SOURCES
@@ -123,6 +136,15 @@ set(BONGO_CAT_RUNTIME_IMPORT_SOURCES
   src/runtime/model/import/model_import_session.c
   src/runtime/model/import/model_import_source.c
 
+  # Shared Mver configuration: authored fields, comments and shortcut persistence.
+  src/runtime/model/mver/mver_config.c
+  src/runtime/model/mver/mver_config_keys.c
+  src/runtime/model/mver/mver_config_text.c
+  src/runtime/model/mver/mver_config_labels.c
+  src/runtime/model/mver/mver_config_write.c
+  src/runtime/model/mver/mver_shortcuts.c
+  src/runtime/model/mver/mver_render.c
+
   # Mver is the canonical package and runtime-adapter format.
   src/runtime/model/import/mver/model_import_mver_assets.c
   src/runtime/model/import/mver/model_import_mver_copy.c
@@ -130,13 +152,11 @@ set(BONGO_CAT_RUNTIME_IMPORT_SOURCES
   src/runtime/model/import/mver/model_import_mver_manifest.c
   src/runtime/model/import/mver/model_import_mver_effect.c
   src/runtime/model/import/mver/model_import_mver_image.c
-  src/runtime/model/import/mver/model_import_mver_labels.c
   src/runtime/model/import/mver/model_import_mver_metadata.c
   src/runtime/model/import/mver/model_import_mver_audio.c
   src/runtime/model/import/mver/model_import_mver_motion.c
   src/runtime/model/import/mver/model_import_mver_patch.c
   src/runtime/model/import/mver/model_import_mver_policy.c
-  src/runtime/model/import/mver/model_import_mver_shortcut.c
 
   # Tauri packages are converted to canonical Mver packages before loading.
   src/runtime/model/import/tauri/model_import_tauri_candidate.c
@@ -161,9 +181,11 @@ set(BONGO_CAT_RUNTIME_SHELL_SOURCES
   src/runtime/shell/tray.c
   src/runtime/shell/window.c
   src/runtime/shell/window_background.c
+  src/runtime/shell/window_corners.c
   src/runtime/shell/window_display.c
   src/runtime/shell/window_drag.c
   src/runtime/shell/window_geometry.c
+  src/runtime/shell/window_frame.c
   src/runtime/shell/window_hit.c
   src/runtime/shell/window_menu_actions.c
   src/runtime/shell/window_menu_behavior.c
@@ -203,6 +225,7 @@ set(BONGO_CAT_UI_RENDERING_SOURCES
   src/ui/rendering/ui_font_atlas_upload.c
   src/ui/rendering/ui_font_reload.c
   src/ui/rendering/ui_native_theme.c
+  src/ui/rendering/ui_present.c
   src/ui/rendering/ui_paint.c
   src/ui/rendering/ui_paint_border.c
   src/ui/rendering/ui_paint_cache.c
@@ -249,6 +272,7 @@ set(BONGO_CAT_UI_PREFERENCES_SOURCES
   src/ui/preferences/preferences_icons.c
   src/ui/preferences/preferences_language.c
   src/ui/preferences/preferences_lifecycle.c
+  src/ui/preferences/preferences_resources.c
   src/ui/preferences/preferences_live_resize.c
   src/ui/preferences/preferences_model.c
   src/ui/preferences/preferences_model_card.c
@@ -283,6 +307,7 @@ set(BONGO_CAT_UI_PREFERENCES_SOURCES
 set(BONGO_CAT_RUNTIME_SOURCES
   src/core/app_state.c
   src/platform/common/memory.c
+  src/platform/common/gl_readback.c
   src/platform/common/update_shutdown.c
   ${BONGO_CAT_MEDIA_SOURCES}
   ${BONGO_CAT_RENDER_SOURCES}

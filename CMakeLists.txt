@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-set(BONGO_CAT_VERSION "1.10.0")
+set(BONGO_CAT_VERSION "1.13.1")
 project(BongoCat VERSION ${BONGO_CAT_VERSION} DESCRIPTION "BongoCat" HOMEPAGE_URL "https://github.com/vladelaina/BongoCat" LANGUAGES C CXX)
 include(cmake/Version.cmake)
 include(FetchContent)
@@ -7,6 +7,7 @@ include(CTest)
 option(BONGO_CAT_FETCH_DEPS "Download pinned open-source dependencies" ON)
 option(BONGO_CAT_REQUIRE_CUBISM "Fail configuration when Cubism SDK is absent" OFF)
 option(BONGO_CAT_WARNINGS_AS_ERRORS "Treat native source warnings as errors" OFF)
+option(BONGO_CAT_STATIC_ANALYZER "Run GCC's static analyzer on project C sources" OFF)
 set(BONGO_CAT_CUBISM_SDK "${CMAKE_CURRENT_SOURCE_DIR}/vendor/CubismSdkForNative"
   CACHE PATH "Path to Cubism SDK for Native")
 set(CMAKE_C_STANDARD 11)
@@ -30,6 +31,13 @@ else()
     target_compile_options(bongo_cat_warnings INTERFACE -Werror)
   endif()
 endif()
+if(BONGO_CAT_STATIC_ANALYZER)
+  if(NOT CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_VERSION VERSION_LESS 10)
+    message(FATAL_ERROR "BONGO_CAT_STATIC_ANALYZER requires GCC 10 or newer")
+  endif()
+  target_compile_options(bongo_cat_warnings INTERFACE
+    $<$<COMPILE_LANGUAGE:C>:-fanalyzer>)
+endif()
 include(cmake/Dependencies.cmake)
 include(cmake/AudioDecoder.cmake)
 find_package(OpenGL REQUIRED)
@@ -46,10 +54,17 @@ if(EXISTS "${CUBISM_CORE_HEADER}")
     include(cmake/Cubism.cmake)
     set(BONGO_CAT_LIVE2D_SOURCES
       src/live2d/cubism_bridge.cpp src/live2d/cubism_bridge_load.cpp
+      src/live2d/cubism_render_resources.cpp
       src/live2d/cubism_bridge_visual.cpp
       src/live2d/cubism_expression.cpp
       src/live2d/cubism_model_load.cpp
+      src/live2d/cubism_texture_resolution.cpp
+      src/live2d/cubism_texture_refresh.cpp
+      src/live2d/cubism_texture_refresh_memory.cpp
       src/live2d/cubism_model_renderer.cpp
+      src/live2d/cubism_model_masks.cpp
+      src/live2d/cubism_model_projection.cpp
+      src/live2d/cubism_model_textures.cpp
       src/live2d/cubism_model_idle.cpp
       src/live2d/cubism_model_update.cpp
       src/live2d/cubism_parameter_overrides.cpp
@@ -58,6 +73,7 @@ if(EXISTS "${CUBISM_CORE_HEADER}")
       src/live2d/cubism_motion_selection.cpp
       src/live2d/cubism_motion_state.cpp src/live2d/cubism_viewer_look.cpp
       src/live2d/cubism_model_bounds.cpp
+      src/live2d/cubism_model_frame.cpp
       src/live2d/cubism_model_viewport.cpp
       src/live2d/cubism_model_validate.cpp)
     set(BONGO_CAT_CUBISM_ENABLED ON)

@@ -20,5 +20,6 @@ const BongoCatModelCover *bongo_cat_preferences_model_cover(
     BongoCatApp *app, const BongoCatModelEntry *entry,
     int pixel_width, int pixel_height);
 void bongo_cat_preferences_model_covers_prune(BongoCatApp *app);
+size_t bongo_cat_preferences_model_cover_usage(BongoCatApp *app, size_t *count);
 
 #endif

@@ -12,6 +12,7 @@ static void draw(BongoCatOverlay *value, GLuint texture,
     } else glDisable(GL_BLEND);
     value->gl.use_program(value->program);
     value->gl.uniform_1i(value->mirror_location, mirror);
+    value->gl.uniform_1i(value->vertical_flip_location, value->vertical_flip);
     value->gl.uniform_1i(value->image_location, 0);
     value->gl.uniform_1i(value->reference_width_location, value->reference_width);
     value->gl.uniform_1i(value->reference_height_location, value->reference_height);

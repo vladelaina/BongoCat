@@ -29,9 +29,11 @@ int bongo_cat_overlay_key(BongoCatOverlay *value, const char *name, bool pressed
     GLuint *active = right ? &value->right : &value->left;
     char *active_path = right ? value->right_path : value->left_path;
     if (pressed) {
+        snprintf(value->last_input_path, sizeof(value->last_input_path), "%s", path);
         snprintf(active_name, BONGO_CAT_ID_CAP, "%s", name);
 #ifdef BONGO_CAT_HAS_CUBISM
         *active = bongo_cat_overlay_cached_texture(value, path);
+        if (!*active) value->input_texture_failures++;
 #else
         snprintf(active_path, BONGO_CAT_PATH_CAP, "%s", path);
         *active = 1;
@@ -49,6 +51,15 @@ int bongo_cat_overlay_key(BongoCatOverlay *value, const char *name, bool pressed
 
 bool bongo_cat_overlay_hand_active(const BongoCatOverlay *value, bool right) {
     return value && (right ? value->right : value->left) != 0;
+}
+
+BongoCatOverlayInputDiagnostics bongo_cat_overlay_input_diagnostics(
+    const BongoCatOverlay *value) {
+    if (!value) return (BongoCatOverlayInputDiagnostics){"", "", "", 0, 0};
+    return (BongoCatOverlayInputDiagnostics){value->directory,
+        value->last_input_path, value->effect_path,
+        (value->left ? 1u : 0u) | (value->right ? 2u : 0u),
+        value->input_texture_failures};
 }
 
 bool bongo_cat_overlay_effect(BongoCatOverlay *value, const char *path) {

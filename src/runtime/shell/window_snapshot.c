@@ -2,6 +2,8 @@
 
 #ifdef _WIN32
 #include "windows_snapshot.h"
+#include "windows_hdr.h"
+#include "windows_layered.h"
 #endif
 
 #define SNAPSHOT_IDLE_NS 180000000ull
@@ -11,11 +13,16 @@ void bongo_cat_window_snapshot_begin(BongoCatApp *app) {
     app->snapshot_deadline_ns = SDL_GetTicksNS() + SNAPSHOT_IDLE_NS;
     if (app->window_snapshot || app->snapshot_blocked) return;
 #ifdef _WIN32
+    /* D3D snapshots only have a rectangular input region. Keep the native alpha
+       shape during gestures as well as HDR presentation. */
+    if (bongo_cat_windows_layered_native_hit_test(&app->platform) ||
+        bongo_cat_windows_hdr_enabled(app->window)) return;
     if (!app->window || !app->live2d || !app->session.window.visible ||
         app->startup_visibility_pending || app->window_minimized || app->hover_hidden ||
         app->hover_fade_active ||
         app->settings.window.pass_through ||
         !(SDL_GetWindowFlags(app->window) & SDL_WINDOW_TRANSPARENT)) return;
+    if (!bongo_cat_windows_snapshot_available()) return;
     SDL_Window *previous_window = SDL_GL_GetCurrentWindow();
     SDL_GLContext previous_context = SDL_GL_GetCurrentContext();
     if (!SDL_GL_MakeCurrent(app->window, app->gl_context)) return;
@@ -80,6 +87,10 @@ void bongo_cat_window_snapshot_update(BongoCatApp *app, uint64_t now) {
 #endif
     bool finish = !app->session.window.visible || app->window_minimized ||
         app->settings.window.pass_through || app->hover_hidden;
+#ifdef _WIN32
+    finish = finish || bongo_cat_windows_layered_native_hit_test(&app->platform) ||
+        bongo_cat_windows_hdr_enabled(app->window);
+#endif
     if (!app->window_drag_active) {
         float x, y;
         SDL_GetGlobalMouseState(&x, &y);

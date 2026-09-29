@@ -119,13 +119,7 @@ int main() {
         CHECK(glGetError() == GL_NO_ERROR);
     }
     BongoCatLive2D runtime{};
-    runtime.retired_count = 1;
-    runtime.retired[0].frames_remaining = 3;
-    for (int frame = 0; frame < 3; ++frame) {
-        CHECK(bongo_cat_live2d_update(&runtime, 1.0f / 60.0f));
-        bongo_cat_live2d_draw(&runtime);
-    }
-    CHECK(runtime.retired_count == 0);
+    bongo_cat_live2d_draw(&runtime);
     CHECK(!bongo_cat_live2d_update(&runtime, 1.0f / 60.0f));
     glDeleteVertexArrays(1, &host_vao);
     glDeleteBuffers(2, host_buffers);

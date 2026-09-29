@@ -71,14 +71,6 @@ bool bongo_cat_preferences_model_import_card(BongoCatPreferences *value,
     text(context, canvas, nk_rect(cx - width * .5f, cy + 25,
         NK_MIN(width + 1, bounds.w - 20), 24), label, p.accent,
         value->ui.caption_font);
-    const char *support = tr(value->app,
-        "pages.preference.model.hints.supportedImportFormats",
-        "Supports Mver and Tauri formats");
-    width = value->ui.caption_font->width(value->ui.caption_font->userdata,
-        value->ui.caption_font->height, support, nk_strlen(support));
-    text(context, canvas, nk_rect(cx - width * .5f, cy + 47,
-        NK_MIN(width + 1, bounds.w - 20), 24), support, p.pink,
-        value->ui.caption_font);
     if (pointer_hover) bongo_cat_ui_cursor_hover_rect(context, bounds,
         BONGO_CAT_UI_CURSOR_POINTER);
     return pointer_hover && nk_input_is_mouse_click_in_rect(&context->input,
@@ -131,18 +123,13 @@ static void open_model_directory(BongoCatPreferences *value,
 
 static void draw_cover(BongoCatPreferences *value,
     struct nk_command_buffer *canvas, struct nk_rect preview,
-    const BongoCatModelEntry *entry, BongoCatUIPalette p) {
+    const BongoCatModelEntry *entry) {
     float raster_scale = value->ui.raster_scale > 0.0f ?
         value->ui.raster_scale : 1.0f;
     const BongoCatModelCover *cover = bongo_cat_preferences_model_cover(
         value->app, entry, NK_MAX(1, (int)lroundf(preview.w * raster_scale)),
         NK_MAX(1, (int)lroundf(preview.h * raster_scale)));
-    if (!cover) {
-        bongo_cat_preferences_icon_draw(value, canvas, BONGO_CAT_UI_ICON_CAT,
-            nk_rect(preview.x + (preview.w - 34) * .5f,
-                preview.y + (preview.h - 34) * .5f, 34, 34), p.muted);
-        return;
-    }
+    if (!cover) return;
     float scale = NK_MIN(preview.w / cover->width, preview.h / cover->height);
     struct nk_rect image = nk_rect(
         preview.x + (preview.w - cover->width * scale) * .5f,
@@ -155,26 +142,24 @@ static void draw_cover(BongoCatPreferences *value,
 static void draw_actions(BongoCatPreferences *value,
     struct nk_context *context, struct nk_command_buffer *canvas,
     struct nk_rect bounds, const BongoCatModelEntry *entry,
-    BongoCatUIPalette p, bool selected, bool primary, bool storage_busy,
+    BongoCatUIPalette p, bool storage_busy,
     bool *action_hover) {
     struct nk_rect actions = nk_rect(bounds.x + 1, bounds.y + bounds.h - 39,
         bounds.w - 2, 38);
     nk_fill_rect(canvas, actions, 0, p.surface);
-    bool deletable = !entry->preset && !entry->managed;
+    bool deletable = !entry->managed;
     bool delete_enabled = deletable && !storage_busy;
     float width = actions.w / (deletable ? 3.0f : 2.0f);
     struct nk_rect items[3] = {
         nk_rect(actions.x, actions.y, width, actions.h),
         nk_rect(actions.x + width, actions.y, width, actions.h),
         nk_rect(actions.x + width * 2, actions.y, width, actions.h)};
-    bool behavior_enabled = primary ||
-        !value->app->settings.model.multiple_pets;
     bool region_hover[3] = {
         nk_input_is_mouse_hovering_rect(&context->input, items[0]),
         nk_input_is_mouse_hovering_rect(&context->input, items[1]),
         deletable && nk_input_is_mouse_hovering_rect(
             &context->input, items[2])};
-    bool hover[3] = {behavior_enabled && region_hover[0],
+    bool hover[3] = {region_hover[0],
         region_hover[1], delete_enabled && region_hover[2]};
     for (int i = 1; i < (deletable ? 3 : 2); ++i)
         nk_stroke_line(canvas, items[i].x, items[i].y + 10,
@@ -182,7 +167,7 @@ static void draw_actions(BongoCatPreferences *value,
     for (int i = 0; i < 3; ++i)
         if (hover[i]) nk_fill_rect(canvas, items[i], 0, p.hover_pink);
     action_icon(value, canvas, items[0], BONGO_CAT_UI_ICON_SMILE,
-        hover[0] ? p.pink : behavior_enabled ? p.muted : p.border_subtle);
+        hover[0] ? p.pink : p.muted);
     action_icon(value, canvas, items[1], BONGO_CAT_UI_ICON_FOLDER,
         hover[1] ? p.pink : p.muted);
     if (deletable) action_icon(value, canvas, items[2], BONGO_CAT_UI_ICON_TRASH,
@@ -190,8 +175,7 @@ static void draw_actions(BongoCatPreferences *value,
     *action_hover = region_hover[0] || region_hover[1] || region_hover[2];
     if (hover[0] && nk_input_is_mouse_click_in_rect(&context->input,
         NK_BUTTON_LEFT, items[0])) {
-        if (selected) bongo_cat_preferences_behavior_dialog_open(value);
-        else bongo_cat_preferences_model_select(value, entry);
+        bongo_cat_preferences_behavior_dialog_open_model(value, entry);
     } else if (hover[1] && nk_input_is_mouse_click_in_rect(&context->input,
         NK_BUTTON_LEFT, items[1])) open_model_directory(value, entry);
     else if (hover[2] && nk_input_is_mouse_click_in_rect(&context->input,
@@ -204,7 +188,6 @@ void bongo_cat_preferences_model_card(BongoCatPreferences *value,
     bool storage_busy) {
     BongoCatApp *app = value->app;
     bool selected = bongo_cat_app_model_active(app, entry->id);
-    bool primary = !strcmp(entry->id, app->session.active_model_id);
     bool visual_target = value->model_load_visual_active &&
         !strcmp(entry->id, value->model_load_visual_id);
     bool selected_visual = selected && !visual_target;
@@ -237,7 +220,7 @@ void bongo_cat_preferences_model_card(BongoCatPreferences *value,
     struct nk_rect preview = nk_rect(bounds.x + 1, bounds.y + 1,
         bounds.w - 2, preview_height);
     nk_fill_rect(canvas, preview, 12, p.surface);
-    draw_cover(value, canvas, preview, entry, p);
+    draw_cover(value, canvas, preview, entry);
     if (app->settings.model.multiple_pets)
         bongo_cat_preferences_model_card_draw_selection_badge(
             value, canvas, preview, p, selection_amount);
@@ -247,7 +230,7 @@ void bongo_cat_preferences_model_card(BongoCatPreferences *value,
     bool name_hover = bongo_cat_preferences_model_name_draw(value,
         context, canvas, entry, name_bounds, p);
     bool action_hover = false;
-    draw_actions(value, context, canvas, bounds, entry, p, selected, primary,
+    draw_actions(value, context, canvas, bounds, entry, p,
         storage_busy, &action_hover);
     float outline_width = 1.0f + selection_amount;
     struct nk_rect outline = bongo_cat_preferences_model_card_outline_bounds(

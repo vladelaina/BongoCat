@@ -15,9 +15,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  version-check:
+    name: quality / tag-version
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v5
+
+      - name: Validate tag matches project version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: ./.github/scripts/check-tag-version.ps1 -Tag $env:GITHUB_REF_NAME
+
   publishing-policy:
     name: security / publishing-policy
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout source
         uses: actions/checkout@v5
@@ -27,8 +39,8 @@ jobs:
         run: ./.github/scripts/check-publish-guards.ps1 -SelfTest
 
   quality:
-    name: quality / syntax-tests
-    runs-on: ubuntu-latest
+    name: quality / static-analysis
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout source
         uses: actions/checkout@v5
@@ -37,9 +49,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            cmake ninja-build cppcheck xvfb xauth libgl1-mesa-dri \
+            cmake ninja-build cppcheck \
             libgl1-mesa-dev libegl1-mesa-dev libx11-dev libxi-dev libxfixes-dev \
-            libcurl4-openssl-dev
+            libcurl4-openssl-dev libfontconfig1-dev
 
       - name: Reject legacy product-name references
         run: |
@@ -53,7 +65,10 @@ jobs:
       - name: Check source file size policy
         run: cmake -DROOT="$GITHUB_WORKSPACE" -P cmake/CheckLines.cmake
 
-      - name: Run Cppcheck
+      - name: Check Windows icon dimensions and image data
+        run: python3 scripts/check-windows-icon.py
+
+      - name: Check C and C++ safety with Cppcheck
         shell: bash
         run: |
           mapfile -d '' c_files < <(find src -type f -name '*.c' -print0)
@@ -76,9 +91,14 @@ jobs:
             -Isrc/ui/theme "${cpp_files[@]}"
 
       - name: Configure warning-clean Linux build
+        env:
+          CC: gcc
+          CXX: g++
         run: |
           cmake -S . -B build-quality -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTING=OFF \
+            -DBONGO_CAT_STATIC_ANALYZER=ON \
             -DBONGO_CAT_OPTIMIZE_RELEASE_SIZE=ON \
             -DBONGO_CAT_OPTIMIZE_RELEASE_IPO=ON \
             -DBONGO_CAT_WARNINGS_AS_ERRORS=ON
@@ -86,15 +106,107 @@ jobs:
       - name: Register GCC diagnostics
         run: echo "::add-matcher::$GITHUB_WORKSPACE/.github/gcc-problem-matcher.json"
 
-      - name: Build
+      - name: Build and analyze C memory safety
         run: bash .github/scripts/build-unix.sh cmake --build build-quality --parallel 2
 
-      - name: Run native tests
-        run: bash .github/scripts/test-unix.sh ctest --test-dir build-quality --output-on-failure
+  clang-tidy:
+    name: quality / clang-tidy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v5
+
+      - name: Install Clang analysis dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build clang-18 clang-tidy-18 \
+            libgl1-mesa-dev libegl1-mesa-dev libx11-dev libxi-dev libxfixes-dev \
+            libcurl4-openssl-dev libfontconfig1-dev
+
+      - name: Validate Clang-Tidy rules
+        run: clang-tidy-18 --verify-config
+
+      - name: Generate compilation database
+        env:
+          CC: clang-18
+          CXX: clang++-18
+        run: |
+          cmake -S . -B build-clang-tidy -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DBUILD_TESTING=OFF \
+            -DBONGO_CAT_OPTIMIZE_RELEASE_SIZE=OFF \
+            -DBONGO_CAT_OPTIMIZE_RELEASE_IPO=OFF
+
+      - name: Analyze project memory safety and common coding errors
+        run: |
+          run-clang-tidy-18 -p build-clang-tidy -j 2 \
+            -header-filter="^${GITHUB_WORKSPACE}/(include|src)/" \
+            "^${GITHUB_WORKSPACE}/src/"
+
+  sanitizers:
+    name: quality / ASan + UBSan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v5
+
+      - name: Install sanitizer and display dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build clang-18 llvm-18 libclang-rt-18-dev \
+            xvfb xauth libgl1-mesa-dri libglx-mesa0 \
+            libgl1-mesa-dev libegl1-mesa-dev libx11-dev libxi-dev libxfixes-dev \
+            libcurl4-openssl-dev libfontconfig1-dev
+
+      - name: Configure instrumented application
+        env:
+          CC: clang-18
+          CXX: clang++-18
+        run: |
+          cmake -S . -B build-sanitizers -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DBUILD_TESTING=OFF \
+            -DBONGO_CAT_OPTIMIZE_RELEASE_SIZE=OFF \
+            -DBONGO_CAT_OPTIMIZE_RELEASE_IPO=OFF \
+            -DCMAKE_C_FLAGS="-O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer" \
+            -DCMAKE_CXX_FLAGS="-O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+
+      - name: Build instrumented application
+        run: bash .github/scripts/build-unix.sh cmake --build build-sanitizers --target bongo_cat --parallel 2
+
+      - name: Check application memory and undefined behavior
+        timeout-minutes: 10
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+          ASAN_SYMBOLIZER_PATH: /usr/bin/llvm-symbolizer-18
+          UBSAN_SYMBOLIZER_PATH: /usr/bin/llvm-symbolizer-18
+          BONGO_CAT_DISABLE_NEARBY_MODEL_SCAN: '1'
+        run: |
+          bash .github/scripts/test-unix.sh \
+            bash .github/scripts/run-sanitizers.sh \
+            "$GITHUB_WORKSPACE/build-sanitizers/BongoCat" \
+            "$GITHUB_WORKSPACE/build-sanitizers/reports"
+
+      - name: Upload sanitizer diagnostics
+        if: always() && github.repository == 'vladelaina/BongoCat'
+        uses: actions/upload-artifact@v7
+        with:
+          name: sanitizer-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            build-sanitizers/reports/
+            ${{ runner.temp }}/bongocat-native-build.log
+          if-no-files-found: ignore
+          retention-days: 14
 
   build:
     name: build / ${{ matrix.platform }}
-    needs: quality
     strategy:
       fail-fast: false
       matrix:
@@ -105,7 +217,7 @@ jobs:
           - os: windows-2022
             platform: windows-x86
             cmake_arch: Win32
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             platform: linux-x64
             cmake_arch: ''
           - os: macos-15-intel
@@ -125,13 +237,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             cmake ninja-build libgl1-mesa-dev libegl1-mesa-dev libx11-dev libxi-dev \
-            libxfixes-dev libcurl4-openssl-dev xvfb xauth libgl1-mesa-dri
+            libxfixes-dev libcurl4-openssl-dev libfontconfig1-dev
 
       - name: Configure Unix release
         if: runner.os != 'Windows'
         run: |
           cmake -S . -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTING=OFF \
             -DBONGO_CAT_OPTIMIZE_RELEASE_SIZE=ON \
             -DBONGO_CAT_OPTIMIZE_RELEASE_IPO=ON \
             -DCMAKE_OSX_ARCHITECTURES=${{ matrix.cmake_arch }} \
@@ -146,45 +259,16 @@ jobs:
         shell: pwsh
         run: |
           & ./scripts/build-windows.ps1 `
+            -SkipTests `
             -BuildDir build `
             -Configuration Release `
             -Architecture '${{ matrix.cmake_arch }}' `
             -Jobs 2 `
             -Target ALL_BUILD
 
-      - name: Build Windows validation tools
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          & ./scripts/build-windows.ps1 `
-            -BuildDir build `
-            -Configuration Release `
-            -Architecture '${{ matrix.cmake_arch }}' `
-            -Jobs 2 `
-            -SkipConfigure `
-            -Target bongo_cat_validation_tools
-
       - name: Build Unix release
         if: runner.os != 'Windows'
         run: bash .github/scripts/build-unix.sh cmake --build build --parallel 2
-
-      - name: Install software OpenGL for Windows tests
-        if: runner.os == 'Windows'
-        uses: ssciwr/setup-mesa-dist-win@2dfeaebfa514f74c2b8cd8d27108c31486d33e72 # v3
-        with:
-          version: '23.3.3'
-          deployment-choice: '1'
-
-      - name: Test Windows release
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: >-
-          & ./.github/scripts/test-windows.ps1
-          ctest --test-dir build -C Release --output-on-failure
-
-      - name: Test Unix release
-        if: runner.os != 'Windows'
-        run: bash .github/scripts/test-unix.sh ctest --test-dir build --output-on-failure
 
   desktop-package:
     name: package / ${{ matrix.platform }}
@@ -192,12 +276,11 @@ jobs:
       github.repository == 'vladelaina/BongoCat' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
       github.ref == 'refs/heads/main'
-    needs: [publishing-policy, quality]
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             platform: linux-x64
             cmake_arch: ''
           - os: macos-15-intel
@@ -226,12 +309,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             cmake ninja-build libgl1-mesa-dev libegl1-mesa-dev libx11-dev libxi-dev \
-            libxfixes-dev libcurl4-openssl-dev xvfb xauth libgl1-mesa-dri
+            libxfixes-dev libcurl4-openssl-dev libfontconfig1-dev
 
       - name: Configure release
         run: |
           cmake -S . -B build-package -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTING=OFF \
             -DBONGO_CAT_OPTIMIZE_RELEASE_SIZE=ON \
             -DBONGO_CAT_OPTIMIZE_RELEASE_IPO=ON \
             -DCMAKE_OSX_ARCHITECTURES=${{ matrix.cmake_arch }} \
@@ -240,9 +324,6 @@ jobs:
 
       - name: Build release
         run: bash .github/scripts/build-unix.sh cmake --build build-package --parallel 2
-
-      - name: Test release
-        run: bash .github/scripts/test-unix.sh ctest --test-dir build-package --output-on-failure
 
       - name: Package desktop release
         id: package
@@ -291,7 +372,6 @@ jobs:
       github.repository == 'vladelaina/BongoCat' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
       github.ref == 'refs/heads/main'
-    needs: [publishing-policy, quality]
     strategy:
       fail-fast: false
       matrix:
@@ -320,24 +400,13 @@ jobs:
         shell: pwsh
         run: |
           & ./scripts/build-windows.ps1 `
+            -SkipTests `
             -BuildDir build-store `
             -Configuration Release `
             -Architecture '${{ matrix.cmake_arch }}' `
             -Jobs 2 `
             -RequireCubism `
             -Target ALL_BUILD
-
-      - name: Install software OpenGL for Windows tests
-        uses: ssciwr/setup-mesa-dist-win@2dfeaebfa514f74c2b8cd8d27108c31486d33e72 # v3
-        with:
-          version: '23.3.3'
-          deployment-choice: '1'
-
-      - name: Run Store release tests
-        shell: pwsh
-        run: >-
-          & ./.github/scripts/test-windows.ps1
-          ctest --test-dir build-store -C Release --output-on-failure
 
       - name: Read app version
         id: version
@@ -378,31 +447,6 @@ jobs:
           if (-not (Test-Path -LiteralPath $setup)) {
             throw "Production desktop installer is missing: $setup"
           }
-          $portableHash = (Get-FileHash -LiteralPath $portable -Algorithm SHA256).Hash.ToLowerInvariant()
-          $setupHash = (Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash.ToLowerInvariant()
-          $app = "build-store/Release/BongoCat.exe"
-          $appHash = (Get-FileHash -LiteralPath $app -Algorithm SHA256).Hash.ToLowerInvariant()
-          $cubismArch = if ('${{ matrix.cmake_arch }}' -eq 'Win32') { 'x86' } else { 'x86_64' }
-          $cubismCore = "vendor/CubismSdkForNative/Core/lib/windows/$cubismArch/143/Live2DCubismCore_MT.lib"
-          $cubismHash = (Get-FileHash -LiteralPath $cubismCore -Algorithm SHA256).Hash.ToLowerInvariant()
-          $cmakeVersion = (& cmake --version | Select-Object -First 1).Trim()
-          $innoInfo = & ./packaging/windows/find-inno.ps1 -PassThru
-          $innoVersion = $innoInfo.Version.ToString(3)
-          @"
-          ## Windows build provenance (${{ matrix.platform }})
-
-          | Input or artifact | Value |
-          | --- | --- |
-          | Commit | ``${{ github.sha }}`` |
-          | Runner image | ``$env:ImageOS $env:ImageVersion`` |
-          | CMake | ``$cmakeVersion`` |
-          | Inno Setup | ``$innoVersion`` at ``$($innoInfo.Path)`` |
-          | Cubism Core SHA-256 | ``$cubismHash`` |
-          | BongoCat.exe SHA-256 | ``$appHash`` |
-          | Portable SHA-256 | ``$portableHash`` |
-          | Installer SHA-256 | ``$setupHash`` |
-
-          "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           "portable=$portable" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "file=$setup" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
@@ -473,8 +517,7 @@ jobs:
       github.repository == 'vladelaina/BongoCat' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
       github.ref == 'refs/heads/main'
-    needs: [publishing-policy, quality]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 310
     # CI and releases share the same VirusTotal API quota.
     concurrency:

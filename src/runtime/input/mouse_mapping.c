@@ -53,6 +53,13 @@ void bongo_cat_app_apply_mouse_coordinates(BongoCatApp *app,
         gaze_y_ratio = bongo_cat_mouse_centered_ratio(gaze_y, projection->center_y,
             bounds->top, bounds->top + bounds->height);
     }
+    if (app->settings.model.vertical_flip) {
+        hand_y_ratio = 1.0f - hand_y_ratio;
+        gaze_y_ratio = 1.0f - gaze_y_ratio;
+    }
+    /* Like mouse mirroring, this option affects the hand/device, not gaze. */
+    if (app->settings.model.mouse_vertical_flip)
+        hand_y_ratio = 1.0f - hand_y_ratio;
     bool exact_pointer = bongo_cat_overlay_mver_pointer_enabled(app->overlay);
     bool overlay_left_handed = exact_pointer &&
         bongo_cat_overlay_mver_pointer_left_handed(app->overlay);
@@ -60,8 +67,9 @@ void bongo_cat_app_apply_mouse_coordinates(BongoCatApp *app,
         overlay_left_handed;
     bool horizontal_mirror = left_handed != app->settings.model.mouse_mirror;
     float drag_x = 0.0f, drag_y = 0.0f;
+    /* Gaze follows screen space; hand orientation only affects the pointer. */
     bongo_cat_mouse_drag_coordinates(gaze_x_ratio, gaze_y_ratio,
-        horizontal_mirror, &drag_x, &drag_y);
+        app->settings.model.mirror, &drag_x, &drag_y);
     bool overlay_mirror = horizontal_mirror != overlay_left_handed;
     float overlay_x_ratio = overlay_mirror
         ? 1.0f - hand_x_ratio : hand_x_ratio;

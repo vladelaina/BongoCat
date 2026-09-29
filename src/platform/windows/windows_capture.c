@@ -7,8 +7,10 @@
 #include <shobjidl.h>
 
 static UINT taskbar_created_message;
+static UINT taskbar_button_created_message;
 static UINT capture_refresh_message;
 static const wchar_t capture_property[] = L"BongoCat.CaptureWindow";
+static const wchar_t refresh_pending_property[] = L"BongoCat.TaskbarRefreshPending";
 static bool removal_warning_emitted;
 static bool style_warning_emitted;
 #define BONGO_CAT_CAPTURE_REFRESH_TIMER ((UINT_PTR)0xBC51)
@@ -40,6 +42,8 @@ static bool write_extended_style(HWND window, LONG_PTR style, DWORD *error) {
 static void register_messages(void) {
     if (!taskbar_created_message)
         taskbar_created_message = RegisterWindowMessageW(L"TaskbarCreated");
+    if (!taskbar_button_created_message)
+        taskbar_button_created_message = RegisterWindowMessageW(L"TaskbarButtonCreated");
     if (!capture_refresh_message)
         capture_refresh_message = RegisterWindowMessageW(
             L"BongoCat.CaptureWindow.RefreshTaskbar");
@@ -98,16 +102,27 @@ static void refresh_taskbar(HWND window) {
 
 static void schedule_refresh(HWND window) {
     register_messages();
-    if (!window) return;
-    if (capture_refresh_message)
-        PostMessageW(window, capture_refresh_message, 0, 0);
-    SetTimer(window, BONGO_CAT_CAPTURE_REFRESH_TIMER, 250, NULL);
+    if (!window || has_property(window, refresh_pending_property)) return;
+    SetPropW(window, refresh_pending_property, (HANDLE)1);
+    if (!SetTimer(window, BONGO_CAT_CAPTURE_REFRESH_TIMER, 250, NULL)) {
+        RemovePropW(window, refresh_pending_property);
+        if (capture_refresh_message)
+            PostMessageW(window, capture_refresh_message, 0, 0);
+    }
 }
 
 bool bongo_cat_windows_capture_configure(HWND window) {
     if (!window || !IsWindow(window)) return false;
     register_messages();
     SetPropW(window, capture_property, (HANDLE)1);
+    /* Explorer normally runs unelevated, even when the pet is elevated. */
+    const UINT shell_messages[] = {taskbar_created_message, taskbar_button_created_message};
+    for (size_t i = 0; i < sizeof(shell_messages) / sizeof(shell_messages[0]); ++i) {
+        if (shell_messages[i] && !ChangeWindowMessageFilterEx(window,
+                shell_messages[i], MSGFLT_ALLOW, NULL))
+            SDL_LogWarn(SDL_LOG_CATEGORY_VIDEO,
+                "Cannot allow shell message %u: %lu", shell_messages[i], GetLastError());
+    }
     LONG_PTR style = 0;
     if (!read_extended_style(window, &style)) {
         if (!style_warning_emitted) {
@@ -170,6 +185,7 @@ bool bongo_cat_windows_capture_handle_message(
             window, message, wparam)) return true;
     if (capture_refresh_message && message == capture_refresh_message) {
         if (!has_property(window, capture_property)) return false;
+        RemovePropW(window, refresh_pending_property);
         refresh_taskbar(window);
         return true;
     }
@@ -177,8 +193,18 @@ bool bongo_cat_windows_capture_handle_message(
         wparam == BONGO_CAT_CAPTURE_REFRESH_TIMER &&
         has_property(window, capture_property)) {
         KillTimer(window, BONGO_CAT_CAPTURE_REFRESH_TIMER);
+        RemovePropW(window, refresh_pending_property);
         refresh_taskbar(window);
         return true;
+    }
+    /* Defer and coalesce shell updates until after native/SDL processing. */
+    if (has_property(window, capture_property)) {
+        if (taskbar_button_created_message && message == taskbar_button_created_message)
+            refresh_taskbar(window);
+        if (message == WM_SHOWWINDOW || message == WM_ACTIVATE ||
+            message == WM_NCACTIVATE || message == WM_STYLECHANGED ||
+            (taskbar_button_created_message && message == taskbar_button_created_message))
+            schedule_refresh(window);
     }
     if (taskbar_created_message && message == taskbar_created_message) {
         bool capture_window = has_property(window, capture_property);
@@ -187,7 +213,9 @@ bool bongo_cat_windows_capture_handle_message(
             schedule_refresh(window);
         }
         bongo_cat_windows_capture_repair_transparency(window);
-        return capture_window;
+        /* Keep the broadcast flowing to the borderless window procedure so
+           the tray adapter can schedule its own restoration. */
+        return false;
     }
     return false;
 }

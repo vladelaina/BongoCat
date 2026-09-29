@@ -25,6 +25,9 @@ void test_mver_audio(void) {
     sound_chord("[17,65,66]", "Control+A+B");
     sound_chord("[17]", "Control");
     sound_chord("[17,1]", "Control+Left");
+    sound_chord("[0]", "");
+    sound_chord("[255]", "");
+    sound_chord("[144]", "NumLock");
     sound_chord("[]", NULL);
     sound_chord("[256]", NULL);
     char root[BONGO_CAT_PATH_CAP], adapter[BONGO_CAT_PATH_CAP];
@@ -45,7 +48,7 @@ void test_mver_audio(void) {
     BongoCatModelEntry *model = calloc(1, sizeof(*model));
     BongoCatBehaviorCatalog *catalog = calloc(1, sizeof(*catalog));
     CHECK(model && catalog);
-    if (!model || !catalog) { free(model); free(catalog); return; }
+    if (!model || !catalog) { free(model); bongo_cat_behaviors_clear(catalog); free(catalog); return; }
     snprintf(model->id, sizeof(model->id), "test-audio");
     snprintf(model->directory, sizeof(model->directory), "%s", candidate.directory);
     snprintf(model->setting_file, sizeof(model->setting_file), "%s", candidate.setting);
@@ -58,6 +61,13 @@ void test_mver_audio(void) {
         CHECK(write_text(candidate.config, config));
         BongoCatError error = {0};
         CHECK(bongo_cat_import_adapter_metadata(&candidate, adapter, &error));
+        CHECK(bongo_cat_model_adapter_metadata_path(adapter, path, sizeof(path)));
+        yyjson_doc *metadata = bongo_cat_json_read_file(path, 0, NULL);
+        yyjson_val *items = yyjson_obj_get(yyjson_doc_get_root(metadata), "bindings");
+        size_t item_index, item_count; yyjson_val *item;
+        yyjson_arr_foreach(items, item_index, item_count, item)
+            CHECK(!yyjson_obj_get(item, "shortcut"));
+        yyjson_doc_free(metadata);
         CHECK(bongo_cat_behaviors_load(catalog, model, &error) == BONGO_CAT_OK);
         CHECK(catalog->count == 2); /* Missing 1.flac skipped; clear always imported. */
         CHECK(catalog->entries[0].sound[0] && !catalog->entries[0].momentary);
@@ -67,24 +77,33 @@ void test_mver_audio(void) {
     BongoCatApp *app = calloc(1, sizeof(*app));
     CHECK(app != NULL);
     if (app) {
+        model->source_format = BONGO_CAT_MODEL_SOURCE_MVER;
+        model->mode = BONGO_CAT_MODE_STANDARD;
+        app->models.entries[0] = *model;
+        app->models.count = 1;
         bongo_cat_import_apply_metadata(app, "test-audio", adapter);
-        CHECK(app->settings.behavior_shortcut_count == 1);
-        CHECK(!strcmp(app->settings.behavior_shortcuts[0].id, "test-audio:sound:0"));
-        CHECK(!strcmp(app->settings.behavior_shortcuts[0].shortcut, "Z"));
-        app->settings.behavior_shortcuts[0].shortcut[0] = '\0';
+        CHECK(app->settings.behavior_shortcut_count == 0);
+        BongoCatBehaviorShortcut *binding = bongo_cat_app_behavior_binding_mut(app, "test-audio:sound:0");
+        CHECK(binding && !strcmp(binding->shortcut, "Z"));
+        if (binding) binding->shortcut[0] = '\0';
         bongo_cat_import_apply_metadata(app, "test-audio", adapter);
-        CHECK(!app->settings.behavior_shortcuts[0].shortcut[0]);
-        char names[BONGO_CAT_BEHAVIOR_CAP][BONGO_CAT_MENU_LABEL_CAP];
-        bool checked[BONGO_CAT_BEHAVIOR_CAP] = {false};
+        CHECK(binding == bongo_cat_app_behavior_binding(app, "test-audio:sound:0"));
+        CHECK(binding && !strcmp(binding->shortcut, "Z") && binding->shortcut_external);
+        CHECK(bongo_cat_model_shortcut_save(app, "test-audio:sound:0", "", NULL));
+        CHECK(binding && !binding->shortcut[0]);
+        char names[2][BONGO_CAT_MENU_LABEL_CAP];
+        bool checked[2] = {false};
         size_t count = 99;
         bongo_cat_window_audio_labels(app, names, checked, &count);
         CHECK(count == 0);
-        app->behaviors = *catalog;
+        CHECK(bongo_cat_behaviors_copy(&app->behaviors, catalog, NULL));
         bongo_cat_window_audio_labels(app, names, checked, &count);
         CHECK(count == 2 && !checked[0] && !checked[1]);
         app->behaviors.entries[0].sound[0] = '\0';
         bongo_cat_window_audio_labels(app, names, checked, &count);
         CHECK(count == 0); /* A clear command alone does not expose Audio. */
+        bongo_cat_app_model_shortcuts_clear(app);
+        bongo_cat_behaviors_clear(&app->behaviors);
         free(app);
     }
     CHECK(child(path, sizeof(path), adapter, BONGO_CAT_MODEL_ADAPTER_FILE, false));
@@ -97,6 +116,6 @@ void test_mver_audio(void) {
     CHECK(!catalog->entries[0].momentary && !catalog->entries[0].sound_overlap);
     CHECK(!catalog->entries[1].sound[0] && !catalog->entries[1].sound_clear);
     CHECK(catalog->entries[2].sound_clear);
-    free(catalog); free(model);
+    bongo_cat_behaviors_clear(catalog); free(catalog); free(model);
     CHECK(bongo_cat_model_remove_tree(root, NULL));
 }

@@ -89,7 +89,7 @@ void bongo_cat_app_apply_mouse(BongoCatApp *app) {
            scheduled frame can leave a stale transparent state for fast clicks. */
         if (app->click_through_applied && !app->left_mouse_down &&
             !app->right_mouse_down)
-            bongo_cat_window_capture_pointer_hit(app);
+            bongo_cat_window_capture_pointer_hit(app, false);
     }
     bongo_cat_window_sync_click_through(app);
     bool pointer_mode_changed = update_pointer_mode(app, cursor_locked);

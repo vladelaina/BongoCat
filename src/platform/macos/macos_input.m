@@ -56,6 +56,13 @@ static CGEventRef event_tap(CGEventTapProxy proxy, CGEventType type,
     (void)proxy;
     MacInputState *state = userdata;
     if (type == kCGEventTapDisabledByTimeout || type == kCGEventTapDisabledByUserInput) {
+        /* Release tracked keys before restarting the tap; their key-up may be lost. */
+        for (unsigned code = 0; code < BONGO_CAT_INPUT_KEY_STATE_CAP; ++code) {
+            if (!state->key_down[code]) continue;
+            char buffer[16];
+            const char *name = bongo_cat_macos_key_name((CGKeyCode)code, buffer);
+            if (name) push(state, BONGO_CAT_INPUT_KEY_UP, name, 0.0f);
+        }
         memset(state->key_down, 0, sizeof(state->key_down));
         if (state->tap) CGEventTapEnable(state->tap, true);
         return event;
@@ -77,9 +84,14 @@ static CGEventRef event_tap(CGEventTapProxy proxy, CGEventType type,
         bool down = type == kCGEventKeyDown;
         if (type == kCGEventFlagsChanged) {
             CGEventFlags flag = modifier_flag(code);
-            down = flag && (CGEventGetFlags(event) & flag) != 0;
+            /* Aggregate flags stay set when only the other side is held. */
+            down = code == 57 ? (CGEventGetFlags(event) & flag) != 0 :
+                flag && CGEventSourceKeyState(kCGEventSourceStateCombinedSessionState, code);
         }
-        if (name && bongo_cat_input_edge(state->key_down, code, down))
+        bool shared_meta = code == 54 || code == 55;
+        bool meta_was_down = state->key_down[54] || state->key_down[55];
+        if (name && bongo_cat_input_edge(state->key_down, code, down) &&
+            (!shared_meta || meta_was_down != (state->key_down[54] || state->key_down[55])))
             push(state, down ? BONGO_CAT_INPUT_KEY_DOWN :
                 BONGO_CAT_INPUT_KEY_UP, name, down ? 1.0f : 0.0f);
         return event;

@@ -26,6 +26,8 @@ void bongo_cat_overlay_clear_textures(BongoCatOverlay *value) {
     value->left_path[0] = value->right_path[0] = '\0';
     value->effect_path[0] = '\0';
     value->background_path[0] = '\0';
+    value->last_input_path[0] = '\0';
+    value->input_texture_failures = 0;
 }
 
 BongoCatResult bongo_cat_overlay_load(BongoCatOverlay *value,

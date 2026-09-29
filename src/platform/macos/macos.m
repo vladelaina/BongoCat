@@ -211,7 +211,14 @@ void bongo_cat_platform_begin_drag(BongoCatPlatform *platform,
     [target release];
 }
 bool bongo_cat_platform_dynamic_hit_supported(void) {
-    return bongo_cat_macos_input_supported();
+    /* SDL's Cocoa backend polls NSEvent.mouseLocation without an event tap.
+       Input Monitoring is needed for key animation, not window hit testing. */
+    const char *driver = SDL_GetCurrentVideoDriver();
+    return driver && strcmp(driver, "cocoa") == 0;
+}
+bool bongo_cat_platform_native_hit_test(const BongoCatPlatform *platform) {
+    (void)platform;
+    return false;
 }
 
 bool bongo_cat_platform_input_monitoring_authorized(void) {
@@ -245,6 +252,7 @@ bool bongo_cat_platform_single_instance_begin(void) {
     close(instance_lock); instance_lock = -1; return false;
 }
 bool bongo_cat_platform_single_instance_take_wake(void) { return false; }
+bool bongo_cat_platform_single_instance_take_settings(void) { return false; }
 void bongo_cat_platform_single_instance_end(void) {
     if (instance_lock >= 0) close(instance_lock);
     instance_lock = -1;

@@ -2,6 +2,7 @@
 
 #include <Model/CubismModel.hpp>
 #include <Motion/ICubismUpdater.hpp>
+#include <algorithm>
 
 namespace bongo_cat {
 
@@ -34,8 +35,9 @@ void NativeModel::capture_parameter_baseline() {
     if (!_model) return;
     const int count = _model->GetParameterCount();
     parameter_baseline_values_.resize((size_t)count);
-    for (int i = 0; i < count; ++i)
-        parameter_baseline_values_[(size_t)i] = _model->GetParameterValue(i);
+    if (count > 0)
+        std::copy_n(Live2D::Cubism::Core::csmGetParameterValues(_model->GetModel()),
+            count, parameter_baseline_values_.begin());
 }
 
 void NativeModel::save_parameters() {

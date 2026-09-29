@@ -21,6 +21,7 @@ int test_mver_missing_motion_groups(void);
 int test_mver_policy(void);
 int test_model_import_identity(void);
 int test_slim_package(void);
+int test_preferences_import(void);
 static bool chord(const char *json, bool gamepad, const char *expected) {
     yyjson_doc *document = yyjson_read(json, strlen(json), 0);
     BongoCatImportCandidate candidate = {0};
@@ -60,6 +61,7 @@ static void labels_from_shortcut_rows(void) {
     CHECK(bongo_cat_mver_label(&labels, "l2d_expression", 1) == NULL);
     CHECK(strcmp(bongo_cat_mver_label(&labels, "l2d_motion_lockhand", 0),
         keyboard_hidden) == 0);
+    bongo_cat_mver_labels_clear(&labels);
     CHECK(bongo_cat_model_remove_tree(root, NULL));
     SDL_free(temporary);
 }
@@ -106,7 +108,7 @@ static void metadata_backfills_labels(void) {
             "model:expression:2") == 0);
         CHECK(strcmp(app->settings.behavior_shortcuts[2].label,
             "Expression label") == 0);
-        free(app);
+        bongo_cat_behaviors_clear(&app->behaviors); free(app);
     }
     CHECK(bongo_cat_model_remove_tree(root, NULL));
     SDL_free(temporary);
@@ -126,6 +128,8 @@ static void behavior_labels_add_font_glyphs(void) {
     BongoCatApp *app = calloc(1, sizeof(*app));
     CHECK(app != NULL);
     if (!app) return;
+    CHECK(bongo_cat_behaviors_reserve(&app->behaviors, 1, NULL));
+    if (!app->behaviors.entries) { free(app); return; }
     snprintf(app->behaviors.entries[0].label,
         sizeof(app->behaviors.entries[0].label),
         "\xE9\x94\xAE\xE7\x9B\x98\xE6\xB6\x88\xE5\xA4\xB1");
@@ -144,7 +148,40 @@ static void behavior_labels_add_font_glyphs(void) {
     CHECK(range_has(ranges, 0x54aa));
     CHECK(range_has(ranges, 0x5f62));
     CHECK(range_has(ranges, 0x6001));
-    free(app);
+    BongoCatPreferences *preferences = calloc(1, sizeof(*preferences));
+    CHECK(preferences != NULL);
+    if (preferences) {
+        preferences->app = app;
+        preferences->ui_initialized = true;
+        preferences->glyph_ranges[0] = 0x20;
+        preferences->glyph_ranges[1] = 0x7e;
+        CHECK(!bongo_cat_preferences_behavior_glyphs_ready(preferences));
+        bongo_cat_preferences_behavior_dialog_open(preferences);
+        CHECK(preferences->font_reload_pending);
+        bongo_cat_preferences_model_glyphs(app, preferences->glyph_ranges,
+            sizeof(preferences->glyph_ranges) / sizeof(preferences->glyph_ranges[0]));
+        CHECK(bongo_cat_preferences_behavior_glyphs_ready(preferences));
+        preferences->font_reload_pending = false;
+        bongo_cat_preferences_behavior_dialog_open(preferences);
+        CHECK(!preferences->font_reload_pending);
+        CHECK(bongo_cat_behaviors_reserve(&app->behaviors, 600, NULL));
+        app->behaviors.count = 600;
+        for (size_t i = 0; i < app->behaviors.count; ++i) {
+            char *label = app->behaviors.entries[i].label;
+            int bytes = nk_utf_encode((nk_rune)(0x4e00 + i * 4), label,
+                BONGO_CAT_ID_CAP);
+            bytes += nk_utf_encode((nk_rune)(0x4e02 + i * 4), label + bytes,
+                BONGO_CAT_ID_CAP - bytes);
+            label[bytes] = '\0';
+        }
+        CHECK(!bongo_cat_preferences_behavior_glyphs_ready(preferences));
+        bongo_cat_preferences_model_glyphs(app, preferences->glyph_ranges,
+            sizeof(preferences->glyph_ranges) / sizeof(preferences->glyph_ranges[0]));
+        CHECK(bongo_cat_preferences_behavior_glyphs_ready(preferences));
+        CHECK(range_has(preferences->glyph_ranges, 0x4e02 + 599 * 4));
+        free(preferences);
+    }
+    bongo_cat_behaviors_clear(&app->behaviors); free(app);
 }
 
 static void font_reload_defers_during_frame(void) {
@@ -203,10 +240,14 @@ static void model_visual_curve(void) {
     CHECK(complete == 1.0f && !value.model_load_visual_active);
 }
 
-int main(void) {
+int main(int argc, char **argv) {
+    if (argc == 2 && !strcmp(argv[1], "--import-notice"))
+        return test_preferences_import() ? 1 : 0;
+    test_mver_config();
     test_mver_pointer_modes();
     test_mver_audio();
     failures += test_preferences_text();
+    failures += test_preferences_import();
     CHECK(chord("[17,65]", true, "Control+A"));
     CHECK(chord("[0]", true, "Gamepad:South"));
     CHECK(chord("[15]", true, "Gamepad:Select"));
@@ -214,9 +255,11 @@ int main(void) {
     CHECK(chord("[24]", false, "24"));
     CHECK(chord("[16,65]", false, "Shift+A"));
     CHECK(chord("[17,18,90]", false, "Control+Alt+Z"));
-    CHECK(chord("[0]", false, NULL));
-    CHECK(chord("[16]", false, NULL));
-    CHECK(chord("[17,65,66]", true, NULL));
+    CHECK(chord("[0]", false, ""));
+    CHECK(chord("[16]", false, "Shift"));
+    CHECK(chord("[17,65,66]", true, "Control+A+B"));
+    CHECK(chord("[-1]", false, NULL));
+    CHECK(chord("[17,255]", true, NULL));
     BongoCatMverKeyNames modifier = bongo_cat_mver_device_names(16, 1, 2);
     CHECK(modifier.count == 1 && strcmp(modifier.items[0], "ShiftRight") == 0);
     BongoCatMverKeyNames dpad = bongo_cat_mver_gamepad_names(12);

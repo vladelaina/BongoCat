@@ -128,7 +128,7 @@ static void normalize_id_base(char *output, size_t capacity,
 bool bongo_cat_import_package_id(char *output, size_t capacity,
     const char *name) {
     if (!output || capacity < 2) return false;
-    char normalized[BONGO_CAT_ID_CAP];
+    char normalized[BONGO_CAT_ID_CAP] = {0};
     normalize_id_base(normalized, sizeof(normalized), name);
     if (!normalized[0]) snprintf(normalized, sizeof(normalized), "Imported model");
     size_t maximum = capacity > IMPORT_COLLISION_SUFFIX_RESERVE + 1

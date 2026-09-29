@@ -1,4 +1,5 @@
 #include "linux_internal.h"
+#include "linux_shape.h"
 #include "bongo_cat/common.h"
 #include "bongo_cat/log.h"
 
@@ -185,7 +186,7 @@ bool bongo_cat_linux_x11_start(BongoCatPlatform *platform, BongoCatError *error)
     state->xwayland = native->wayland || (display && XQueryExtension(display,
         "XWAYLAND", &marker_opcode, &marker_event, &marker_error));
     if (state->xwayland) SDL_LogInfo(BONGO_CAT_LOG_LIFECYCLE,
-        "XWayland detected; automatic transparent-pixel click-through is disabled");
+        "XWayland detected; transparent-pixel input uses the rendered window shape");
     /* Select one input backend for the session. Device hotplug must not
        switch producers midway through a held key or mouse button. */
     if (!display || !window || native->evdev_selected) return true;
@@ -224,6 +225,41 @@ void bongo_cat_linux_x11_click_through(BongoCatPlatform *platform, bool enabled)
     XFixesSetWindowShapeRegion(state->display, state->window, ShapeInput, 0, 0, region);
     if (region) XFixesDestroyRegion(state->display, region);
     XFlush(state->display);
+}
+
+bool bongo_cat_linux_x11_shape_supported(BongoCatPlatform *platform) {
+    SDL_PropertiesID properties = SDL_GetWindowProperties(platform->window);
+    Display *display = SDL_GetPointerProperty(properties,
+        SDL_PROP_WINDOW_X11_DISPLAY_POINTER, NULL);
+    int event, error, major = 2, minor = 0;
+    return display && XFixesQueryExtension(display, &event, &error) &&
+        XFixesQueryVersion(display, &major, &minor) && major >= 2;
+}
+
+bool bongo_cat_linux_x11_shape(BongoCatPlatform *platform,
+    const unsigned char *mask, int width, int height, bool empty) {
+    SDL_PropertiesID properties = SDL_GetWindowProperties(platform->window);
+    Display *display = SDL_GetPointerProperty(properties,
+        SDL_PROP_WINDOW_X11_DISPLAY_POINTER, NULL);
+    Window window = (Window)SDL_GetNumberProperty(properties,
+        SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0);
+    if (!display || !window) return false;
+    XserverRegion region = None;
+    if (empty) region = XFixesCreateRegion(display, NULL, 0);
+    else if (mask) {
+        Pixmap bitmap = XCreateBitmapFromData(display, window, (const char *)mask,
+            (unsigned)width, (unsigned)height);
+        if (!bitmap) return false;
+        region = XFixesCreateRegionFromBitmap(display, bitmap);
+        XFreePixmap(display, bitmap);
+    }
+    if ((empty || mask) && !region) return false;
+    /* ShapeInput changes only event routing, not the visible image. The server
+       can restore model interaction under XWayland without global pointer data. */
+    XFixesSetWindowShapeRegion(display, window, ShapeInput, 0, 0, region);
+    if (region) XFixesDestroyRegion(display, region);
+    XFlush(display);
+    return true;
 }
 
 static void state_message(LinuxX11State *state, const char *name, long action) {

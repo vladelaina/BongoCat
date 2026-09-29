@@ -54,10 +54,6 @@ static bool copy_standard_pointer_assets(const BongoCatImportCandidate *candidat
     return true;
 }
 
-int bongo_cat_mver_modifier_index(int code) {
-    return code == 16 ? 0 : code == 17 ? 1 : code == 18 ? 2 : -1;
-}
-
 static void count_modifiers(yyjson_val *matrix, size_t counts[3]) {
     size_t row_index, row_count; yyjson_val *row;
     yyjson_arr_foreach(matrix, row_index, row_count, row) {
@@ -68,67 +64,6 @@ static void count_modifiers(yyjson_val *matrix, size_t counts[3]) {
             if (index >= 0) counts[index]++;
         }
     }
-}
-
-KeyNames bongo_cat_mver_device_names(int code, size_t occurrence, size_t total) {
-    KeyNames names = {0};
-    if (code >= 48 && code <= 57) {
-        snprintf(names.generated, sizeof(names.generated), "Num%c", (char)code);
-    } else if (code >= 65 && code <= 90) {
-        snprintf(names.generated, sizeof(names.generated), "Key%c", (char)code);
-    } else if (code >= 112 && code <= 123) {
-        snprintf(names.generated, sizeof(names.generated), "F%d", code - 111);
-    } else if (bongo_cat_mver_modifier_index(code) >= 0) {
-        static const char *const modifiers[][2] = {
-            {"ShiftLeft", "ShiftRight"}, {"ControlLeft", "ControlRight"},
-            {"Alt", "AltGr"}
-        };
-        int index = bongo_cat_mver_modifier_index(code);
-        if (total > 1) {
-            names.items[0] = modifiers[index][occurrence ? 1 : 0];
-            names.count = 1;
-        } else {
-            names.items[0] = modifiers[index][0];
-            names.items[1] = modifiers[index][1];
-            names.count = 2;
-        }
-        return names;
-    } else {
-        static const struct { int code; const char *name; } map[] = {
-            {8,"Backspace"},{9,"Tab"},{13,"Return"},{19,"Pause"},{20,"CapsLock"},
-            {27,"Escape"},{32,"Space"},{33,"PageUp"},{34,"PageDown"},{35,"End"},
-            {36,"Home"},{37,"LeftArrow"},{38,"UpArrow"},{39,"RightArrow"},
-            {40,"DownArrow"},{44,"PrintScreen"},{45,"Insert"},{46,"Delete"},
-            {91,"Meta"},{92,"Meta"},{93,"Apps"},{96,"Kp0"},{97,"Kp1"},
-            {98,"Kp2"},{99,"Kp3"},{100,"Kp4"},{101,"Kp5"},{102,"Kp6"},
-            {103,"Kp7"},{104,"Kp8"},{105,"Kp9"},{106,"KpMultiply"},
-            {107,"KpPlus"},{109,"KpMinus"},{110,"KpDecimal"},{111,"KpDivide"},
-            {144,"NumLock"},{145,"ScrollLock"},{186,"Semicolon"},{187,"Equal"},
-            {188,"Comma"},{189,"Minus"},{190,"Period"},{191,"Slash"},
-            {192,"BackQuote"},{219,"BracketLeft"},{220,"Backslash"},
-            {221,"BracketRight"},{222,"Quote"}
-        };
-        for (size_t i = 0; i < sizeof(map) / sizeof(map[0]); ++i)
-            if (map[i].code == code) { names.items[0] = map[i].name; names.count = 1; break; }
-        if (!names.count && code > 0 && code <= 255) {
-            snprintf(names.generated, sizeof(names.generated), "%d", code);
-            names.count = 1;
-        }
-        return names;
-    }
-    names.count = 1;
-    return names;
-}
-
-KeyNames bongo_cat_mver_gamepad_names(int code) {
-    static const char *map[] = {"South", "East", "West", "North", "LeftTrigger",
-        "RightTrigger", "LeftTrigger2", "RightTrigger2", "LeftThumb", "RightThumb",
-        "DPadLeft", "DPadRight", "DPadUp", "DPadDown", "Start", "Select"};
-    KeyNames names = {0};
-    if (code >= 0 && (size_t)code < sizeof(map) / sizeof(map[0])) {
-        names.items[0] = map[code]; names.count = 1;
-    }
-    return names;
 }
 
 static bool keyboard_index(yyjson_val *matrix, int code, size_t *result) {

@@ -4,6 +4,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifndef _WIN32
+#include <strings.h>
+#endif
 
 int bongo_cat_tauri_key_code(const char *filename) {
     char name[BONGO_CAT_ID_CAP];
@@ -21,7 +24,7 @@ int bongo_cat_tauri_key_code(const char *filename) {
         name[3] >= '0' && name[3] <= '9') return name[3];
     if ((name[0] == 'F' || name[0] == 'f') && strlen(name) <= 3) {
         long value = strtol(name + 1, &end, 10);
-        if (end != name + 1 && !*end && value >= 1 && value <= 12)
+        if (end != name + 1 && !*end && value >= 1 && value <= 24)
             return 111 + (int)value;
     }
     static const struct { const char *name; int code; } map[] = {

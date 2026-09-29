@@ -50,6 +50,7 @@ bool bongo_cat_windows_snapshot_capture(BongoCatWindowsSnapshot *s) {
         (size_t)s->width * s->height > SNAPSHOT_MAX_PIXELS) return false;
     s->pixels = SDL_malloc((size_t)s->width * s->height * 4);
     if (!s->pixels) return false;
+    s->pixel_bytes = (size_t)s->width * s->height * 4;
     typedef void (APIENTRY *BindBufferFn)(GLenum, GLuint);
     BindBufferFn bind_buffer = (BindBufferFn)SDL_GL_GetProcAddress("glBindBuffer");
     if (!bind_buffer) return false;

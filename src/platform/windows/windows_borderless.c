@@ -1,5 +1,6 @@
 #include "windows_borderless.h"
 #include "windows_capture.h"
+#include "windows_layered.h"
 #include "windows_keys.h"
 #include "windows_tray.h"
 
@@ -221,7 +222,7 @@ void bongo_cat_windows_borderless_set_click_through(HWND window,
     if (mode) SetPropW(window, click_through_property, (HANDLE)mode);
     else RemovePropW(window, click_through_property);
     LONG_PTR style = GetWindowLongPtrW(window, GWL_EXSTYLE);
-    LONG_PTR next = forced ? style | WS_EX_TRANSPARENT :
+    LONG_PTR next = (forced || bongo_cat_windows_layered_suppressed(window)) ? style | WS_EX_TRANSPARENT :
         style & ~WS_EX_TRANSPARENT;
     /* The hit-test property is immediate; a frame refresh flickers OpenGL windows. */
     if (next != style) SetWindowLongPtrW(window, GWL_EXSTYLE, next);

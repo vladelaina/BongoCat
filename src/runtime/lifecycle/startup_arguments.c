@@ -32,7 +32,8 @@ static bool prepare_nearby_root(BongoCatApp *app, BongoCatError *error) {
     const char *root = NULL;
     if (!bongo_cat_windows_is_packaged()) {
         current = SDL_GetCurrentDirectory();
-        root = current && current[0] ? current : SDL_GetBasePath();
+        root = !app->autostart_launch && current && current[0]
+            ? current : SDL_GetBasePath();
     }
 #else
     const char *root = SDL_GetBasePath();
@@ -47,6 +48,8 @@ static bool prepare_nearby_root(BongoCatApp *app, BongoCatError *error) {
 
 bool bongo_cat_startup_arguments(BongoCatApp *app, int argc, char **argv,
     BongoCatError *error) {
+    for (int i = 1; i < argc; ++i)
+        if (strcmp(argv[i], "--autostart") == 0) app->autostart_launch = true;
     if (!prepare_nearby_root(app, error)) return false;
     for (int i = 1; i < argc; ++i) {
         const char *arg = argv[i];

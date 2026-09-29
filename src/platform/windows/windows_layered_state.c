@@ -40,6 +40,15 @@ bool bongo_cat_platform_frame_alpha(const BongoCatPlatform *platform,
         value->source_width != width || value->source_height != height ||
         !alpha || x < 0 || y < 0 || x >= width || y >= height)
         return false;
+    if (value->pixel_hit_test) {
+        /* Drag/hover checks must agree with the displayed alpha after scaling
+           and thresholding, including mixed-DPI monitor transitions. */
+        int display_x = (int)((int64_t)x * value->width / width);
+        int display_y = value->height - 1 -
+            (int)((int64_t)(height - 1 - y) * value->height / height);
+        *alpha = value->pixels[((size_t)display_y * value->width + display_x) * 4 + 3];
+        return true;
+    }
     *alpha = pixels[((size_t)y * (size_t)width + (size_t)x) * 4 + 3];
     return true;
 }

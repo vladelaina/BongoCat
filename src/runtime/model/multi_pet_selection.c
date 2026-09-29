@@ -39,8 +39,9 @@ bool bongo_cat_app_model_active(const BongoCatApp *app, const char *id) {
 }
 
 size_t bongo_cat_app_active_model_count(const BongoCatApp *app) {
-    return app && app->settings.model.multiple_pets
-        ? 1 + app->session.additional_model_count : app ? 1 : 0;
+    if (!app || !app->session.active_model_id[0]) return 0;
+    return app->settings.model.multiple_pets
+        ? 1 + app->session.additional_model_count : 1;
 }
 
 bool bongo_cat_app_set_model_active(BongoCatApp *app, const char *id,
@@ -50,7 +51,7 @@ bool bongo_cat_app_set_model_active(BongoCatApp *app, const char *id,
             "Model is not installed: %s", id ? id : "");
         return false;
     }
-    if (!app->settings.model.multiple_pets)
+    if (!app->settings.model.multiple_pets || !app->session.active_model_id[0])
         return active ? bongo_cat_app_select_model_with_error(app, id, error)
             : true;
     bool primary = !strcmp(app->session.active_model_id, id);
@@ -81,7 +82,7 @@ bool bongo_cat_app_set_model_active(BongoCatApp *app, const char *id,
 void bongo_cat_app_set_multiple_pets(BongoCatApp *app, bool enabled) {
     if (!app) return;
     app->settings.model.multiple_pets = enabled;
-    if (!enabled) bongo_cat_session_clear_additional_models(&app->session);
+    /* Keep the selection in session.json while the extra pets are disabled. */
     if (!app->secondary_pet)
         bongo_cat_multi_pet_primary_update(app, SDL_GetTicksNS());
 }

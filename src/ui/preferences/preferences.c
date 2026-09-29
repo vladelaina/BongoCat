@@ -77,13 +77,15 @@ bool bongo_cat_preferences_needs_frame(BongoCatPreferences *value) {
     if (value->about.qr_open && SDL_GetTicks() >= value->about.qr_hide_at)
         value->render_dirty = true;
     if (value->behavior_dialog && value->app) {
-        for (size_t i = 0; i < value->app->behaviors.count; ++i) {
-            const BongoCatBehaviorEntry *entry = &value->app->behaviors.entries[i];
+        BongoCatBehaviorCatalog *catalog = value->behavior_catalog ?
+            value->behavior_catalog : &value->app->behaviors;
+        for (size_t i = 0; i < catalog->count; ++i) {
+            BongoCatBehaviorEntry *entry = &catalog->entries[i];
             bool playing = entry->kind == BONGO_CAT_BEHAVIOR_SOUND &&
                 (entry->sound_clear ? bongo_cat_audio_any_playing(value->app->audio) :
                 bongo_cat_audio_is_playing(value->app->audio, entry->sound));
-            if (value->behavior_audio_playing[i] != playing) {
-                value->behavior_audio_playing[i] = playing;
+            if (entry->audio_playing != playing) {
+                entry->audio_playing = playing;
                 value->render_dirty = true;
             }
         }
@@ -281,6 +283,8 @@ void bongo_cat_preferences_invalidate(BongoCatPreferences *value) {
 
 void bongo_cat_preferences_models_changed(BongoCatPreferences *value) {
     if (!value) return;
+    bongo_cat_preferences_shortcut_cancel(value);
+    bongo_cat_app_model_shortcuts_prune(value->app);
     value->render_dirty = true;
     value->model_directory_watch_known = false;
     value->font_reload_pending = value->ui_initialized;

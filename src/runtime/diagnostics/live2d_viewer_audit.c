@@ -107,7 +107,9 @@ static void render_step(BongoCatApp *app) {
     glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     bongo_cat_live2d_draw(app->live2d);
-    SDL_GL_SwapWindow(app->window);
+    if (!bongo_cat_platform_present(&app->platform, width, height))
+        SDL_LogWarn(SDL_LOG_CATEGORY_VIDEO,
+            "Viewer audit frame presentation failed: %s", SDL_GetError());
 }
 static void advance(BongoCatApp *app, int frames) {
     for (int frame = 0; frame < frames; ++frame) {

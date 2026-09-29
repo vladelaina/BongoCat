@@ -1,4 +1,5 @@
 #include "modal_frame.h"
+#include "bongo_cat/resource_trace.h"
 
 static float modal_elapsed(BongoCatModalFrame *state, uint64_t app_frame_ns,
     uint64_t now) {
@@ -20,6 +21,14 @@ void bongo_cat_modal_frame_tick(void *userdata) {
     BongoCatModalFrame *state = userdata;
     if (!state || !state->app) return;
     BongoCatApp *app = state->app;
+    /* Native event pumping during a model handoff can reenter modal timers.
+       The outgoing model no longer owns render resources until completion. */
+    if (app->loading_model[0]) return;
+    bongo_cat_resource_trace_poll();
+    /* Include pause expiry and settled reclamation, not just busy uploads.
+       The service queries its deadline before switching GL contexts and
+       explicitly forbids starting a new job from this native modal loop. */
+    bongo_cat_app_refresh_texture_resolution(app, false);
     uint64_t now = SDL_GetTicksNS();
     float elapsed = modal_elapsed(state, app->last_frame_ns, now);
     app->last_frame_ns = now;

@@ -87,13 +87,37 @@ void bongo_cat_sha256_bytes(const void *data, size_t size, char output[65]) {
 }
 
 BongoCatResult bongo_cat_sha256_file(const char *path, char output[65], BongoCatError *error) {
+    return bongo_cat_sha256_file_cancellable(path, output, NULL, NULL, error);
+}
+
+BongoCatResult bongo_cat_sha256_file_cancellable(const char *path, char output[65],
+    BongoCatSha256Cancelled cancelled, void *userdata, BongoCatError *error) {
+    if (!output) return BONGO_CAT_ERROR_ARGUMENT;
+    output[0] = '\0';
+    if (cancelled && cancelled(userdata)) {
+        bongo_cat_error_set(error, BONGO_CAT_ERROR_PLATFORM, "File hash cancelled");
+        return BONGO_CAT_ERROR_PLATFORM;
+    }
     FILE *file = path ? bongo_cat_file_open(path, "rb") : NULL;
     if (!file) { bongo_cat_error_set(error, BONGO_CAT_ERROR_IO, "Cannot open file"); return BONGO_CAT_ERROR_IO; }
     Sha256 value; initialize(&value);
     unsigned char buffer[8192]; size_t count;
-    while ((count = fread(buffer, 1, sizeof(buffer), file)) > 0) update(&value, buffer, count);
+    for (;;) {
+        if (cancelled && cancelled(userdata)) {
+            fclose(file);
+            bongo_cat_error_set(error, BONGO_CAT_ERROR_PLATFORM, "File hash cancelled");
+            return BONGO_CAT_ERROR_PLATFORM;
+        }
+        count = fread(buffer, 1, sizeof(buffer), file);
+        if (!count) break;
+        update(&value, buffer, count);
+    }
     bool ok = !ferror(file);
     if (fclose(file) != 0) ok = false;
     if (!ok) { bongo_cat_error_set(error, BONGO_CAT_ERROR_IO, "Cannot read file"); return BONGO_CAT_ERROR_IO; }
+    if (cancelled && cancelled(userdata)) {
+        bongo_cat_error_set(error, BONGO_CAT_ERROR_PLATFORM, "File hash cancelled");
+        return BONGO_CAT_ERROR_PLATFORM;
+    }
     finish(&value, output); return BONGO_CAT_OK;
 }

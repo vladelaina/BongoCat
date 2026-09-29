@@ -34,18 +34,6 @@ bool bongo_cat_window_apply_scale_centered(BongoCatApp *app, float scale,
         base_height * actual / base_scale};
     image.x = center_x - image.w * 0.5f;
     image.y = center_y - image.h * 0.5f;
-    if (app->settings.window.keep_in_screen) {
-        SDL_DisplayID display = SDL_GetDisplayForWindow(app->window);
-        SDL_Rect bounds;
-        if (display && SDL_GetDisplayUsableBounds(display, &bounds)) {
-            x = SDL_clamp(x, bounds.x, SDL_max(bounds.x, bounds.x + bounds.w - width));
-            y = SDL_clamp(y, bounds.y, SDL_max(bounds.y, bounds.y + bounds.h - height));
-            image.x = SDL_clamp(image.x, (float)bounds.x,
-                SDL_max((float)bounds.x, bounds.x + bounds.w - image.w));
-            image.y = SDL_clamp(image.y, (float)bounds.y,
-                SDL_max((float)bounds.y, bounds.y + bounds.h - image.h));
-        }
-    }
     if (x == app->session.window.x && y == app->session.window.y &&
         width == app->session.window.width && height == app->session.window.height) {
         app->session.window.scale_percent = actual;

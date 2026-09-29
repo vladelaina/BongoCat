@@ -283,6 +283,109 @@ static void close_over_scrolled_models(BongoCatPreferences *value) {
     }
 }
 
+static void inactive_model_behaviors(BongoCatPreferences *value) {
+    BongoCatApp *app = value->app;
+    char active[BONGO_CAT_ID_CAP], loaded[BONGO_CAT_ID_CAP];
+    snprintf(active, sizeof(active), "%s", app->session.active_model_id);
+    snprintf(loaded, sizeof(loaded), "%s", app->loaded_model);
+    BongoCatLive2D *live2d = app->live2d;
+    const BongoCatModelEntry *model = NULL;
+    for (size_t i = 0; i < app->models.count; ++i)
+        if (strcmp(app->models.entries[i].id, loaded)) {
+            model = &app->models.entries[i];
+            break;
+        }
+    CHECK(model != NULL);
+    if (!model) return;
+    bongo_cat_preferences_behavior_dialog_open_model(value, model);
+    CHECK(value->behavior_dialog);
+    CHECK(!strcmp(value->behavior_model_id, model->id));
+    CHECK(!bongo_cat_preferences_behavior_model_loaded(value));
+    CHECK(!value->model_selection_pending);
+    CHECK(!strcmp(active, app->session.active_model_id));
+    CHECK(!strcmp(loaded, app->loaded_model));
+    CHECK(live2d == app->live2d);
+    const BongoCatBehaviorCatalog *catalog =
+        bongo_cat_preferences_behavior_catalog(value);
+    CHECK(catalog->count > 0);
+    for (size_t i = 0; i < catalog->count; ++i)
+        CHECK(!strncmp(catalog->entries[i].id, model->id, strlen(model->id)));
+    bongo_cat_preferences_behavior_dialog_close(value);
+}
+
+static void shortcut_chord_capture(BongoCatPreferences *value) {
+    static const struct { SDL_Keycode key; const char *binding; } punctuation[] = {
+        {SDLK_EQUALS, "Alt+="}, {SDLK_MINUS, "Alt+-"},
+        {SDLK_LEFTBRACKET, "Alt+BracketLeft"}, {SDLK_RIGHTBRACKET, "Alt+BracketRight"},
+        {SDLK_BACKSLASH, "Alt+Backslash"}, {SDLK_SEMICOLON, "Alt+Semicolon"},
+        {SDLK_APOSTROPHE, "Alt+Quote"}, {SDLK_COMMA, "Alt+Comma"},
+        {SDLK_PERIOD, "Alt+Period"}, {SDLK_SLASH, "Alt+Slash"},
+        {SDLK_GRAVE, "Alt+BackQuote"}, {SDLK_KP_PLUS, "Alt+KpPlus"},
+        {SDLK_KP_MINUS, "Alt+KpMinus"}, {SDLK_KP_MULTIPLY, "Alt+KpMultiply"},
+        {SDLK_KP_DIVIDE, "Alt+KpDivide"}, {SDLK_KP_DECIMAL, "Alt+KpDecimal"}
+    };
+    for (size_t i = 0; i < sizeof(punctuation) / sizeof(punctuation[0]); ++i) {
+        char recorded[BONGO_CAT_SHORTCUT_CAP] = "";
+        bongo_cat_preferences_shortcut_begin(value, "test-punctuation", recorded, sizeof(recorded));
+        SDL_Event input = {0};
+        input.type = SDL_EVENT_KEY_DOWN;
+        input.key.down = true;
+        input.key.key = punctuation[i].key;
+        input.key.mod = SDL_KMOD_ALT;
+        CHECK(bongo_cat_preferences_shortcut_event(value, &input));
+        CHECK(!strcmp(recorded, punctuation[i].binding));
+        bongo_cat_preferences_shortcut_cancel(value);
+        CHECK(!recorded[0]);
+    }
+    char target[BONGO_CAT_SHORTCUT_CAP] = "";
+    bongo_cat_preferences_shortcut_begin(value, "test-chord", target, sizeof(target));
+    SDL_Event event = {0};
+    event.type = SDL_EVENT_KEY_DOWN;
+    event.key.down = true;
+    event.key.key = SDLK_F23;
+    event.key.mod = SDL_KMOD_CTRL;
+    CHECK(bongo_cat_preferences_shortcut_event(value, &event));
+    CHECK(!strcmp(target, "Control+F23"));
+    event.key.key = SDLK_F24;
+    CHECK(bongo_cat_preferences_shortcut_event(value, &event));
+    CHECK(!strcmp(target, "Control+F23+F24"));
+    event.key.repeat = true;
+    CHECK(bongo_cat_preferences_shortcut_event(value, &event));
+    CHECK(!strcmp(target, "Control+F23+F24"));
+    event.type = SDL_EVENT_KEY_UP;
+    event.key.down = false;
+    event.key.repeat = false;
+    event.key.key = SDLK_F23;
+    CHECK(bongo_cat_preferences_shortcut_event(value, &event));
+    CHECK(!value->shortcut_recording);
+    CHECK(!strcmp(target, "Control+F23+F24"));
+    bongo_cat_preferences_shortcut_begin(value, "test-chord", target, sizeof(target));
+    event.type = SDL_EVENT_KEY_DOWN;
+    event.key.down = true;
+    event.key.mod = 0;
+    event.key.key = SDLK_F23;
+    CHECK(bongo_cat_preferences_shortcut_event(value, &event));
+    event.key.key = SDLK_LCTRL;
+    CHECK(bongo_cat_preferences_shortcut_event(value, &event));
+    CHECK(!strcmp(target, "F23+Control"));
+    event.type = SDL_EVENT_KEY_UP;
+    event.key.down = false;
+    CHECK(bongo_cat_preferences_shortcut_event(value, &event));
+    CHECK(!value->shortcut_recording);
+    CHECK(!strcmp(target, "F23+Control"));
+    char small[5] = "F1";
+    bongo_cat_preferences_shortcut_begin(value, "test-small", small, sizeof(small));
+    event.type = SDL_EVENT_KEY_DOWN;
+    event.key.down = true;
+    event.key.mod = 0;
+    event.key.key = SDLK_F23;
+    CHECK(bongo_cat_preferences_shortcut_event(value, &event));
+    event.key.key = SDLK_F24;
+    CHECK(bongo_cat_preferences_shortcut_event(value, &event));
+    CHECK(!value->shortcut_recording);
+    CHECK(!strcmp(small, "F1"));
+}
+
 int main(int argc, char **argv) {
     BongoCatApp *app = calloc(1, sizeof(*app));
     BongoCatError error = {0};
@@ -299,12 +402,15 @@ int main(int argc, char **argv) {
     about_unchanged_contributors(app);
     CHECK(value != NULL);
     if (value) {
+        shortcut_chord_capture(value);
         for (int cycle = 0; cycle < 3; ++cycle) {
             bongo_cat_preferences_show(value);
             CHECK(value->window && value->gl_context && value->ui_initialized);
             if (!cycle) about_render_cost_regressions(value);
             about_session_cache(value);
+            if (!cycle) inactive_model_behaviors(value);
             bongo_cat_preferences_close(value);
+            CHECK(!value->behavior_catalog);
             CHECK(!value->about.contributors && !value->about.qr_pixels);
             CHECK(!value->about.contributors_attempted && !value->about.qr_attempted);
             CHECK(!value->about.contributors_request ||

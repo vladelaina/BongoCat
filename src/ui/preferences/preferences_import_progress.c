@@ -27,12 +27,15 @@ void bongo_cat_preferences_import_merge_failures(BongoCatImportJob *job,
 
 static size_t remember_package(BongoCatImportJob *job, const char *id) {
     if (!job || !id || !id[0]) return BONGO_CAT_MODEL_CAP;
+    char base[BONGO_CAT_ID_CAP];
+    if (!bongo_cat_import_package_base_id(base, sizeof(base), id))
+        return BONGO_CAT_MODEL_CAP;
     for (size_t i = 0; i < job->package_id_count; ++i)
-        if (!strcmp(job->package_ids[i], id)) return i;
+        if (!strcmp(job->package_ids[i], base)) return i;
     if (job->package_id_count >= BONGO_CAT_MODEL_CAP)
         return BONGO_CAT_MODEL_CAP;
     size_t index = job->package_id_count++;
-    snprintf(job->package_ids[index], BONGO_CAT_ID_CAP, "%s", id);
+    snprintf(job->package_ids[index], BONGO_CAT_ID_CAP, "%s", base);
     return index;
 }
 
@@ -42,6 +45,8 @@ void bongo_cat_preferences_import_receive(void *userdata,
     BongoCatImportJob *job = progress->job;
     size_t package_index = receipt->count
         ? remember_package(job, receipt->ids[0]) : BONGO_CAT_MODEL_CAP;
+    if (package_index < BONGO_CAT_MODEL_CAP && receipt->installed_count)
+        job->package_imported[package_index] = true;
     job->resolved_count += receipt->count;
     job->installed_count += receipt->installed_count;
     job->result = BONGO_CAT_OK;
@@ -73,7 +78,7 @@ void bongo_cat_preferences_import_report_progress(BongoCatImportJob *job,
     bool pushed = false;
     if (current && progress) {
         event.type = job->dialog->event_type;
-        event.user.windowID = job->dialog->window_id;
+        event.user.windowID = job->window_id;
         event.user.code = BONGO_CAT_IMPORT_PROGRESS_CODE;
         event.user.data1 = progress;
         event.user.data2 = job->dialog;

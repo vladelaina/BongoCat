@@ -136,7 +136,9 @@ BongoCatResult bongo_cat_session_load(const char *path,
                     error) &&
                 read_int(size, "height", &loaded.window.height, true, error) &&
                 read_int(size, "contentWidth", &content_width, false, error) &&
-                read_int(size, "contentHeight", &content_height, false, error);
+                read_int(size, "contentHeight", &content_height, false, error) &&
+                read_int(size, "contentLeft", &loaded.window.content_left, false, error) &&
+                read_int(size, "contentTop", &loaded.window.content_top, false, error);
             if (valid) {
                 loaded.window.content_width = content_width > 0
                     ? content_width : loaded.window.width;
@@ -240,6 +242,10 @@ BongoCatResult bongo_cat_session_save(const char *path,
             canonical.window.content_width) &&
         yyjson_mut_obj_add_int(doc, size, "contentHeight",
             canonical.window.content_height) &&
+        yyjson_mut_obj_add_int(doc, size, "contentLeft",
+            canonical.window.content_left) &&
+        yyjson_mut_obj_add_int(doc, size, "contentTop",
+            canonical.window.content_top) &&
         yyjson_mut_obj_add_strcpy(doc, root, "activeModelId",
             canonical.active_model_id) &&
         yyjson_mut_obj_add_int(doc, root, "lastUpdateCheckDay",

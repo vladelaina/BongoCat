@@ -12,6 +12,7 @@
 /.ninja_deps
 /.ninja_log
 /Makefile
+/.bongocat-deps-*/
 
 # Compiled native artifacts
 *.o
@@ -65,9 +66,11 @@ Desktop.ini
 !/docs/README.ru-RU.md
 !/docs/README.es-ES.md
 !/docs/README.id-ID.md
-!/docs/wechat.png
-!/docs/windows-multimonitor-input-validation.md
-!/docs/model-import-rendering.md
+!/docs/wechat.md
+!/docs/rendering-quality.md
+!/docs/texture-resolution.md
+!/docs/windows-click-through.md
+!/docs/transparent-input.md
 
 # Local Windows audit tools
 /cmake/*.ps1

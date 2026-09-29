@@ -3,6 +3,38 @@
 
 #include <math.h>
 
+static bool audit_gaze_mirrors(BongoCatApp *app) {
+    bool mirror = app->settings.model.mirror;
+    bool mouse_mirror = app->settings.model.mouse_mirror;
+    bool centered = app->settings.model.mouse_centered;
+    bool passed = true;
+    BongoCatMouseProjection projection = {
+        .bounds = {0, 0, 1000, 1000}, .center_x = 400, .center_y = 600};
+    for (int mode = 0; mode < 8; ++mode) {
+        app->settings.model.mirror = (mode & 1) != 0;
+        app->settings.model.mouse_mirror = (mode & 2) != 0;
+        app->settings.model.mouse_centered = projection.centered = (mode & 4) != 0;
+        for (int corner = 0; corner < 4; ++corner) {
+            double px = (corner & 1) ? 800 : 200;
+            double py = (corner & 2) ? 800 : 200;
+            bongo_cat_app_apply_mouse_coordinates(app, &projection, px, py, px, py);
+            for (int frame = 0; frame < 90; ++frame)
+                bongo_cat_app_step_live2d(app, 1.0f / 60.0f);
+            BongoCatParameterRange x, y;
+            bool right = ((corner & 1) != 0) != app->settings.model.mirror;
+            bool up = (corner & 2) == 0;
+            passed = bongo_cat_live2d_parameter(app->live2d, "ParamAngleX", &x) &&
+                bongo_cat_live2d_parameter(app->live2d, "ParamAngleY", &y) &&
+                (right ? x.value > 5.0f : x.value < -5.0f) &&
+                (up ? y.value > 5.0f : y.value < -5.0f) && passed;
+        }
+    }
+    app->settings.model.mirror = mirror;
+    app->settings.model.mouse_mirror = mouse_mirror;
+    app->settings.model.mouse_centered = centered;
+    return passed;
+}
+
 bool bongo_cat_app_audit_screen_pointer(BongoCatApp *app) {
     SDL_Rect bounds;
     SDL_DisplayID display = SDL_GetPrimaryDisplay();
@@ -25,7 +57,7 @@ bool bongo_cat_app_audit_screen_pointer(BongoCatApp *app) {
     passed = (!has_z || (bongo_cat_live2d_parameter(app->live2d,
         "ParamAngleZ", &z) && fabsf(z.value) < 0.25f)) && passed;
     app->settings.model.mouse_centered = mouse_centered;
-    return passed;
+    return audit_gaze_mirrors(app) && passed;
 }
 
 bool bongo_cat_app_audit_display_pointer(BongoCatApp *app) {

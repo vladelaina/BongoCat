@@ -34,6 +34,10 @@ bool bongo_cat_app_run_behavior(BongoCatApp *app,
         if (!bongo_cat_live2d_set_expression(app->live2d, expression)) return false;
     }
     bongo_cat_app_capture_behavior_state(app);
+    app->input_diagnostics.visual_actions++;
+    app->input_diagnostics.pending = true;
+    SDL_snprintf(app->input_diagnostics.last_visual_action,
+        sizeof(app->input_diagnostics.last_visual_action), "%s", behavior->id);
     app->dirty = true;
     return true;
 }

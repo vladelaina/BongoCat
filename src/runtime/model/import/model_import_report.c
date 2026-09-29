@@ -68,9 +68,6 @@ static bool add_degradations(yyjson_mut_doc *output, yyjson_mut_val *items,
     yyjson_val *decoration = yyjson_obj_get(config, "decoration");
     yyjson_val *mode = yyjson_obj_get(config, bongo_cat_mode_name(candidate->mode));
     bool ok = true;
-    if (configured(decoration, "window_size") || configured(decoration, "topWindow"))
-        ok = add_degradation(output, items, "decoration.window",
-            "BongoCat keeps window size and always-on-top as cross-platform user preferences");
     if (ok && (configured(decoration, "offsetX") || configured(decoration, "offsetY") ||
         configured(decoration, "scalar") || configured(decoration, "hand_offset")))
         ok = add_degradation(output, items, "decoration.sprite_geometry",

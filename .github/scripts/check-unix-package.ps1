@@ -55,7 +55,15 @@ try {
             & bash $testRunner env BONGO_CAT_DISABLE_NEARBY_MODEL_SCAN=1 `
                 $executable --ci-smoke --ci-ignore-global-input `
                 --ci-live2d-scenario=visual-consistency "--storage-root=$storage"
-            if ($LASTEXITCODE -ne 0) { throw 'Packaged application smoke test failed' }
+            $smokeExitCode = $LASTEXITCODE
+            if ($smokeExitCode -ne 0) {
+                Get-ChildItem -LiteralPath $storage -Recurse -File -Filter 'live2d-*audit.*' |
+                    ForEach-Object {
+                        Write-Host "Live2D audit: $($_.FullName)"
+                        Get-Content -LiteralPath $_.FullName | Write-Host
+                    }
+                throw "Packaged application smoke test failed (exit code $smokeExitCode)"
+            }
             $audits = @(Get-ChildItem -LiteralPath $storage -Recurse -File -Filter live2d-audit.txt)
             if ($audits.Count -ne 1) { throw 'Packaged application produced no unique Live2D audit' }
             $audit = Get-Content -LiteralPath $audits[0].FullName -Raw

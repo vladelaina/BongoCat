@@ -12,7 +12,10 @@ struct BongoCatWindowsSnapshot {
     SDL_Texture *texture;
     HWND source_handle, handle;
     WNDPROC original;
+    /* RGBA during capture; packed 8-bit alpha after the texture upload. */
     unsigned char *pixels;
+    size_t pixel_bytes;
+    bool ready;
     int width, height;
     RECT desktop;
     SDL_FRect destination, presented;

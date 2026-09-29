@@ -6,14 +6,8 @@ static int rounded_delta(float value) {
 }
 
 static bool use_pointer_drag(const BongoCatApp *app) {
-#ifdef _WIN32
-    /* Native caption dragging pulls partially offscreen windows back down
-       at the top edge, even when keep-in-screen is disabled. */
     (void)app;
     return true;
-#else
-    return app->settings.window.keep_in_screen;
-#endif
 }
 
 static void move_with_pointer(BongoCatApp *app, float x, float y) {
@@ -55,8 +49,6 @@ void bongo_cat_window_drag_motion(BongoCatApp *app,
     app->window_drag_active = true;
     bongo_cat_window_snapshot_begin(app);
     if (use_pointer_drag(app)) {
-        if (app->settings.window.keep_in_screen)
-            bongo_cat_window_drag_bounds_refresh(app);
         if (!SDL_CaptureMouse(true)) SDL_LogWarn(SDL_LOG_CATEGORY_VIDEO,
             "Mouse capture is unavailable during window drag: %s",
             SDL_GetError());
@@ -74,7 +66,6 @@ void bongo_cat_window_drag_end(BongoCatApp *app) {
     bool was_active = app->window_drag_active;
     if (was_active) SDL_CaptureMouse(false);
     app->drag_candidate = false;
-    bongo_cat_window_clamp_to_display(app);
     app->window_drag_active = false;
     bongo_cat_window_snapshot_end(app);
     bongo_cat_window_drag_bounds_clear(app);

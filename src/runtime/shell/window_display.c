@@ -178,24 +178,14 @@ static bool fit_to_display(BongoCatApp *app, SDL_DisplayID display,
 }
 
 void bongo_cat_window_clamp_to_display(BongoCatApp *app) {
-    SDL_Rect rect;
-    if (!app || !app->settings.window.keep_in_screen || !window_rect(app, &rect)) return;
-    if (available_displays_cover(app, &rect)) return;
-    fit_to_display(app, target_display(app, &rect), &rect);
+    (void)app;
 }
 
 void bongo_cat_window_drag_to(BongoCatApp *app, int x, int y) {
     int width = 0, height = 0, current_x = 0, current_y = 0;
     if (!app || !app->window || !SDL_GetWindowSize(app->window, &width, &height) ||
         width <= 0 || height <= 0) return;
-    SDL_Rect requested = {x, y, width, height};
     SDL_Point next = {x, y};
-    if (app->settings.window.keep_in_screen &&
-        !available_displays_cover(app, &requested)) {
-        SDL_Rect bounds; SDL_DisplayID display = target_display(app, &requested);
-        if (display && (SDL_GetDisplayUsableBounds(display, &bounds) ||
-            SDL_GetDisplayBounds(display, &bounds))) next = fitted_position(&requested, &bounds);
-    }
     if (SDL_GetWindowPosition(app->window, &current_x, &current_y) &&
         current_x == next.x && current_y == next.y) return;
     if (!SDL_SetWindowPosition(app->window, next.x, next.y)) return;
@@ -206,6 +196,25 @@ void bongo_cat_window_drag_to(BongoCatApp *app, int x, int y) {
         bongo_cat_window_snapshot_geometry(app, NULL);
         app->dirty = true;
     }
+}
+
+void bongo_cat_window_reset_position(BongoCatApp *app) {
+    SDL_Rect rect, bounds;
+    if (!window_rect(app, &rect)) return;
+    SDL_DisplayID display = SDL_GetPrimaryDisplay();
+    if (!display || (!SDL_GetDisplayUsableBounds(display, &bounds) &&
+        !SDL_GetDisplayBounds(display, &bounds))) return;
+    int x = bounds.x + SDL_max(0, bounds.w - rect.w) / 2;
+    int y = bounds.y + SDL_max(0, bounds.h - rect.h) / 2;
+    bongo_cat_window_cancel_wheel_animation(app);
+    bongo_cat_window_snapshot_end(app);
+    if (!SDL_SetWindowPosition(app->window, x, y)) return;
+    app->session.window.x = x;
+    app->session.window.y = y;
+    app->session.window.position_known = true;
+    bongo_cat_window_mark_hit_dirty(app);
+    bongo_cat_app_reset_pointer_tracking(app);
+    app->dirty = true;
 }
 
 bool bongo_cat_window_recover_to_display(BongoCatApp *app) {
@@ -223,8 +232,7 @@ void bongo_cat_window_display_event(BongoCatApp *app, const SDL_Event *event) {
     if (event->type < SDL_EVENT_DISPLAY_FIRST ||
         event->type > SDL_EVENT_DISPLAY_LAST) return;
     bongo_cat_window_snapshot_end(app);
-    if (app->window_drag_active && app->settings.window.keep_in_screen)
-        bongo_cat_window_drag_bounds_refresh(app);
+    if (app->window_drag_active) bongo_cat_window_drag_bounds_refresh(app);
     bongo_cat_app_reset_pointer_tracking(app);
     app->display_recovery_due_ns = SDL_GetTicksNS() + DISPLAY_RECOVERY_DELAY_NS;
 }
@@ -233,8 +241,6 @@ void bongo_cat_window_update_display_recovery(BongoCatApp *app, uint64_t now) {
     if (!app || !app->display_recovery_due_ns ||
         now < app->display_recovery_due_ns) return;
     app->display_recovery_due_ns = 0;
-    if (app->settings.window.keep_in_screen) bongo_cat_window_clamp_to_display(app);
-    else bongo_cat_window_recover_to_display(app);
 }
 
 bool bongo_cat_window_display_self_test(BongoCatApp *app) {

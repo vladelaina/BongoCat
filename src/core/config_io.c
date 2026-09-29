@@ -52,10 +52,18 @@ static bool read_model(yyjson_val *object, BongoCatModelPreferences *value,
     BongoCatError *error) {
     return read_bool(object, "multiplePets", &value->multiple_pets, error) &&
         read_bool(object, "modelMirrored", &value->mirror, error) &&
+        read_bool(object, "modelFlippedVertically", &value->vertical_flip, error) &&
         read_bool(object, "pointerMirrored", &value->mouse_mirror, error) &&
+        read_bool(object, "pointerFlippedVertically",
+            &value->mouse_vertical_flip, error) &&
         read_bool(object, "centerPointerTracking", &value->mouse_centered,
             error) &&
         read_bool(object, "ignorePointerInput", &value->ignore_mouse, error) &&
+        read_bool(object, "gamepadFourHands", &value->gamepad_four_hands, error) &&
+        read_bool(object, "dynamicTextureResolution",
+            &value->dynamic_texture_resolution, error) &&
+        read_float(object, "renderQualityPercent", &value->render_quality_percent,
+            error) &&
         read_int(object, "maximumFps", &value->max_fps, error);
 }
 
@@ -64,11 +72,11 @@ static bool read_window(yyjson_val *object, BongoCatWindowPreferences *value,
     if (!read_bool(object, "clickThrough", &value->pass_through, error) ||
         !read_bool(object, "alwaysOnTop", &value->always_on_top, error) ||
         !read_bool(object, "hideOnPointerOver", &value->hide_on_hover, error) ||
-        !read_bool(object, "keepOnScreen", &value->keep_in_screen, error) ||
         !read_bool(object, "captureBackground", &value->obs_background,
             error) ||
         !read_bool(object, "randomExpression", &value->random_expression,
             error) ||
+        !read_bool(object, "randomMotion", &value->random_motion, error) ||
         !read_bool(object, "roundedCorners", &value->rounded_corners, error) ||
         !read_float(object, "cornerRadiusPercent", &value->corner_radius_percent,
             error) ||
@@ -76,6 +84,8 @@ static bool read_window(yyjson_val *object, BongoCatWindowPreferences *value,
             error) ||
         !read_float(object, "hideFadeSeconds", &value->hide_fade_seconds,
             error) ||
+        !read_float(object, "randomMotionIntervalSeconds",
+            &value->random_motion_interval_seconds, error) ||
         !read_float(object, "randomExpressionIntervalSeconds",
             &value->random_expression_interval_seconds,
             error)) return false;
@@ -93,6 +103,8 @@ static bool read_window(yyjson_val *object, BongoCatWindowPreferences *value,
 static bool read_app(yyjson_val *object, BongoCatApplicationPreferences *value,
     BongoCatError *error) {
     if (!read_bool(object, "launchAtLogin", &value->autostart, error) ||
+        !read_bool(object, "launchAtLoginAsAdmin", &value->autostart_admin, error) ||
+        !read_bool(object, "gameCompatibility", &value->game_compatibility, error) ||
         !read_bool(object, "showTrayIcon", &value->tray_visible, error))
         return false;
     const char *text;
@@ -113,6 +125,8 @@ static bool read_shortcuts(yyjson_val *object,
             sizeof(value->toggle_pet_visibility), error) &&
         read_text(object, "openSettings", value->visible_preferences,
             sizeof(value->visible_preferences), error) &&
+        read_text(object, "openMenu", value->open_menu,
+            sizeof(value->open_menu), error) &&
         read_text(object, "toggleModelMirror", value->mirror,
             sizeof(value->mirror), error) &&
         read_text(object, "toggleClickThrough", value->pass_through,

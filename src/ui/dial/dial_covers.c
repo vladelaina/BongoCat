@@ -5,7 +5,7 @@
 void dial_covers_tick(Dial *d) {
     if (d->active != 9) return;
     for (int i = 0; i < dial_child_count(d); ++i) {
-        size_t index = (size_t)(d->page*DIAL_PAGE+i);
+        size_t index = (size_t)d->page * DIAL_PAGE + (size_t)i;
         if (index >= d->labels->model_count || index >= BONGO_CAT_MODEL_CAP) continue;
         DialCover *cover = &d->covers[index];
         if (cover->attempted) continue;
@@ -18,6 +18,8 @@ void dial_covers_tick(Dial *d) {
             BongoCatError ignored = {0};
             int pixels = (int)fminf(160,ceilf(44*d->scale*d->raster_scale*1.25f));
             cover->texture = bongo_cat_image_texture_thumbnail(path,pixels,pixels,&width,&height,&ignored);
+            if (!cover->texture) SDL_LogWarn(SDL_LOG_CATEGORY_RENDER,
+                "Radial menu cover unavailable: %s (%s)", path, ignored.message);
             if (cover->texture && width > 0 && height > 0) {
                 float fit = fminf(44.0f/(float)width,40.0f/(float)height);
                 cover->width = (float)width*fit; cover->height = (float)height*fit;
@@ -30,7 +32,7 @@ void dial_covers_tick(Dial *d) {
 
 bool dial_cover_draw(Dial *d, int child, float x, float y, float opacity) {
     if (d->active != 9 || child < 0) return false;
-    size_t index = (size_t)(d->page*DIAL_PAGE+child);
+    size_t index = (size_t)d->page * DIAL_PAGE + (size_t)child;
     if (index >= d->labels->model_count || index >= BONGO_CAT_MODEL_CAP) return false;
     DialCover *cover = &d->covers[index];
     uint32_t color = 0xffffff | ((uint32_t)(255*opacity)<<24);

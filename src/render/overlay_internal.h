@@ -18,6 +18,8 @@ struct BongoCatOverlay {
     BongoCatMverPointerOverlay *mver_pointer;
     GLuint program;
     GLint mirror_location;
+    GLint vertical_flip_location;
+    bool vertical_flip;
     GLint image_location;
     GLint reference_width_location;
     GLint reference_height_location;
@@ -45,6 +47,8 @@ struct BongoCatOverlay {
     char effect_path[BONGO_CAT_PATH_CAP];
     char directory[BONGO_CAT_PATH_CAP];
     uint64_t clock;
+    char last_input_path[BONGO_CAT_PATH_CAP];
+    uint64_t input_texture_failures;
 };
 
 /* Shared texture ownership for model loading and input/effect activation. */

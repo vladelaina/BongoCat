@@ -1,4 +1,5 @@
 #include "cubism_model.hpp"
+#include "model_frame_policy.h"
 
 #include <Motion/CubismExpressionMotion.hpp>
 #include <algorithm>
@@ -41,8 +42,7 @@ NativeModel::ModelBounds NativeModel::capture_visible_bounds() const {
         int count = _model->GetDrawableVertexCount(i);
         if (!vertices || count <= 0) continue;
         int texture = _model->GetDrawableTextureIndex(i);
-        const BongoCatImageAlphaMask *mask = texture >= 0 &&
-            (size_t)texture < texture_alpha_.size() ? &texture_alpha_[(size_t)texture] : nullptr;
+        const BongoCatImageAlphaMask *mask = texture_alpha(texture);
         const auto *uvs = _model->GetDrawableVertexUvs(i);
         const auto *indices = _model->GetDrawableVertexIndices(i);
         int index_count = _model->GetDrawableVertexIndexCount(i);
@@ -119,9 +119,10 @@ static float frame_margin(float overflow, float padding) {
 
 void NativeModel::prepare_expression_frame() {
     frame_ = BongoCatLive2DFrame{};
-    /* Authored Mver calibration keeps its exact frame. Legacy conversions
-       opt into extra space because their inferred projection can clip geometry.
-       The shared content viewport keeps background/input layers aligned. */
+    required_frame_ = BongoCatLive2DFrame{};
+    /* Authored Mver calibration skips speculative expression preflight.
+       Runtime measurement still protects its actual animated geometry while
+       the shared content viewport preserves the authored composition. */
     if (!_model || (render_options_.mver_projection &&
             !render_options_.auto_frame)) {
         update_viewport();
@@ -132,7 +133,7 @@ void NativeModel::prepare_expression_frame() {
     for (int i = 0; i < parameter_count; ++i)
         base[(size_t)i] = _model->GetParameterValue(i);
 
-    _model->Update();
+    update_geometry();
     ModelBounds envelope = capture_visible_bounds();
     auto include = [&envelope](const ModelBounds &source) {
         if (!source.valid) return;
@@ -170,12 +171,12 @@ void NativeModel::prepare_expression_frame() {
                 break;
             }
         }
-        _model->Update();
+        update_geometry();
         include(capture_visible_bounds());
     }
     for (int parameter = 0; parameter < parameter_count; ++parameter)
         _model->SetParameterValue(parameter, base[(size_t)parameter]);
-    _model->Update();
+    update_geometry();
 
     int reference_width = 0, reference_height = 0;
     if (render_options_.mver_projection) {
@@ -214,6 +215,13 @@ void NativeModel::prepare_expression_frame() {
     frame_.right = horizontal;
     frame_.bottom = frame_margin(-1.0f - min_y, padding);
     frame_.top = frame_margin(max_y - 1.0f, padding);
+    required_frame_.left = bongo_cat_frame_margin(0.0f, frame_.left);
+    required_frame_.right = bongo_cat_frame_margin(0.0f, frame_.right);
+    required_frame_.top = bongo_cat_frame_margin(0.0f, frame_.top);
+    required_frame_.bottom = bongo_cat_frame_margin(0.0f, frame_.bottom);
+    /* The runtime applies the pixel/display budget before presenting. Keep
+       even the initial expression envelope below the relative area budget. */
+    frame_ = bongo_cat_frame_limit({}, required_frame_, 2.0, 2.0, 2.0);
     update_viewport();
 }
 

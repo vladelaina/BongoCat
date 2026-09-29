@@ -67,6 +67,7 @@ int bongo_cat_window_wheel_round_position(float value) {
 
 void bongo_cat_window_wheel(BongoCatApp *app, const SDL_MouseWheelEvent *event) {
     if (!app || !app->window || !event ||
+        app->resize_candidate || app->resize_gesture ||
         !wheel_targets_window(app, event)) return;
     float delta = wheel_delta(event);
     if (SDL_fabsf(delta) < 0.001f) return;

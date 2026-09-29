@@ -1,4 +1,5 @@
 #include "windows_capture.h"
+#include "windows_layered.h"
 
 #ifdef _WIN32
 #include <SDL3/SDL.h>
@@ -52,6 +53,7 @@ void bongo_cat_windows_capture_install_transparency_handler(HWND window) {
 
 bool bongo_cat_windows_capture_restore_transparency(HWND window) {
     if (!window) return false;
+    if (bongo_cat_windows_layered_suppressed(window)) return true;
     HRGN region = CreateRectRgn(-1, -1, 0, 0);
     if (!region) return false;
     DWM_BLURBEHIND blur = {0};

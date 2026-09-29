@@ -13,6 +13,7 @@ extern int failures;
 
 void test_mver_container_discovery(void);
 void test_mver_audio(void);
+void test_mver_config(void);
 void test_mver_pointer_modes(void);
 void test_model_import_source(void);
 void test_model_import_archive(void);

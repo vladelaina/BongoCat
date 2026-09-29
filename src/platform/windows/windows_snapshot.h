@@ -5,6 +5,8 @@
 
 typedef struct BongoCatWindowsSnapshot BongoCatWindowsSnapshot;
 
+/* Check the compiled renderer list before drawing or reading back a frame. */
+bool bongo_cat_windows_snapshot_available(void);
 /* Capture requires the source OpenGL context to be current. */
 BongoCatWindowsSnapshot *bongo_cat_windows_snapshot_create(SDL_Window *source,
     float opacity);

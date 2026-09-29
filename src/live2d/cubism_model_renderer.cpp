@@ -1,48 +1,99 @@
 #include "cubism_model.hpp"
+#include "bongo_cat/model_memory.h"
+#include "bongo_cat/resource_trace.h"
+#include "cubism_target_bindings.hpp"
 #include "bongo_cat/gl_api.h"
 
 #include <SDL3/SDL_video.h>
-#include <algorithm>
-#include <cstdint>
-#include <utility>
+#include <Rendering/OpenGL/CubismOffscreenManager_OpenGLES2.hpp>
 
 namespace bongo_cat {
 
-static size_t mask_combination_count(Csm::csmInt32 object_count,
-    const Csm::csmInt32 *mask_counts, const Csm::csmInt32 *const *masks) {
-    std::set<std::vector<Csm::csmInt32>> combinations;
-    for (Csm::csmInt32 i = 0; i < object_count; ++i) {
-        if (mask_counts[i] <= 0) continue;
-        std::vector<Csm::csmInt32> ids(masks[i], masks[i] + mask_counts[i]);
-        // Cubism shares a clipping context for the same IDs in any order.
-        std::sort(ids.begin(), ids.end());
-        combinations.insert(std::move(ids));
+namespace {
+class DrawFrame final {
+public:
+    explicit DrawFrame(Csm::Rendering::CubismOffscreenManager_OpenGLES2 *manager)
+        : manager_(manager), srgb_(glIsEnabled(GL_FRAMEBUFFER_SRGB)) {
+        manager_->BeginFrameProcess();
+        // Cubism's RGBA8 blend equations operate on authored color values.
+        if (srgb_) glDisable(GL_FRAMEBUFFER_SRGB);
+        // Modern blend targets may also be allocated lazily inside DrawModel.
+        glGetIntegerv(GL_PIXEL_UNPACK_BUFFER_BINDING, &unpack_);
+        if (unpack_) glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
     }
-    // Include hidden objects so expressions cannot exceed the allocated capacity.
-    return combinations.size();
-}
+    ~DrawFrame() {
+        if (unpack_) glBindBuffer(GL_PIXEL_UNPACK_BUFFER, (GLuint)unpack_);
+        if (srgb_) glEnable(GL_FRAMEBUFFER_SRGB);
+        manager_->EndFrameProcess();
+    }
+    DrawFrame(const DrawFrame &) = delete;
+    DrawFrame &operator=(const DrawFrame &) = delete;
+private:
+    Csm::Rendering::CubismOffscreenManager_OpenGLES2 *manager_;
+    GLboolean srgb_;
+    GLint unpack_ = 0;
+};
+} // namespace
 
-static Csm::csmInt32 mask_buffer_count(size_t count) {
-    if (count <= (size_t)Csm::Rendering::ClippingMaskMaxCountOnDefault) return 1;
-    const size_t capacity = Csm::Rendering::ClippingMaskMaxCountOnMultiRenderTexture;
-    return (Csm::csmInt32)(1 + (count - 1) / capacity);
-}
-
-void NativeModel::bind_textures() {
+void NativeModel::draw() {
     auto *renderer = GetRenderer<Csm::Rendering::CubismRenderer_OpenGLES2>();
-    if (!renderer) return;
-    for (size_t i = 0; i < textures_.size(); ++i)
-        if (textures_[i])
-            renderer->BindTexture((Csm::csmInt32)i, textures_[i]);
-    renderer->IsPremultipliedAlpha(true);
-}
-
-void NativeModel::release_textures() {
-    if (!textures_.empty())
-        glDeleteTextures((GLsizei)textures_.size(), textures_.data());
-    textures_.clear();
-    texture_alpha_.clear();
-    triangle_alpha_.clear();
+    if (!_model || !renderer || width_ <= 0 || height_ <= 0) return;
+#ifdef CSM_TARGET_MAC_GL
+    CoreProfileBinding binding(core_buffers_);
+#endif
+    const bool first_frame = trim_offscreen_pool_;
+    const bool resources_changed = first_frame ||
+        width_ != mask_last_width_ || height_ != mask_last_height_;
+    update_mask_buffers();
+    auto *manager = Csm::Rendering::CubismOffscreenManager_OpenGLES2::GetInstance();
+    Csm::CubismMatrix44 projection;
+    build_projection(projection, viewport_width_, viewport_height_);
+    if (vertical_flip_) {
+        // Reflect the complete projection, including authored translation.
+        float *matrix = projection.GetArray();
+        for (int i = 1; i < 16; i += 4) matrix[i] = -matrix[i];
+    }
+    apply_viewport_projection(projection);
+    visual_state_ = BongoCatLive2DVisualState{};
+    visual_state_.fit_scale = frame_fit_scale_;
+    visual_state_.fitted = frame_fit_scale_ < 0.9999f;
+    visual_state_.mver_projection = render_options_.mver_projection;
+    visual_projection_.SetMatrix(projection.GetArray());
+    visual_state_cached_ = false;
+    visual_state_ready_ = true;
+    renderer->SetMvpMatrix(&projection);
+    renderer->SetModelColor(1.0f, 1.0f, 1.0f, _model->GetModelOpacity());
+    {
+        DrawFrame frame(manager);
+        renderer->DrawModel();
+    }
+    if (trim_offscreen_pool_) {
+        // The first completed frame establishes how many targets this model
+        // needs. Drop unused targets retained by a previously loaded model.
+        manager->ReleaseStaleRenderTextures();
+        trim_offscreen_pool_ = false;
+    }
+    if (resources_changed) {
+        // Cubism creates each clipping manager only when the model uses that
+        // mask type. Its count getters dereference those optional managers.
+        const int drawable_count = _model->IsUsingMasking()
+            ? renderer->GetDrawableRenderTextureCount() : 0;
+        const int offscreen_count = _model->IsUsingMaskingForOffscreen()
+            ? renderer->GetOffscreenRenderTextureCount() : 0;
+        double mask_mib = drawable_count * bongo_cat_model_texture_mib(
+            drawable_masks_.size.width, drawable_masks_.size.height, false) +
+            offscreen_count * bongo_cat_model_texture_mib(
+                offscreen_masks_.size.width, offscreen_masks_.size.height, false);
+        bongo_cat_resource_trace_render(mask_mib,
+            (unsigned)manager->GetOffscreenRenderTargetListSize(), width_, height_);
+        if (first_frame) bongo_cat_model_memory_log("renderer-first-frame",
+            "window=%dx%d viewport=%dx%d drawable_masks=%dx%dx%d "
+            "offscreen_masks=%dx%dx%d mask_rgba8_est_mib=%.1f pool_targets=%u",
+            width_, height_, viewport_width_, viewport_height_,
+            drawable_masks_.size.width, drawable_masks_.size.height, drawable_count,
+            offscreen_masks_.size.width, offscreen_masks_.size.height, offscreen_count,
+            mask_mib, (unsigned)manager->GetOffscreenRenderTargetListSize());
+    }
 }
 
 void NativeModel::release_renderer() {
@@ -53,61 +104,17 @@ void NativeModel::release_renderer() {
     renderer_width_ = 0;
     renderer_height_ = 0;
     mask_texture_limit_ = 0;
-    mask_buffer_size_ = 0;
-    mask_layout_divisions_ = 1;
+    drawable_masks_ = {};
+    offscreen_masks_ = {};
+    mask_update_failed_ = false;
     mask_last_width_ = mask_last_height_ = 0;
+    visual_state_ready_ = false;
+    trim_offscreen_pool_ = true;
 }
 
 void NativeModel::release_render_resources() {
     release_textures();
     release_renderer();
-}
-
-void NativeModel::update_mask_buffers() {
-    if (width_ == mask_last_width_ && height_ == mask_last_height_) return;
-    auto *renderer = GetRenderer<Csm::Rendering::CubismRenderer_OpenGLES2>();
-    if (!renderer || !_model || mask_texture_limit_ <= 0) return;
-    mask_last_width_ = width_;
-    mask_last_height_ = height_;
-    const bool drawable_masks = _model->IsUsingMasking();
-    const bool offscreen_masks = _model->IsUsingMaskingForOffscreen();
-    if (!drawable_masks && !offscreen_masks) return;
-
-    // Account for the actual atlas subdivision, including hidden masks.
-    const int extent = std::min(std::max(width_, height_), mask_texture_limit_);
-    const int requested = std::max(512, mask_layout_divisions_ * extent);
-    const int size = std::min(mask_texture_limit_, ((requested + 511) / 512) * 512);
-    if (size == mask_buffer_size_) return;
-    // Grow immediately, but avoid grow/shrink churn near a size boundary.
-    if (size < mask_buffer_size_ && requested > mask_buffer_size_ - 768) return;
-
-    GLint previous_texture = 0;
-    glGetIntegerv(GL_TEXTURE_BINDING_2D, &previous_texture);
-    auto prepare = [size, &previous_texture](
-        Csm::Rendering::CubismRenderTarget_OpenGLES2 *buffer) {
-        const bool was_bound = previous_texture != 0 &&
-            (GLuint)previous_texture == buffer->GetColorBuffer();
-        // Allocate now so the SDK cannot replace the filtering on first draw.
-        buffer->CreateRenderTarget((Csm::csmUint32)size, (Csm::csmUint32)size);
-        if (was_bound) previous_texture = (GLint)buffer->GetColorBuffer();
-        glBindTexture(GL_TEXTURE_2D, buffer->GetColorBuffer());
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    };
-    if (drawable_masks) {
-        renderer->SetDrawableClippingMaskBufferSize((float)size, (float)size);
-        for (int i = 0; i < renderer->GetDrawableRenderTextureCount(); ++i)
-            prepare(renderer->GetDrawableMaskBuffer(i));
-    }
-    if (offscreen_masks) {
-        renderer->SetOffscreenClippingMaskBufferSize((float)size, (float)size);
-        for (int i = 0; i < renderer->GetOffscreenRenderTextureCount(); ++i)
-            prepare(renderer->GetOffscreenMaskBuffer(i));
-    }
-    glBindTexture(GL_TEXTURE_2D, (GLuint)previous_texture);
-    mask_buffer_size_ = size;
 }
 
 bool NativeModel::create_renderer(BongoCatError *error) {
@@ -124,37 +131,32 @@ bool NativeModel::create_renderer(BongoCatError *error) {
 #ifdef CSM_TARGET_MAC_GL
     CoreProfileBinding binding(core_buffers_);
 #endif
-    const size_t drawable_combinations = mask_combination_count(
-        _model->GetDrawableCount(), _model->GetDrawableMaskCounts(),
-        _model->GetDrawableMasks());
-    const size_t offscreen_combinations = mask_combination_count(
-        _model->GetOffscreenCount(), _model->GetOffscreenMaskCounts(),
-        _model->GetOffscreenMasks());
-    const Csm::csmInt32 buffer_count = std::max(
-        mask_buffer_count(drawable_combinations), mask_buffer_count(offscreen_combinations));
+    const int buffer_count = prepare_mask_layout();
+    TargetBindings bindings;
     CreateRenderer((Csm::csmUint32)width_, (Csm::csmUint32)height_,
         buffer_count);
     auto *renderer = GetRenderer<Csm::Rendering::CubismRenderer_OpenGLES2>();
-    if (renderer) {
+    GLenum renderer_error = glGetError();
+    if (renderer && renderer_error == GL_NO_ERROR) {
         GLint texture_limit = 0;
         glGetIntegerv(GL_MAX_TEXTURE_SIZE, &texture_limit);
-        mask_texture_limit_ = std::min(4096, (int)texture_limit);
-        const size_t per_buffer = (std::max(drawable_combinations,
-            offscreen_combinations) + (size_t)buffer_count - 1) / (size_t)buffer_count;
-        mask_layout_divisions_ = per_buffer <= 4 ? 1 : (per_buffer <= 16 ? 2 : 3);
-        const uint64_t total_buffers = (uint64_t)buffer_count *
-            ((drawable_combinations > 0 ? 1u : 0u) +
-             (offscreen_combinations > 0 ? 1u : 0u));
-        // Target 32 MiB of RGBA8 masks per model, retaining a 256px floor.
-        // This excludes model atlases, blend targets, and driver overhead.
-        constexpr uint64_t mask_budget = 32ull * 1024 * 1024;
-        while (mask_texture_limit_ > 256 && total_buffers * 4 *
-            (uint64_t)mask_texture_limit_ * (uint64_t)mask_texture_limit_ > mask_budget)
-            mask_texture_limit_ = std::max(256, mask_texture_limit_ - 256);
+        renderer_error = glGetError();
+        if (renderer_error != GL_NO_ERROR || texture_limit <= 0) {
+            bongo_cat_error_set(error, BONGO_CAT_ERROR_PLATFORM,
+                "Cannot query the Live2D clipping texture size limit");
+            release_renderer();
+            return false;
+        }
+        mask_texture_limit_ = (int)texture_limit;
         bind_textures();
-        update_mask_buffers();
+        if (!update_mask_buffers()) {
+            bongo_cat_error_set(error, BONGO_CAT_ERROR_CUBISM,
+                "Cannot allocate full-resolution Live2D clipping masks");
+            release_renderer();
+            return false;
+        }
     }
-    GLenum renderer_error = glGetError();
+    if (renderer_error == GL_NO_ERROR) renderer_error = glGetError();
     if (renderer && renderer_error == GL_NO_ERROR) return true;
     bongo_cat_error_set(error, BONGO_CAT_ERROR_CUBISM,
         "Cannot create the Live2D renderer (OpenGL 0x%x)",

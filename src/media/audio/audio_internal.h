@@ -3,6 +3,9 @@
 
 #include "bongo_cat/audio.h"
 #include <miniaudio.h>
+#ifdef _WIN32
+#include <SDL3/SDL_atomic.h>
+#endif
 
 #define AUDIO_VOICES 50
 #define AUDIO_IDLE_MS 5000
@@ -17,6 +20,9 @@ typedef struct AudioVoice {
 
 struct BongoCatAudio {
     ma_engine engine;
+#ifdef _WIN32
+    SDL_AtomicInt mixing;
+#endif
     AudioVoice voices[AUDIO_VOICES];
     uint64_t sequence;
     uint64_t last_play;
@@ -26,6 +32,7 @@ struct BongoCatAudio {
 };
 
 void bongo_cat_audio_voice_release(AudioVoice *voice);
+ma_result bongo_cat_audio_initialize(BongoCatAudio *audio);
 
 /* Explicit time keeps idle reclamation deterministic in offline tests. */
 void bongo_cat_audio_collect(BongoCatAudio *audio, uint64_t now_ms);

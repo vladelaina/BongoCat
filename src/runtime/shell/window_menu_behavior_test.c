@@ -2,6 +2,7 @@
 #include "bongo_cat/shortcut.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 static const BongoCatBehaviorEntry *test_nth_behavior(BongoCatApp *app,
@@ -22,12 +23,8 @@ static const BongoCatBehaviorEntry *test_nth_behavior(BongoCatApp *app,
 static const char *test_behavior_shortcut(const BongoCatApp *app,
     const char *id) {
     if (!app || !id) return NULL;
-    for (size_t i = 0; i < app->settings.behavior_shortcut_count; ++i) {
-        const BongoCatBehaviorShortcut *binding =
-            &app->settings.behavior_shortcuts[i];
-        if (strcmp(binding->id, id) == 0) return binding->shortcut;
-    }
-    return NULL;
+    const BongoCatBehaviorShortcut *binding = bongo_cat_app_behavior_binding(app, id);
+    return binding && !binding->shortcut_disabled ? binding->shortcut : NULL;
 }
 
 static bool expression_self_test(BongoCatApp *app) {
@@ -35,15 +32,19 @@ static bool expression_self_test(BongoCatApp *app) {
     while (test_nth_behavior(app, BONGO_CAT_BEHAVIOR_EXPRESSION, count)) count++;
     if (!count) return true;
     int original = bongo_cat_live2d_expression(app->live2d);
-    char motions[BONGO_CAT_BEHAVIOR_CAP][BONGO_CAT_MENU_LABEL_CAP];
-    bool motion_checked[BONGO_CAT_BEHAVIOR_CAP] = {false};
-    char expressions[BONGO_CAT_BEHAVIOR_CAP][BONGO_CAT_MENU_LABEL_CAP];
+    char (*motions)[BONGO_CAT_MENU_LABEL_CAP] = calloc(app->behaviors.count, sizeof(*motions));
+    bool *motion_checked = calloc(app->behaviors.count, sizeof(*motion_checked));
+    char (*expressions)[BONGO_CAT_MENU_LABEL_CAP] = calloc(app->behaviors.count, sizeof(*expressions));
+    if (!motions || !motion_checked || !expressions) {
+        free(motions); free(motion_checked); free(expressions);
+        return false;
+    }
     size_t motion_count, expression_count, current_expression;
     bool passed = bongo_cat_live2d_set_expression(app->live2d, -1);
     bongo_cat_window_behavior_labels(app, motions, motion_checked, &motion_count,
         expressions, &expression_count, &current_expression);
     passed = passed && expression_count == count &&
-        current_expression == BONGO_CAT_BEHAVIOR_CAP;
+        current_expression == BONGO_CAT_BEHAVIOR_LIMIT;
     size_t selected_position = count > 2 ? 2 : count - 1;
     const BongoCatBehaviorEntry *selected = test_nth_behavior(app,
         BONGO_CAT_BEHAVIOR_EXPRESSION, selected_position);
@@ -93,6 +94,7 @@ static bool expression_self_test(BongoCatApp *app) {
         "count=%llu mapped=%llu current=%llu original=%d restored=%d",
         (unsigned long long)count, (unsigned long long)expression_count,
         (unsigned long long)current_expression, original, restored);
+    free(motions); free(motion_checked); free(expressions);
     return restored && passed;
 }
 
@@ -161,10 +163,14 @@ bool bongo_cat_window_behavior_self_test(BongoCatApp *app) {
             BONGO_CAT_BEHAVIOR_MOTION, 0);
         passed = bongo_cat_window_behavior_action(app,
             BONGO_CAT_MENU_MOTION_FIRST) && passed;
-        char motions[BONGO_CAT_BEHAVIOR_CAP][BONGO_CAT_MENU_LABEL_CAP];
-        bool checked[BONGO_CAT_BEHAVIOR_CAP] = {false};
-        bool before[BONGO_CAT_BEHAVIOR_CAP] = {false};
-        char expressions[BONGO_CAT_BEHAVIOR_CAP][BONGO_CAT_MENU_LABEL_CAP];
+        char (*motions)[BONGO_CAT_MENU_LABEL_CAP] = calloc(app->behaviors.count, sizeof(*motions));
+        bool *checked = calloc(app->behaviors.count, sizeof(*checked));
+        bool *before = calloc(app->behaviors.count, sizeof(*before));
+        char (*expressions)[BONGO_CAT_MENU_LABEL_CAP] = calloc(app->behaviors.count, sizeof(*expressions));
+        if (!motions || !checked || !before || !expressions) {
+            free(motions); free(checked); free(before); free(expressions);
+            return false;
+        }
         size_t motion_count, expression_count, current_expression;
         bongo_cat_window_behavior_labels(app, motions, checked, &motion_count,
             expressions, &expression_count, &current_expression);
@@ -243,6 +249,7 @@ bool bongo_cat_window_behavior_self_test(BongoCatApp *app) {
             "preview=%d count=%llu independent=%d off=%d",
             initial_passed, preview_stable, (unsigned long long)motion_count,
             independent, toggled_off);
+        free(motions); free(checked); free(before); free(expressions);
     }
     passed = motion_lifecycle_self_test(app) && passed;
     passed = expression_self_test(app) && passed;

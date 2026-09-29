@@ -46,6 +46,15 @@ foreach(FILE IN LISTS PRODUCTION_FILES)
   file(READ "${FILE}" SOURCE)
   file(RELATIVE_PATH RELATIVE_FILE "${ROOT}" "${FILE}")
   string(REPLACE "\\" "/" RELATIVE_FILE "${RELATIVE_FILE}")
+  if(RELATIVE_FILE STREQUAL "src/platform/windows/windows_game_compatibility.cpp")
+    # Permit only the query-only shell handle used for a non-elevated restart.
+    # All other OpenProcess calls, including stronger access rights, stay banned.
+    string(CONCAT SHELL_PROCESS_QUERY
+      "(^|[^A-Za-z0-9_])OpenProcess[ \t\r\n]*\\([ \t\r\n]*"
+      "PROCESS_QUERY_LIMITED_INFORMATION[ \t\r\n]*,[ \t\r\n]*"
+      "FALSE[ \t\r\n]*,[ \t\r\n]*shell_pid[ \t\r\n]*\\)")
+    string(REGEX REPLACE "${SHELL_PROCESS_QUERY}" "\\1" SOURCE "${SOURCE}")
+  endif()
   foreach(API IN LISTS FORBIDDEN_APIS)
     string(REGEX MATCH
       "(^|[^A-Za-z0-9_])${API}[ \t\r\n]*\\(" MATCHED "${SOURCE}")

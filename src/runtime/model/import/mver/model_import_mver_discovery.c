@@ -43,15 +43,6 @@ static bool mver_shape(const char *image_root) {
     return false;
 }
 
-bool bongo_cat_import_mver_config_path(const char *root,
-    char *path, size_t capacity) {
-    static const char *names[] = {BONGO_CAT_SKIN_CONFIG_FILE, "config.json"};
-    for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); ++i)
-        if (bongo_cat_path_join(path, capacity, root, names[i]) &&
-            bongo_cat_path_is_file(path)) return true;
-    return false;
-}
-
 static bool package_at(const char *source, char *config, char *image_root) {
     return bongo_cat_import_mver_config_path(source, config,
             BONGO_CAT_PATH_CAP) &&

@@ -24,11 +24,8 @@ static const BongoCatBehaviorEntry *nth_behavior(BongoCatApp *app,
 
 static const char *behavior_shortcut(const BongoCatApp *app, const char *id) {
     if (!app || !id) return NULL;
-    for (size_t i = 0; i < app->settings.behavior_shortcut_count; ++i) {
-        const BongoCatBehaviorShortcut *binding = &app->settings.behavior_shortcuts[i];
-        if (strcmp(binding->id, id) == 0) return binding->shortcut;
-    }
-    return NULL;
+    const BongoCatBehaviorShortcut *binding = bongo_cat_app_behavior_binding(app, id);
+    return binding && !binding->shortcut_disabled ? binding->shortcut : NULL;
 }
 
 static bool hidden_toggle_has_visible_binding(BongoCatApp *app,
@@ -55,11 +52,8 @@ static bool hidden_toggle_has_visible_binding(BongoCatApp *app,
 static const char *behavior_label(const BongoCatApp *app,
     const BongoCatBehaviorEntry *entry) {
     if (!app || !entry) return "";
-    for (size_t i = 0; i < app->settings.behavior_shortcut_count; ++i) {
-        const BongoCatBehaviorShortcut *binding = &app->settings.behavior_shortcuts[i];
-        if (strcmp(binding->id, entry->id) == 0 && binding->label[0])
-            return binding->label;
-    }
+    const char *label = bongo_cat_app_behavior_label(app, entry->id);
+    if (label) return label;
     if (entry->sound_clear) return bongo_cat_i18n_get(app->i18n,
         "pages.preference.model.behaviorModal.labels.stopAllAudio", "Stop all audio");
     return entry->label;
@@ -97,7 +91,7 @@ void bongo_cat_window_behavior_labels(BongoCatApp *app,
     size_t *current_expression) {
     if (!motion_count || !expression_count) return;
     *motion_count = 0; *expression_count = 0;
-    if (current_expression) *current_expression = BONGO_CAT_BEHAVIOR_CAP;
+    if (current_expression) *current_expression = BONGO_CAT_BEHAVIOR_LIMIT;
     if (!app) return;
     int active_expression = bongo_cat_live2d_expression(app->live2d);
     for (size_t i = 0; i < app->behaviors.count; ++i) {
@@ -124,15 +118,15 @@ bool bongo_cat_window_behavior_action(BongoCatApp *app,
     BongoCatBehaviorKind kind;
     size_t position;
     if (action >= BONGO_CAT_MENU_MOTION_FIRST &&
-        action < BONGO_CAT_MENU_MOTION_FIRST + BONGO_CAT_BEHAVIOR_CAP) {
+        action < BONGO_CAT_MENU_MOTION_FIRST + BONGO_CAT_BEHAVIOR_LIMIT) {
         kind = BONGO_CAT_BEHAVIOR_MOTION;
         position = (size_t)(action - BONGO_CAT_MENU_MOTION_FIRST);
     } else if (action >= BONGO_CAT_MENU_EXPRESSION_FIRST &&
-        action < BONGO_CAT_MENU_EXPRESSION_FIRST + BONGO_CAT_BEHAVIOR_CAP) {
+        action < BONGO_CAT_MENU_EXPRESSION_FIRST + BONGO_CAT_BEHAVIOR_LIMIT) {
         kind = BONGO_CAT_BEHAVIOR_EXPRESSION;
         position = (size_t)(action - BONGO_CAT_MENU_EXPRESSION_FIRST);
     } else if (action >= BONGO_CAT_MENU_AUDIO_FIRST &&
-        action < BONGO_CAT_MENU_AUDIO_FIRST + BONGO_CAT_BEHAVIOR_CAP) {
+        action < BONGO_CAT_MENU_AUDIO_FIRST + BONGO_CAT_BEHAVIOR_LIMIT) {
         const BongoCatBehaviorEntry *sound = nth_behavior(app, BONGO_CAT_BEHAVIOR_SOUND,
             (size_t)(action - BONGO_CAT_MENU_AUDIO_FIRST));
         if (!sound) return false;
@@ -149,7 +143,7 @@ bool bongo_cat_window_behavior_preview(BongoCatApp *app,
     BongoCatMenuAction action) {
     if (!app) return false;
     if (action >= BONGO_CAT_MENU_MOTION_FIRST &&
-        action < BONGO_CAT_MENU_MOTION_FIRST + BONGO_CAT_BEHAVIOR_CAP) {
+        action < BONGO_CAT_MENU_MOTION_FIRST + BONGO_CAT_BEHAVIOR_LIMIT) {
         size_t position = (size_t)(action - BONGO_CAT_MENU_MOTION_FIRST);
         const BongoCatBehaviorEntry *entry = nth_behavior(app,
             BONGO_CAT_BEHAVIOR_MOTION, position);
@@ -157,7 +151,7 @@ bool bongo_cat_window_behavior_preview(BongoCatApp *app,
             entry->group, entry->index);
     }
     if (action >= BONGO_CAT_MENU_EXPRESSION_FIRST &&
-        action < BONGO_CAT_MENU_EXPRESSION_FIRST + BONGO_CAT_BEHAVIOR_CAP) {
+        action < BONGO_CAT_MENU_EXPRESSION_FIRST + BONGO_CAT_BEHAVIOR_LIMIT) {
         size_t position = (size_t)(action - BONGO_CAT_MENU_EXPRESSION_FIRST);
         const BongoCatBehaviorEntry *entry = nth_behavior(app,
             BONGO_CAT_BEHAVIOR_EXPRESSION, position);
@@ -172,7 +166,7 @@ bool bongo_cat_window_behavior_preview(BongoCatApp *app,
 bool bongo_cat_window_behavior_commit_preview(BongoCatApp *app,
     BongoCatMenuAction action) {
     if (!app || action < BONGO_CAT_MENU_MOTION_FIRST ||
-        action >= BONGO_CAT_MENU_MOTION_FIRST + BONGO_CAT_BEHAVIOR_CAP)
+        action >= BONGO_CAT_MENU_MOTION_FIRST + BONGO_CAT_BEHAVIOR_LIMIT)
         return false;
     const BongoCatBehaviorEntry *entry = nth_behavior(app,
         BONGO_CAT_BEHAVIOR_MOTION,
@@ -198,9 +192,9 @@ bool bongo_cat_window_behavior_commit_preview(BongoCatApp *app,
 
 bool bongo_cat_window_behavior_menu_action(BongoCatMenuAction action) {
     return (action >= BONGO_CAT_MENU_MOTION_FIRST &&
-        action < BONGO_CAT_MENU_MOTION_FIRST + BONGO_CAT_BEHAVIOR_CAP) ||
+        action < BONGO_CAT_MENU_MOTION_FIRST + BONGO_CAT_BEHAVIOR_LIMIT) ||
         (action >= BONGO_CAT_MENU_EXPRESSION_FIRST &&
-            action < BONGO_CAT_MENU_EXPRESSION_FIRST + BONGO_CAT_BEHAVIOR_CAP);
+            action < BONGO_CAT_MENU_EXPRESSION_FIRST + BONGO_CAT_BEHAVIOR_LIMIT);
 }
 
 void bongo_cat_window_audio_labels(BongoCatApp *app,

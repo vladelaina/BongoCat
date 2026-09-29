@@ -68,11 +68,12 @@ typedef struct BongoCatBehaviorEntry {
     bool momentary;
     bool sound_overlap;
     bool sound_clear;
+    bool shortcut_active, audio_playing; /* Runtime state owned by this entry. */
 } BongoCatBehaviorEntry;
 
 typedef struct BongoCatBehaviorCatalog {
-    BongoCatBehaviorEntry entries[BONGO_CAT_BEHAVIOR_CAP];
-    size_t count;
+    BongoCatBehaviorEntry *entries;
+    size_t count, capacity;
 } BongoCatBehaviorCatalog;
 
 #ifdef __cplusplus
@@ -89,6 +90,13 @@ bool bongo_cat_model_adapter_metadata_path(const char *directory,
 const char *bongo_cat_model_default_name(const BongoCatModelEntry *entry);
 const char *bongo_cat_model_name(const BongoCatSettings *settings,
     const BongoCatModelEntry *entry);
+/* Zero-initialize catalogs before first use. Copy/move preserve ownership. */
+bool bongo_cat_behaviors_reserve(BongoCatBehaviorCatalog *catalog, size_t capacity,
+    BongoCatError *error);
+void bongo_cat_behaviors_clear(BongoCatBehaviorCatalog *catalog);
+bool bongo_cat_behaviors_copy(BongoCatBehaviorCatalog *target,
+    const BongoCatBehaviorCatalog *source, BongoCatError *error);
+void bongo_cat_behaviors_move(BongoCatBehaviorCatalog *target, BongoCatBehaviorCatalog *source);
 BongoCatResult bongo_cat_behaviors_load(BongoCatBehaviorCatalog *catalog,
     const BongoCatModelEntry *model, BongoCatError *error);
 
@@ -129,11 +137,34 @@ typedef struct BongoCatLive2DRenderOptions {
     int pointer_bottom;
 } BongoCatLive2DRenderOptions;
 
+/* Runtime texture policy.  This is deliberately separate from model package
+   rendering metadata: it is a user preference and can be changed without
+   modifying an imported model. */
+typedef bool (*BongoCatLive2DTextureDisplaySize)(void *userdata,
+    const BongoCatLive2DRenderOptions *options, int canvas_width,
+    int canvas_height, int *display_width, int *display_height);
+typedef struct BongoCatLive2DTextureOptions {
+    bool dynamic_resolution;
+    /* Approximate texture-memory budget: 0.1, 1, then 10 to 100 percent. */
+    float render_quality_percent;
+    /* Synchronous planner, called after reading the incoming canvas and before
+       allocating its atlases. Returns content pixels, excluding transparent
+       frame padding. It must not change the live model or window. */
+    BongoCatLive2DTextureDisplaySize display_size;
+    void *display_size_userdata;
+} BongoCatLive2DTextureOptions;
+
 BongoCatLive2D *bongo_cat_live2d_create(const char *asset_root, BongoCatError *error);
 void bongo_cat_live2d_destroy(BongoCatLive2D *live2d);
 BongoCatResult bongo_cat_live2d_load(BongoCatLive2D *live2d, const char *model_dir,
     const char *setting_file, bool preset,
     const BongoCatLive2DRenderOptions *render_options,
+    BongoCatLive2DLoadProgress progress, void *userdata,
+    BongoCatError *error);
+BongoCatResult bongo_cat_live2d_load_ex(BongoCatLive2D *live2d,
+    const char *model_dir, const char *setting_file, bool preset,
+    const BongoCatLive2DRenderOptions *render_options,
+    const BongoCatLive2DTextureOptions *texture_options,
     BongoCatLive2DLoadProgress progress, void *userdata,
     BongoCatError *error);
 bool bongo_cat_live2d_ready(const BongoCatLive2D *live2d);
@@ -142,13 +173,44 @@ bool bongo_cat_live2d_canvas_size(const BongoCatLive2D *live2d,
     int *width, int *height);
 bool bongo_cat_live2d_frame(const BongoCatLive2D *live2d,
     BongoCatLive2DFrame *frame);
+/* Inspect current CPU geometry before drawing. Updates the retained envelope
+   and fits it inside the allocated frame until the window can grow. No GL
+   readback, animation advancement, or native window operations. */
+bool bongo_cat_live2d_measure_frame(BongoCatLive2D *live2d,
+    BongoCatLive2DFrame *required);
+/* Commit only the transparent margins that the native window can allocate. */
+void bongo_cat_live2d_set_frame(BongoCatLive2D *live2d,
+    const BongoCatLive2DFrame *frame);
 bool bongo_cat_live2d_viewport(const BongoCatLive2D *live2d,
     int *x, int *y, int *width, int *height);
 void bongo_cat_live2d_resize(BongoCatLive2D *live2d, int width, int height);
 void bongo_cat_live2d_reshape(BongoCatLive2D *live2d, int width, int height);
+/* Main-thread fast path with no GL calls. Commit the new quality only when
+   every current atlas already has the required pixels. False leaves the
+   model unchanged; the caller can use the normal reload/rollback path. */
+bool bongo_cat_live2d_try_reuse_texture_quality(BongoCatLive2D *live2d,
+    float quality_percent);
+bool bongo_cat_live2d_texture_refresh_pending(const BongoCatLive2D *live2d, bool active);
+/* Main-thread query without GL calls. Unlike pending, excludes debounce,
+   cancellation cooldown and paused jobs that do not yet need retirement. */
+bool bongo_cat_live2d_texture_refresh_due(const BongoCatLive2D *live2d,
+    bool active, bool allow_start);
+/* True only while upload/cleanup can make progress, so low playback FPS does
+   not delay reclamation. Paused jobs do not request frequent wakeups. */
+bool bongo_cat_live2d_texture_refresh_busy(const BongoCatLive2D *live2d);
+/* Request cancellation without joining the worker. Continue polling cleanup.
+   The displayed atlas remains valid; pending resolution work resumes on show. */
+void bongo_cat_live2d_cancel_texture_refresh(BongoCatLive2D *live2d);
+/* Call with the model's GL context current. False active pauses uploads during
+   gestures/temporary hiding; obsolete work is still cleaned up. True permits
+   one upload batch. Long pauses release the unfinished replacement.
+   False allow_start services existing work and settled reclamation only. */
+bool bongo_cat_live2d_refresh_textures(BongoCatLive2D *live2d,
+    bool active, bool allow_start);
 bool bongo_cat_live2d_update(BongoCatLive2D *live2d, float delta_seconds);
 void bongo_cat_live2d_draw(BongoCatLive2D *live2d);
 void bongo_cat_live2d_set_mirror(BongoCatLive2D *live2d, bool mirror);
+void bongo_cat_live2d_set_vertical_flip(BongoCatLive2D *live2d, bool flipped);
 void bongo_cat_live2d_set_render_options(BongoCatLive2D *live2d,
     const BongoCatLive2DRenderOptions *options);
 void bongo_cat_live2d_set_dragging(BongoCatLive2D *live2d, float x, float y);

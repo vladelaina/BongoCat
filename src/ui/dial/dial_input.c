@@ -37,17 +37,19 @@ static void key(Dial *d, const SDL_KeyboardEvent *event) {
     if (value == SDLK_ESCAPE) {
         if (d->active >= 0 && dial_child_count(d)) dial_select(d,-1,-1);
         else d->done = true;
-    } else if (value == SDLK_RETURN || value == SDLK_SPACE) activate(d);
+    } else if (value == SDLK_RETURN || value == SDLK_KP_ENTER || value == SDLK_SPACE) activate(d);
     else if (value == SDLK_PAGEUP || value == SDLK_PAGEDOWN) page(d,value == SDLK_PAGEDOWN ? 1 : -1);
-    else if (value == SDLK_LEFT || value == SDLK_UP || value == SDLK_RIGHT ||
-        value == SDLK_DOWN || value == SDLK_TAB) {
-        int direction = value == SDLK_LEFT || value == SDLK_UP ||
+    else if (value == SDLK_DOWN || value == SDLK_S) {
+        if (d->child < 0 && dial_child_count(d)) dial_select(d,d->active,0);
+    } else if (value == SDLK_UP || value == SDLK_W || value == SDLK_BACKSPACE) {
+        d->child_focus = false; d->dirty = true; dial_select(d,d->active,-1);
+    } else if (value == SDLK_LEFT || value == SDLK_RIGHT ||
+        value == SDLK_A || value == SDLK_D || value == SDLK_TAB) {
+        int direction = value == SDLK_RIGHT || value == SDLK_D ||
             (value == SDLK_TAB && (event->mod & SDL_KMOD_SHIFT)) ? -1 : 1;
         int count = dial_child_count(d);
         if (d->child >= 0 && count) dial_select(d,d->active,(d->child+direction+count)%count);
         else dial_select(d,d->active < 0 ? 0 : (d->active+direction+d->count)%d->count,-1);
-    } else if (value == SDLK_BACKSPACE) {
-        d->child_focus = false; d->dirty = true; dial_select(d,d->active,-1);
     }
 }
 
@@ -89,7 +91,9 @@ void dial_event(Dial *d, const SDL_Event *e) {
         if (d->shown && SDL_GetKeyboardFocus() != d->window) d->done = true;
         break;
     case SDL_EVENT_WINDOW_CLOSE_REQUESTED: d->done = true; break;
-    case SDL_EVENT_WINDOW_EXPOSED: d->dirty = true; break;
+    case SDL_EVENT_WINDOW_EXPOSED:
+    case SDL_EVENT_WINDOW_DISPLAY_CHANGED:
+    case SDL_EVENT_WINDOW_HDR_STATE_CHANGED: d->dirty = true; break;
     case SDL_EVENT_WINDOW_RESIZED: case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
     case SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED:
         if (!SDL_GetWindowSize(d->window,&d->width,&d->height) ||

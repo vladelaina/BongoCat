@@ -6,12 +6,13 @@
 #include "model_import.h"
 #include "bongo_cat/i18n.h"
 #include "bongo_cat/preferences.h"
+#include "bongo_cat/log.h"
 
 #include <stdio.h>
 #include <string.h>
 
 #define MODEL_CARD_HEIGHT 214
-#define MODEL_LOAD_RENDER_INTERVAL_NS 33333333ull
+#define MODEL_LOAD_RENDER_INTERVAL_NS 100000000ull
 
 static const char *tr(BongoCatApp *app, const char *key,
     const char *fallback) {
@@ -41,20 +42,42 @@ void bongo_cat_preferences_model_visual_begin(BongoCatPreferences *value,
         sizeof(value->model_load_visual_id), "%s", model_id);
 }
 
+bool bongo_cat_preferences_model_texture_busy(const BongoCatPreferences *value) {
+    return value && value->app && value->app->loading_model[0] &&
+        value->app->model_load_runtime_stage == 2;
+}
+
 void bongo_cat_preferences_model_load_progress(BongoCatPreferences *value,
     float progress) {
     if (!value || !value->model_loading) return;
-    (void)progress;
     uint64_t now = SDL_GetTicksNS();
     uint64_t elapsed = now - value->model_load_visual_started_ns;
     value->model_load_progress = visual_wait_progress(elapsed);
     value->render_dirty = true;
+    /* Preserve the loading frame while transferring atlases. Switching to
+       the shared settings context can serialize a software/virtual GPU and
+       cost more than decoding. Native events still pump in the loader. */
+    if (bongo_cat_preferences_model_texture_busy(value)) {
+        ++value->model_load_render_deferred;
+        return;
+    }
+    /* Slow software/virtual GPU presentation must not dominate model decode.
+       Keep 10 Hz on fast drivers, backing off to at most 500 ms between
+       loading frames; native events are pumped independently by the loader. */
+    uint64_t interval = SDL_max(MODEL_LOAD_RENDER_INTERVAL_NS,
+        SDL_min(value->model_load_render_cost_ns, 125000000ull) * 4);
     bool due = !value->model_load_render_ns ||
-        now - value->model_load_render_ns >= MODEL_LOAD_RENDER_INTERVAL_NS;
+        now - value->model_load_render_ns >= interval;
     if (bongo_cat_preferences_visible(value) && due) {
         value->model_load_render_progress = progress;
         value->model_load_render_ns = now;
         bongo_cat_preferences_render(value);
+        /* Expensive UI frames must not consume every decode callback. Count
+           the interval from completion, including context swaps/presentation. */
+        value->model_load_render_ns = SDL_GetTicksNS();
+        value->model_load_render_cost_ns = value->model_load_render_ns - now;
+        value->model_load_render_total_ns += value->model_load_render_cost_ns;
+        ++value->model_load_render_count;
     }
 }
 
@@ -110,13 +133,23 @@ void bongo_cat_preferences_process_model_selection(BongoCatPreferences *value) {
     value->model_load_progress = 0.0f;
     value->model_load_render_progress = 0.0f;
     value->model_load_render_ns = 0;
+    value->model_load_render_cost_ns = 0;
+    value->model_load_render_total_ns = 0;
+    value->model_load_render_count = 0;
+    value->model_load_render_deferred = 0;
     if (!value->model_load_visual_active || strcmp(value->model_load_visual_id, id))
         bongo_cat_preferences_model_visual_begin(value, id);
     snprintf(value->loading_model_id, sizeof(value->loading_model_id), "%s", id);
     BongoCatError error = {0};
+    bongo_cat_preferences_resource_note(value, "before-model-switch");
     bool selected = multiple ? bongo_cat_app_set_model_active(
         value->app, id, active, &error) :
         bongo_cat_app_select_model_with_error(value->app, id, &error);
+    SDL_LogInfo(BONGO_CAT_LOG_LIFECYCLE,
+        "[model-switch-ui] success=%d frames=%u total_ms=%.1f deferred=%u",
+        selected, value->model_load_render_count,
+        (double)value->model_load_render_total_ns / 1000000.0,
+        value->model_load_render_deferred);
     if (selected) finish_model_load_progress(value);
     else {
         value->model_load_progress = 0.0f;

@@ -20,9 +20,9 @@ static int preview_group(BongoCatMenuAction action) {
     if (action >= BONGO_CAT_MENU_OPACITY_10 &&
         action <= BONGO_CAT_MENU_OPACITY_100) return 2;
     if (action >= BONGO_CAT_MENU_MOTION_FIRST &&
-        action < BONGO_CAT_MENU_MOTION_FIRST + BONGO_CAT_BEHAVIOR_CAP) return 4;
+        action < BONGO_CAT_MENU_MOTION_FIRST + BONGO_CAT_BEHAVIOR_LIMIT) return 4;
     if (action >= BONGO_CAT_MENU_EXPRESSION_FIRST &&
-        action < BONGO_CAT_MENU_EXPRESSION_FIRST + BONGO_CAT_BEHAVIOR_CAP) return 5;
+        action < BONGO_CAT_MENU_EXPRESSION_FIRST + BONGO_CAT_BEHAVIOR_LIMIT) return 5;
     return 0;
 }
 
@@ -101,7 +101,7 @@ void bongo_cat_window_menu_restore(void *userdata, BongoCatMenuAction selected) 
     BongoCatApp *app = state->app;
     bool changed = false;
     bool keep_motion = selected >= BONGO_CAT_MENU_MOTION_FIRST &&
-        selected < BONGO_CAT_MENU_MOTION_FIRST + BONGO_CAT_BEHAVIOR_CAP;
+        selected < BONGO_CAT_MENU_MOTION_FIRST + BONGO_CAT_BEHAVIOR_LIMIT;
     bool committed_motion = keep_motion &&
         bongo_cat_window_behavior_commit_preview(app, selected);
     if (!committed_motion && bongo_cat_live2d_restore_motion_preview(app->live2d)) {
@@ -119,9 +119,9 @@ void bongo_cat_window_menu_restore(void *userdata, BongoCatMenuAction selected) 
     /* Expressions belong to the model active when the menu opened. */
     bool keep_expression = keep_model ||
         (selected >= BONGO_CAT_MENU_EXPRESSION_FIRST &&
-        selected < BONGO_CAT_MENU_EXPRESSION_FIRST + BONGO_CAT_BEHAVIOR_CAP);
+        selected < BONGO_CAT_MENU_EXPRESSION_FIRST + BONGO_CAT_BEHAVIOR_LIMIT);
     bool committed_expression = selected >= BONGO_CAT_MENU_EXPRESSION_FIRST &&
-        selected < BONGO_CAT_MENU_EXPRESSION_FIRST + BONGO_CAT_BEHAVIOR_CAP;
+        selected < BONGO_CAT_MENU_EXPRESSION_FIRST + BONGO_CAT_BEHAVIOR_LIMIT;
     if (!keep_scale &&
         SDL_fabsf(app->session.window.scale_percent - state->scale) > .01f) {
         bongo_cat_window_set_scale(app, state->scale);

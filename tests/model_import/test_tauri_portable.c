@@ -273,6 +273,9 @@ void test_tauri_portable(void) {
         calibration.window_width == 500 && calibration.window_height == 405);
     CHECK(bongo_cat_tauri_key_code("F1.png") == 112 &&
         bongo_cat_tauri_key_code("F12.png") == 123 &&
+        bongo_cat_tauri_key_code("F13.png") == 124 &&
+        bongo_cat_tauri_key_code("F24.png") == 135 &&
+        bongo_cat_tauri_key_code("F25.png") == -1 &&
         bongo_cat_tauri_key_code("F1x.png") == -1);
     CHECK(bongo_cat_tauri_read_calibration(&portable, &calibration) &&
         calibration.auto_frame && calibration.window_width == 500 &&

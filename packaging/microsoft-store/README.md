@@ -27,6 +27,21 @@ shortcut extension is supported starting with Windows build 19645; older
 supported Windows releases ignore that extension while continuing to install
 and run the app.
 
+On the first normal launch after installation/update, the packaged app converts
+the existing desktop file shortcut into an AppsFolder shell-item shortcut using
+its application user model ID. This makes Explorer's **Run as administrator**
+use the same packaged activation route as Start. Direct `runas` on the executable
+under `WindowsApps` can fail with Access denied even with `allowElevation`.
+The filename remains manifest-owned for removal by Windows. Missing shortcuts,
+links to the standalone edition, and links with custom arguments are left alone.
+An update may recreate the file shortcut; launch normally once to convert it again.
+
+To verify, install the new package, launch it normally once, exit it, and use the
+desktop shortcut's **Run as administrator** menu. Verify elevation in Task Manager
+and also check ordinary launch, a second launch, and uninstall cleanup. Use the
+Explorer context menu for this check: PowerShell `Start-Process -Verb RunAs` on
+an AppsFolder shortcut does not necessarily invoke that same shell-item verb.
+
 ## App data isolation
 
 Ordinary EXE, installer, and portable launches store data under
@@ -68,6 +83,13 @@ The job verifies the digests and required files before configuring CMake with
 `BONGO_CAT_REQUIRE_CUBISM=ON`; it never uploads the diagnostic backend.
 
 ## Local build and install check
+
+`build.bat Release -Package` builds the portable executable, Inno Setup
+installer, and unsigned MSIX in `build-cubism\dist`. It requires Inno Setup
+6.3+ and the Windows 10/11 SDK, and runs the same MSIX validation as CI.
+The MSIX filename is recorded in `build-cubism\bongocat-msix-name.txt` for
+local wrapper scripts. The desktop `run_bongocat_inno.bat` wrapper also
+copies the MSIX to the desktop alongside the portable and installer files.
 
 On Windows with the Windows 10/11 SDK and the local Cubism SDK installed:
 

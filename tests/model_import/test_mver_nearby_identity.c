@@ -124,16 +124,77 @@ static void catalog_failure_isolation(const char *temporary) {
     CHECK(bongo_cat_model_catalog_scan(app, false, nearby) == BONGO_CAT_OK);
     CHECK(app->models.count == 3);
     snprintf(app->models_root, sizeof(app->models_root), "%s", path);
-    CHECK(bongo_cat_model_catalog_scan(app, true, nearby) == BONGO_CAT_OK);
-    CHECK(app->models.count == 3);
-    const BongoCatModelEntry *entry = bongo_cat_models_find(&app->models, "standard");
-    CHECK(entry && strstr(entry->directory, "resources/assets/models") != NULL);
+    CHECK(bongo_cat_model_catalog_scan(app, true, nearby) != BONGO_CAT_OK);
+    CHECK(app->models.count == 0);
+    CHECK(bongo_cat_models_find(&app->models, "standard") == NULL);
     snprintf(app->models_root, sizeof(app->models_root), "%s", models);
     CHECK(bongo_cat_model_catalog_scan(app, false, NULL) == BONGO_CAT_OK);
-    CHECK(bongo_cat_model_catalog_add_bundled(app, true));
-    entry = bongo_cat_models_find(&app->models, "standard");
-    CHECK(entry && strstr(entry->directory, "resources/assets/models") != NULL);
+    const BongoCatModelEntry *entry = bongo_cat_models_find(&app->models, "standard");
+    CHECK(entry && strstr(entry->directory, "resources/assets/models") == NULL);
     CHECK(app->models.count == 3);
+    free(app);
+cleanup:
+    CHECK(bongo_cat_model_remove_tree(root, NULL));
+}
+
+static void builtin_deletion_persists(const char *temporary) {
+    char root[BONGO_CAT_PATH_CAP], path[BONGO_CAT_PATH_CAP];
+    snprintf(root, sizeof(root), "%s/bongocat-builtin-delete-%llu", temporary,
+        (unsigned long long)SDL_GetTicksNS());
+    CHECK(SDL_CreateDirectory(root));
+    BongoCatApp *app = calloc(1, sizeof(*app));
+    CHECK(app != NULL);
+    if (!app) goto cleanup;
+    bongo_cat_settings_defaults(&app->settings);
+    bongo_cat_session_defaults(&app->session);
+    snprintf(app->asset_root, sizeof(app->asset_root),
+        "%s/resources/assets", BONGO_CAT_NATIVE_SOURCE_DIR);
+    CHECK(child(app->models_root, sizeof(app->models_root), root, "models", true));
+    CHECK(child(app->cache_root, sizeof(app->cache_root), root, "cache", true));
+    bongo_cat_app_rescan_models(app);
+    CHECK(app->models.count == 3);
+
+    BongoCatError error = {0};
+    CHECK(bongo_cat_app_remove_model(app, "keyboard", &error) == BONGO_CAT_OK);
+    CHECK(bongo_cat_models_find(&app->models, "keyboard") == NULL);
+    CHECK(child(path, sizeof(path), app->models_root, "keyboard", false));
+    CHECK(!bongo_cat_path_is_dir(path));
+    /* Manual deletion must behave exactly like deletion through the UI. */
+    CHECK(child(path, sizeof(path), app->models_root, "gamepad", false));
+    CHECK(bongo_cat_model_remove_tree(path, &error));
+    bongo_cat_app_rescan_models(app);
+    CHECK(app->models.count == 1);
+    CHECK(bongo_cat_models_find(&app->models, "gamepad") == NULL);
+    CHECK(bongo_cat_app_remove_model(app, "standard", &error) == BONGO_CAT_OK);
+    CHECK(app->models.count == 0);
+    CHECK(!app->session.active_model_id[0]);
+    bongo_cat_session_validate(&app->session);
+    CHECK(!app->session.active_model_id[0]);
+    bongo_cat_app_rescan_models(app);
+    CHECK(app->models.count == 0);
+    /* Simulate a restart, then an upgrade with no initialization marker. */
+    bongo_cat_session_defaults(&app->session);
+    bongo_cat_app_rescan_models(app);
+    CHECK(app->models.count == 0);
+    CHECK(child(app->settings_path, sizeof(app->settings_path), root,
+        "settings.json", false));
+    CHECK(write_text(app->settings_path, "{}"));
+    CHECK(child(path, sizeof(path), app->models_root,
+        ".bongo-cat-builtins-initialized", false));
+    CHECK(bongo_cat_path_remove(path));
+    bongo_cat_app_rescan_models(app);
+    CHECK(app->models.count == 0);
+    CHECK(bongo_cat_path_remove(path));
+    bongo_cat_app_request_model_refresh(app);
+    uint64_t deadline = SDL_GetTicksNS() + 5000000000ull;
+    while (bongo_cat_app_model_refresh_busy(app) && SDL_GetTicksNS() < deadline) {
+        bongo_cat_model_refresh_update(app);
+        SDL_Delay(2);
+    }
+    CHECK(!bongo_cat_app_model_refresh_busy(app));
+    CHECK(app->models.count == 0);
+    CHECK(bongo_cat_path_is_file(path));
+    bongo_cat_model_refresh_shutdown(app);
     free(app);
 cleanup:
     CHECK(bongo_cat_model_remove_tree(root, NULL));
@@ -271,6 +332,7 @@ int test_mver_nearby_refresh(void) {
         SDL_free(temporary);
         return failures;
     }
+    builtin_deletion_persists(temporary);
     background_installed_refresh(temporary);
     catalog_failure_isolation(temporary);
 

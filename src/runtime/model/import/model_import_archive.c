@@ -2,10 +2,17 @@
 #include "model_import_path.h"
 #include "model_storage.h"
 #include "bongo_cat/path.h"
+#include "bongo_cat/utf8.h"
 #include <SDL3/SDL.h>
 #include <miniz.h>
 #include <stdio.h>
 #include <string.h>
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#else
+#include <strings.h>
+#endif
 
 #define ARCHIVE_BYTES_LIMIT (UINT64_C(2) * 1024 * 1024 * 1024)
 #define ARCHIVE_ENTRY_LIMIT 20000
@@ -68,22 +75,45 @@ static bool safe_path(char *path) {
     return true;
 }
 
+static bool decode_name(const char *raw, mz_uint flags,
+    char name[BONGO_CAT_PATH_CAP]) {
+    if (bongo_cat_utf8_valid(raw)) {
+        memcpy(name, raw, strlen(raw) + 1);
+        return true;
+    }
+    /* Legacy Chinese ZIP tools store CP936 names without the UTF-8 flag.
+       Decode before treating backslashes as path separators. */
+    if (flags & (1u << 11)) return false;
+#ifdef _WIN32
+    wchar_t wide[BONGO_CAT_PATH_CAP];
+    int count = MultiByteToWideChar(936, MB_ERR_INVALID_CHARS, raw, -1,
+        wide, BONGO_CAT_PATH_CAP);
+    return count > 0 && WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS,
+        wide, count, name, BONGO_CAT_PATH_CAP, NULL, NULL) > 0;
+#else
+    return false;
+#endif
+}
+
 static BongoCatResult extract_entries(mz_zip_archive *zip, const char *root) {
     mz_uint count = mz_zip_reader_get_num_files(zip);
     if (!count || count > ARCHIVE_ENTRY_LIMIT) return BONGO_CAT_ERROR_FORMAT;
     uint64_t total = 0;
     for (mz_uint i = 0; i < count; ++i) {
         mz_zip_archive_file_stat stat;
-        char name[BONGO_CAT_PATH_CAP], target[BONGO_CAT_PATH_CAP];
+        char raw_name[BONGO_CAT_PATH_CAP], name[BONGO_CAT_PATH_CAP],
+            target[BONGO_CAT_PATH_CAP];
         if (!mz_zip_reader_file_stat(zip, i, &stat))
             return BONGO_CAT_ERROR_FORMAT;
         mz_uint length = mz_zip_reader_get_filename(zip, i, NULL, 0);
-        if (!length || length > sizeof(name) ||
-            mz_zip_reader_get_filename(zip, i, name, sizeof(name)) != length)
+        if (!length || length > sizeof(raw_name) ||
+            mz_zip_reader_get_filename(zip, i, raw_name,
+                sizeof(raw_name)) != length ||
+            strlen(raw_name) + 1 != length ||
+            !decode_name(raw_name, stat.m_bit_flag, name))
             return BONGO_CAT_ERROR_FORMAT;
         unsigned kind = (stat.m_external_attr >> 16) & 0170000;
-        if (!length || length > sizeof(name) || strlen(name) + 1 != length ||
-            !safe_path(name) || stat.m_is_encrypted || !stat.m_is_supported ||
+        if (!safe_path(name) || stat.m_is_encrypted || !stat.m_is_supported ||
             (kind && kind != 0100000 && kind != 0040000) ||
             stat.m_uncomp_size > ARCHIVE_BYTES_LIMIT - total ||
             !bongo_cat_path_join(target, sizeof(target), root, name))
