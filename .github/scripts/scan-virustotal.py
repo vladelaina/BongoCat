@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Upload one release artifact to VirusTotal and publish a CI summary.
+"""Scan release artifacts in batches of four and publish CI summaries.
 
 Detections are advisory because unsigned Windows software can trigger a small
 number of heuristic engines. API and report-processing failures still fail the
@@ -17,12 +17,18 @@ import time
 import urllib.error
 import urllib.request
 import uuid
+from collections import deque
 from pathlib import Path
 from typing import Any
 
 
 API_ROOT = "https://www.virustotal.com/api/v3"
 MAX_DIRECT_UPLOAD_BYTES = 32 * 1024 * 1024
+REQUEST_WINDOW_SECONDS = 120
+REQUEST_LIMIT = 4
+BATCH_SIZE = 4
+BATCH_DELAY_SECONDS = 120
+_request_times: deque[float] = deque()
 
 
 class VirusTotalError(RuntimeError):
@@ -68,6 +74,18 @@ def api_request(
         url, data=body, headers=headers, method=method
     )
     for attempt in range(5):
+        # Upload URLs, uploads, polling and retries all consume API quota.
+        while _request_times:
+            now = time.monotonic()
+            if now - _request_times[0] >= REQUEST_WINDOW_SECONDS:
+                _request_times.popleft()
+            elif len(_request_times) >= REQUEST_LIMIT:
+                delay = REQUEST_WINDOW_SECONDS - (now - _request_times[0])
+                print(f"VirusTotal request quota used; waiting {delay:.1f}s")
+                time.sleep(delay)
+            else:
+                break
+        _request_times.append(time.monotonic())
         try:
             with urllib.request.urlopen(request, timeout=60) as response:
                 payload = response.read()
@@ -79,12 +97,14 @@ def api_request(
                 ) from exc
         except urllib.error.HTTPError as exc:
             response_body = exc.read().decode("utf-8", errors="replace")
+            exc.close()
             if exc.code in (429, 500, 502, 503, 504) and attempt < 4:
-                retry_after = exc.headers.get("Retry-After", "5")
+                minimum_delay = 120 if exc.code == 429 else 5
+                retry_after = exc.headers.get("Retry-After", str(minimum_delay))
                 try:
-                    delay = min(max(int(retry_after), 1), 60)
+                    delay = max(int(retry_after), minimum_delay)
                 except ValueError:
-                    delay = 5
+                    delay = minimum_delay
                 print(
                     f"VirusTotal HTTP {exc.code}; retrying in {delay}s",
                     file=sys.stderr,
@@ -214,7 +234,8 @@ def wait_for_analysis(
 
 
 def write_summary(
-    path: Path, sha256: str, attributes: dict[str, Any]
+    path: Path, sha256: str, attributes: dict[str, Any],
+    report_path: Path | None = None,
 ) -> None:
     stats = attributes.get("stats", {})
     if not isinstance(stats, dict):
@@ -256,7 +277,7 @@ def write_summary(
             f"https://www.virustotal.com/gui/file/{sha256}"
         ),
     }
-    report_path = Path(
+    report_path = report_path or Path(
         os.environ.get("VT_REPORT_PATH", "virustotal-report.json")
     )
     report_path.write_text(
@@ -336,18 +357,20 @@ def write_skip_summary(reason: str) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--file", required=True, type=Path)
+    parser.add_argument("--file", required=True, type=Path, nargs="+")
+    parser.add_argument("--report-directory", type=Path)
     parser.add_argument("--require-api-key", action="store_true")
     parser.add_argument("--timeout-seconds", type=int, default=900)
     parser.add_argument("--poll-seconds", type=int, default=15)
     args = parser.parse_args()
 
-    if not args.file.is_file():
-        print(
-            f"VirusTotal input file does not exist: {args.file}",
-            file=sys.stderr,
-        )
-        return 2
+    for path in args.file:
+        if not path.is_file():
+            print(
+                f"VirusTotal input file does not exist: {path}",
+                file=sys.stderr,
+            )
+            return 2
     api_key = os.environ.get("VIRUSTOTAL_API_KEY", "").strip()
     if not api_key:
         if args.require_api_key:
@@ -359,21 +382,34 @@ def main() -> int:
         write_skip_summary("VIRUSTOTAL_API_KEY is not configured")
         return 0
 
-    sha256 = file_sha256(args.file)
-    print(
-        f"VirusTotal input: {args.file} "
-        f"({args.file.stat().st_size} bytes)"
-    )
-    print(f"VirusTotal SHA-256: {sha256}")
     try:
-        analysis_id = upload(args.file, api_key)
-        attributes = wait_for_analysis(
-            analysis_id,
-            api_key,
-            max(args.timeout_seconds, 30),
-            max(args.poll_seconds, 5),
-        )
-        write_summary(args.file, sha256, attributes)
+        if args.report_directory:
+            args.report_directory.mkdir(parents=True, exist_ok=True)
+        for start in range(0, len(args.file), BATCH_SIZE):
+            if start:
+                print("Previous batch completed; waiting 120s before next batch")
+                time.sleep(BATCH_DELAY_SECONDS)
+            batch = args.file[start:start + BATCH_SIZE]
+            print(f"VirusTotal batch {start // BATCH_SIZE + 1}: {len(batch)} files")
+            pending = []
+            # Submit the whole batch before waiting for any analysis result.
+            for path in batch:
+                sha256 = file_sha256(path)
+                print(f"VirusTotal input: {path} ({path.stat().st_size} bytes)")
+                print(f"VirusTotal SHA-256: {sha256}")
+                pending.append((path, sha256, upload(path, api_key)))
+            for index, (path, sha256, analysis_id) in enumerate(pending, start + 1):
+                attributes = wait_for_analysis(
+                    analysis_id, api_key,
+                    max(args.timeout_seconds, 30),
+                    max(args.poll_seconds, 5),
+                )
+                report_path = None
+                if args.report_directory or len(args.file) > 1:
+                    report_path = (args.report_directory or Path(".")) / (
+                        f"virustotal-report-{index}-{path.name}.json"
+                    )
+                write_summary(path, sha256, attributes, report_path)
         return 0
     except VirusTotalError as exc:
         print(f"::error::VirusTotal scan failed: {exc}")

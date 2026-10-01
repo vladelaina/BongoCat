@@ -132,13 +132,26 @@ void bongo_cat_ui_paint_cache_draw(struct nk_context *context,
 
 void bongo_cat_ui_paint_cache_begin_frame(BongoCatUIBackend *backend) {
     if (!backend) return;
-    uint64_t marker = backend->paint_frame_marker;
-    if (marker) for (size_t i = 0; i < PAINT_CACHE_COUNT; ++i) {
-        BongoCatUIPaintTexture *item = &textures[i];
-        if (item->backend == backend && item->texture && item->used < marker)
-            release_texture(item);
-    }
+    /* Reuse hover/animation variants across frames. LRU allocation still caps
+       this cache at 48 entries / 16 MiB and protects current-frame commands. */
     backend->paint_frame_marker = use_counter + 1;
+}
+
+void bongo_cat_ui_paint_cache_trim_idle(BongoCatUIBackend *backend) {
+    /* Keep small reusable effects, evict older variants first. No timer or
+       extra redraw is needed; closing the window releases everything. */
+    size_t bytes = bongo_cat_ui_paint_cache_usage(backend, NULL);
+    while (bytes > 4u * 1024u * 1024u) {
+        BongoCatUIPaintTexture *oldest = NULL;
+        for (size_t i = 0; i < PAINT_CACHE_COUNT; i++) {
+            BongoCatUIPaintTexture *item = &textures[i];
+            if (item->backend == backend && item->texture &&
+                (!oldest || item->used < oldest->used)) oldest = item;
+        }
+        if (!oldest) break;
+        bytes -= oldest->bytes;
+        release_texture(oldest);
+    }
 }
 
 size_t bongo_cat_ui_paint_cache_usage(BongoCatUIBackend *backend,

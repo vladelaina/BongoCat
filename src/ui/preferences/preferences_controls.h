@@ -5,6 +5,10 @@
 #include "bongo_cat/config.h"
 #include "nuklear_config.h"
 
+/* Stable, unique ids retain numeric drafts; valid edits update value immediately.
+ * Integer fields accept digits and an optional minus; floats also accept a dot.
+ * Values are clamped to the supplied range. Clicking away discards incomplete text.
+ */
 bool bongo_cat_pref_control_float(struct nk_context *context, const char *id,
     float minimum, float *value, float maximum, float step,
     float default_value);

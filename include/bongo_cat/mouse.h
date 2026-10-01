@@ -2,6 +2,7 @@
 #define BONGO_CAT_MOUSE_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
 typedef struct BongoCatMouseTracking {
     double target_x;
@@ -12,6 +13,7 @@ typedef struct BongoCatMouseTracking {
     bool settled;
 } BongoCatMouseTracking;
 
+bool bongo_cat_mouse_sample_fresh(uint64_t now_ns, uint64_t sample_ns);
 void bongo_cat_mouse_target(BongoCatMouseTracking *tracking, double x, double y);
 bool bongo_cat_mouse_step(BongoCatMouseTracking *tracking, float delta_seconds,
     double *x, double *y);

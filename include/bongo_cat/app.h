@@ -8,6 +8,7 @@
 #include "bongo_cat/mouse.h"
 #include "bongo_cat/platform.h"
 #include "bongo_cat/shortcut.h"
+#include "bongo_cat/sound_shortcut.h"
 
 typedef struct BongoCatAudio BongoCatAudio;
 typedef struct BongoCatTray BongoCatTray;
@@ -24,7 +25,14 @@ typedef struct BongoCatApp {
     BongoCatSettings settings;
     BongoCatSessionState session;
     BongoCatInputState input;
+    /* Main-thread-only cumulative input diagnostics. */
+    struct {
+        uint64_t log_ms, drained_keys, ignored_keys, mapped_keys;
+        uint64_t unmapped_keys, no_model_keys, presented_frames;
+    } input_diagnostics;
     BongoCatShortcutState shortcut_state;
+    BongoCatSoundShortcutState sound_shortcut_state;
+    bool sound_shortcut_active[BONGO_CAT_BEHAVIOR_BINDING_CAP];
     BongoCatModelCatalog models;
     BongoCatBehaviorCatalog behaviors;
     /* One immutable installed package's behavior catalog can be reused when
@@ -88,6 +96,9 @@ typedef struct BongoCatApp {
     bool secondary_control_known;
     bool secondary_control_visible;
     bool secondary_control_pass_through;
+    /* Keep the initial transparent window hidden until its first complete
+       model frame is ready. This prevents a platform-dependent black flash. */
+    bool startup_visibility_pending;
     int secondary_origin_x, secondary_origin_y;
     uint64_t secondary_control_check_ns;
     uint64_t secondary_control_failure_ns;
@@ -101,7 +112,6 @@ typedef struct BongoCatApp {
     bool smoke_remove_imported;
     bool smoke_shortcuts;
     bool smoke_menu;
-    bool smoke_input_audit;
     bool smoke_ignore_global_input;
     bool smoke_pass_through;
     bool smoke_context_menu;
@@ -136,6 +146,9 @@ typedef struct BongoCatApp {
     BongoCatMverPointerState mver_pointer;
     bool hover_inside;
     bool hover_hidden;
+    bool hover_fade_active;
+    float hover_fade_phase, hover_fade_target, hover_fade_opacity;
+    uint64_t hover_fade_tick_ns, hover_fade_next_ns;
     bool pointer_known;
     bool pointer_hit_dirty;
     bool pointer_transparent;
@@ -145,14 +158,24 @@ typedef struct BongoCatApp {
     bool left_mouse_down;
     bool right_mouse_down;
     bool side_mouse_down;
+    bool back_mouse_down, forward_mouse_down;
+    bool mouse_button_event_pending;
     bool model_pointer_anchor_ready;
     float model_pointer_anchor_x, model_pointer_anchor_y;
+    bool pointer_relative_active;
+    bool pointer_cursor_locked;
     bool window_minimized;
     double pointer_x, pointer_y;
     bool resize_gesture;
     float resize_scale_start, resize_scale_target;
     int resize_base_width, resize_base_height;
     bool resize_pending;
+    bool resize_render_target_pending;
+    /* Native preview ownership and gesture lifetime belong to window_snapshot.c. */
+    void *window_snapshot;
+    bool snapshot_blocked;
+    uint64_t snapshot_deadline_ns;
+    float snapshot_pointer_x, snapshot_pointer_y;
     bool wheel_animation_active;
     bool wheel_gesture_active;
     int resize_pixel_width, resize_pixel_height;

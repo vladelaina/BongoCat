@@ -23,6 +23,8 @@ static bool set_gl_attributes(int samples) {
 
 static bool try_window(BongoCatApp *app, bool transparent, int samples,
     char *failure, size_t capacity) {
+    if (SDL_getenv("BONGO_CAT_TEST_DISABLE_PREFERENCES_TRANSPARENCY"))
+        transparent = false;
     if (!set_gl_attributes(samples)) {
         snprintf(failure, capacity, "OpenGL attributes: %s", SDL_GetError()); return false;
     }
@@ -46,7 +48,15 @@ static bool try_window(BongoCatApp *app, bool transparent, int samples,
 }
 
 BongoCatResult bongo_cat_window_create(BongoCatApp *app, BongoCatError *error) {
+    SDL_SetHintWithPriority(SDL_HINT_VIDEO_ALLOW_SCREENSAVER, "1", SDL_HINT_OVERRIDE);
     SDL_SetHint(SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH, "1");
+#ifdef _WIN32
+    /* The native input thread owns keyboard Raw Input for this process. */
+    SDL_SetHintWithPriority(SDL_HINT_WINDOWS_RAW_KEYBOARD, "0", SDL_HINT_OVERRIDE);
+    /* Transparent OpenGL windows must never receive SDL's default black
+       WM_ERASEBKGND fill before the first frame is submitted. */
+    SDL_SetHint(SDL_HINT_WINDOWS_ERASE_BACKGROUND_MODE, "0");
+#endif
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) {
         bongo_cat_error_set(error, BONGO_CAT_ERROR_PLATFORM,
             "SDL initialization failed: %s", SDL_GetError());
@@ -89,6 +99,7 @@ BongoCatResult bongo_cat_window_create(BongoCatApp *app, BongoCatError *error) {
 void bongo_cat_window_apply(BongoCatApp *app) {
     BongoCatWindowPreferences *preferences = &app->settings.window;
     BongoCatWindowState *state = &app->session.window;
+    bongo_cat_app_cancel_hover_fade(app);
     bongo_cat_platform_set_opacity(&app->platform,
         state->opacity_percent / 100.0f);
     SDL_SetWindowSize(app->window, state->width, state->height);
@@ -98,7 +109,11 @@ void bongo_cat_window_apply(BongoCatApp *app) {
     if (preferences->keep_in_screen) bongo_cat_window_clamp_to_display(app);
     else bongo_cat_window_recover_to_display(app);
     SDL_SyncWindow(app->window);
-    bongo_cat_platform_set_visible(&app->platform, state->visible);
+    /* A visible session is revealed by the first successful frame. Keeping
+       the native window hidden while loading avoids exposing an uninitialised
+       (and on some drivers black) back buffer. */
+    bongo_cat_platform_set_visible(&app->platform,
+        state->visible && !app->startup_visibility_pending);
     bongo_cat_window_sync_click_through(app);
     bongo_cat_platform_set_always_on_top(&app->platform,
         preferences->always_on_top);
@@ -142,20 +157,32 @@ bool bongo_cat_window_event(BongoCatApp *app, const SDL_Event *event) {
         bongo_cat_window_drag_end(app);
     }
     if (event->type == SDL_EVENT_WINDOW_RESIZED) {
-        app->session.window.width = event->window.data1;
-        app->session.window.height = event->window.data2;
-        bongo_cat_window_content_size(app, event->window.data1,
-            event->window.data2, &app->session.window.content_width,
-            &app->session.window.content_height);
-        bongo_cat_window_clamp_to_display(app);
-        app->dirty = true;
+        /* Queued notifications may describe an earlier animation frame. */
+        int width = app->session.window.width, height = app->session.window.height;
+        SDL_GetWindowSize(app->window, &width, &height);
+        if (width != app->session.window.width || height != app->session.window.height) {
+            app->session.window.width = width;
+            app->session.window.height = height;
+            bongo_cat_window_content_size(app, width,
+                height, &app->session.window.content_width,
+                &app->session.window.content_height);
+            bongo_cat_window_clamp_to_display(app);
+            app->dirty = true;
+        }
     }
     if (event->type == SDL_EVENT_WINDOW_EXPOSED ||
         event->type == SDL_EVENT_WINDOW_SHOWN ||
         event->type == SDL_EVENT_WINDOW_RESTORED) {
+        /* An expose can arrive without a restore on XWayland, but a queued
+           expose is not proof that the window is currently restored. */
+        app->window_minimized =
+            (SDL_GetWindowFlags(app->window) & SDL_WINDOW_MINIMIZED) != 0;
         if (event->type != SDL_EVENT_WINDOW_EXPOSED)
-            app->window_minimized = false;
-        bongo_cat_app_reset_pointer_tracking(app);
+            bongo_cat_app_reset_pointer_tracking(app);
+        /* DWM can discard the transparent redirection surface after an
+           Explorer/display refresh. Repaint even when the model is idle so
+           the restored alpha surface is submitted immediately. */
+        app->dirty = true;
     }
     if (event->type == SDL_EVENT_WINDOW_FOCUS_GAINED ||
         event->type == SDL_EVENT_WINDOW_FOCUS_LOST) {
@@ -163,17 +190,27 @@ bool bongo_cat_window_event(BongoCatApp *app, const SDL_Event *event) {
     }
     if (event->type == SDL_EVENT_WINDOW_RESIZED ||
         event->type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) {
-        SDL_GetWindowSizeInPixels(app->window,
-            &app->resize_pixel_width, &app->resize_pixel_height);
-        app->resize_pending = true;
-        bongo_cat_window_mark_hit_dirty(app);
+        int width = 0, height = 0;
+        if (SDL_GetWindowSizeInPixels(app->window, &width, &height) &&
+            (width != app->resize_pixel_width || height != app->resize_pixel_height)) {
+            app->resize_pixel_width = width;
+            app->resize_pixel_height = height;
+            app->resize_pending = true;
+            app->dirty = true;
+            bongo_cat_window_mark_hit_dirty(app);
+        }
     } else if (event->type == SDL_EVENT_WINDOW_MOVED) {
-        app->session.window.x = event->window.data1;
-        app->session.window.y = event->window.data2;
-        app->session.window.position_known = true;
-        app->pointer_known = false;
-        if (!app->window_drag_active) bongo_cat_window_clamp_to_display(app);
-        bongo_cat_window_mark_hit_dirty(app);
+        int x = 0, y = 0;
+        if (SDL_GetWindowPosition(app->window, &x, &y) &&
+            (!app->session.window.position_known ||
+             x != app->session.window.x || y != app->session.window.y)) {
+            app->session.window.x = x;
+            app->session.window.y = y;
+            app->session.window.position_known = true;
+            app->pointer_known = false;
+            if (!app->window_drag_active) bongo_cat_window_clamp_to_display(app);
+            bongo_cat_window_mark_hit_dirty(app);
+        }
     } else if (event->type == SDL_EVENT_WINDOW_DISPLAY_CHANGED ||
         event->type == SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED) {
         bongo_cat_app_reset_pointer_tracking(app);
@@ -200,6 +237,8 @@ bool bongo_cat_window_event(BongoCatApp *app, const SDL_Event *event) {
 
 void bongo_cat_window_destroy(BongoCatApp *app) {
     bongo_cat_window_drag_end(app);
+    if (app->gl_context && SDL_GL_MakeCurrent(app->window, app->gl_context))
+        bongo_cat_window_destroy_corner_mask();
     if (app->gl_context) SDL_GL_DestroyContext(app->gl_context);
     if (app->window) SDL_DestroyWindow(app->window);
     app->gl_context = NULL;

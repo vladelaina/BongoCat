@@ -16,11 +16,19 @@ bool bongo_cat_platform_set_opacity(BongoCatPlatform *platform,
     float opacity) {
     if (!platform || !platform->window) return false;
     BongoCatWindowsLayered *value = platform->presenter;
+    float previous = platform->window_opacity;
     platform->window_opacity = SDL_clamp(opacity, 0.0f, 1.0f);
-    if (value && value->active)
-        return !value->has_frame ||
+    bool updated;
+    if (value && value->active) {
+        BYTE alpha = (BYTE)(platform->window_opacity * 255.0f + 0.5f);
+        updated = !value->has_frame ||
+            (value->applied_alpha_valid && value->applied_alpha == alpha) ||
             bongo_cat_windows_layered_update_proxy(platform, value);
-    return SDL_SetWindowOpacity(platform->window, platform->window_opacity);
+    } else {
+        updated = SDL_SetWindowOpacity(platform->window, platform->window_opacity);
+    }
+    if (!updated) platform->window_opacity = previous;
+    return updated;
 }
 
 bool bongo_cat_platform_frame_alpha(const BongoCatPlatform *platform,
@@ -47,6 +55,7 @@ void bongo_cat_platform_set_visible(BongoCatPlatform *platform,
     if (visible) {
         HWND source = native_window(platform);
         bongo_cat_windows_capture_configure(source);
+        bongo_cat_windows_capture_repair_transparency(source);
         bongo_cat_windows_capture_log(source, "visible");
     }
 }

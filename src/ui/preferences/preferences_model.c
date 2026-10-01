@@ -125,8 +125,9 @@ void bongo_cat_preferences_process_model_selection(BongoCatPreferences *value) {
     }
     value->model_loading = false;
     value->loading_model_id[0] = '\0';
-    if (!selected) bongo_cat_preferences_notice_show(value->app, tr(value->app,
-        "native.modelLoadFailed", "Unable to display this model"), true);
+    if (!selected) SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
+        "Model selection failed: id=%s error=%s", id,
+        error.message[0] ? error.message : "Unable to display this model");
     bongo_cat_preferences_invalidate(value);
     /* Render on the next input frame. A nested render here would replay the
        card click that queued this selection and immediately toggle it back. */

@@ -51,11 +51,21 @@ static bool read_assets(yyjson_val *root, const char *platform,
     BongoCatUpdateRelease *release) {
     yyjson_val *assets = yyjson_obj_get(root, "assets");
     if (!yyjson_is_arr(assets)) return false;
-    char installer[128], portable[128];
-    int installer_length = snprintf(installer, sizeof(installer),
-        "BongoCat-%s-%s-setup.exe", release->version, platform);
-    int portable_length = snprintf(portable, sizeof(portable),
-        "BongoCat-%s-%s-portable.exe", release->version, platform);
+    char installer[128] = {0}, portable[128] = {0};
+    int installer_length = 0, portable_length = 0;
+    if (strncmp(platform, "windows-", 8) == 0) {
+        installer_length = snprintf(installer, sizeof(installer),
+            "BongoCat-%s-%s-setup.exe", release->version, platform);
+        portable_length = snprintf(portable, sizeof(portable),
+            "BongoCat-%s-%s-portable.exe", release->version, platform);
+    } else if (strcmp(platform, "linux-x64") == 0) {
+        portable_length = snprintf(portable, sizeof(portable),
+            "BongoCat-%s-%s.tar.gz", release->version, platform);
+    } else if (strcmp(platform, "macos-x64") == 0 ||
+        strcmp(platform, "macos-arm64") == 0) {
+        portable_length = snprintf(portable, sizeof(portable),
+            "BongoCat-%s-%s.zip", release->version, platform);
+    } else return false;
     if (installer_length < 0 || (size_t)installer_length >= sizeof(installer) ||
         portable_length < 0 || (size_t)portable_length >= sizeof(portable))
         return false;
@@ -63,8 +73,9 @@ static bool read_assets(yyjson_val *root, const char *platform,
     yyjson_val *asset;
     yyjson_arr_foreach(assets, index, count, asset) {
         if (!yyjson_is_obj(asset)) continue;
-        if (!release->installer_url[0]) copy_asset_url(asset, installer,
-            release->installer_url, sizeof(release->installer_url));
+        if (installer[0] && !release->installer_url[0])
+            copy_asset_url(asset, installer, release->installer_url,
+                sizeof(release->installer_url));
         if (!release->portable_url[0]) copy_asset_url(asset, portable,
             release->portable_url, sizeof(release->portable_url));
     }

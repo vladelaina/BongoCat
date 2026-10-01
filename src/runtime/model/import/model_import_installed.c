@@ -184,15 +184,27 @@ static BongoCatPathVisit scan_package(void *userdata,
     BongoCatError local = {0};
     bool found = bongo_cat_import_discover(directory, discovery, &local);
     if (!found) {
+        if (local.message[0]) SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
+            "Skipping installed model package: path=%s error=%s",
+            directory, local.message);
         free(discovery);
         return BONGO_CAT_PATH_CONTINUE;
     }
+    size_t before = scan->app->models.count;
+    if (scan->error) *scan->error = (BongoCatError){0};
     bool added = add_package(scan, directory, discovery);
     free(discovery);
     if (added) return BONGO_CAT_PATH_CONTINUE;
-    scan->result = scan->error && scan->error->code
-        ? scan->error->code : BONGO_CAT_ERROR_IO;
-    return BONGO_CAT_PATH_FAILURE;
+    /* A package is atomic, but independent packages remain discoverable. */
+    memset(&scan->app->models.entries[before], 0,
+        (scan->app->models.count - before) * sizeof(scan->app->models.entries[0]));
+    scan->app->models.count = before;
+    SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
+        "Skipping installed model package: path=%s error=%s", directory,
+        scan->error && scan->error->message[0] ? scan->error->message :
+            "model adaptation failed");
+    if (scan->error) *scan->error = (BongoCatError){0};
+    return BONGO_CAT_PATH_CONTINUE;
 }
 
 static bool installed_cache_root(const BongoCatApp *app,

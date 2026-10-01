@@ -34,11 +34,17 @@ static bool write_window(yyjson_mut_doc *doc, yyjson_mut_val *object,
             value->obs_background) &&
         yyjson_mut_obj_add_bool(doc, object, "randomExpression",
             value->random_expression) &&
+        yyjson_mut_obj_add_bool(doc, object, "roundedCorners",
+            value->rounded_corners) &&
+        yyjson_mut_obj_add_real(doc, object, "cornerRadiusPercent",
+            value->corner_radius_percent) &&
         yyjson_mut_obj_add_strcpy(doc, object, "captureBackgroundColor",
             bongo_cat_obs_background_color_name(
                 value->obs_background_color)) &&
         yyjson_mut_obj_add_real(doc, object, "hideDelaySeconds",
             value->hide_delay_seconds) &&
+        yyjson_mut_obj_add_real(doc, object, "hideFadeSeconds",
+            value->hide_fade_seconds) &&
         yyjson_mut_obj_add_real(doc, object,
             "randomExpressionIntervalSeconds",
             value->random_expression_interval_seconds);
@@ -83,6 +89,8 @@ static bool write_behaviors(yyjson_mut_doc *doc, yyjson_mut_val *root,
         yyjson_mut_val *item = yyjson_mut_obj(doc);
         if (!item || !yyjson_mut_obj_add_strcpy(
                 doc, item, "behaviorId", value->id) ||
+            (value->shortcut_disabled && !yyjson_mut_obj_add_bool(
+                doc, item, "shortcutDisabled", true)) ||
             (value->shortcut[0] && !yyjson_mut_obj_add_strcpy(
                 doc, item, "shortcut", value->shortcut)) ||
             (value->label[0] && !yyjson_mut_obj_add_strcpy(

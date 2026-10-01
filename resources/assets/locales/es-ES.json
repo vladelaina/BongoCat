@@ -21,20 +21,25 @@
           "alwaysOnTop": "Siempre visible",
           "keepInScreen": "Mantener en pantalla",
           "windowSize": "Tamaño de la ventana",
+          "windowCorners": "Esquinas redondeadas (%)",
           "opacity": "Opacidad",
           "randomExpression": "Expresiones aleatorias",
           "obsBackground": "Fondo sólido",
           "hideOnHover": "Ocultar al pasar el ratón",
+          "hideFadeSeconds": "Duración del fundido (s)",
           "maxFPS": "Frecuencia máxima de fotogramas"
         },
         "hints": {
-          "passThrough": "Al activarlo, los clics atraviesan la ventana sin afectarla.",
+          "hoverUnavailable": "Ocultar al pasar el cursor no está disponible en el entorno de escritorio actual.",
+          "gameInput": "¿La mascota no responde al jugar?",
+          "gameInputHelp": "Prueba a ejecutar BongoCat como administrador y a poner el juego en modo ventana.",
+          "passThrough": "También puedes desactivarlo con un clic derecho en el icono de la bandeja",
           "alwaysOnTop": "Al activarlo, la ventana permanece por encima de las demás.",
           "keepInScreen": "Al activarlo, la ventana se mantiene automáticamente dentro de los límites de la pantalla.",
           "obsBackground": "¿La captura de ventana aparece en negro?",
           "obsBackgroundHelp": "OBS: activa esta opción, usa el método compatible con Windows 7 y elimina el fondo con un filtro de clave de color.",
           "windowSize": "Mueva el ratón al borde de la ventana o mantenga Mayús y arrastre con el botón derecho para cambiar el tamaño.",
-          "hideOnHover": "Al activarlo, la ventana se oculta automáticamente al pasar el ratón. Puede definir un retardo; 0 significa ocultar inmediatamente."
+          "hideOnHover": "Con el paso de clics y Siempre visible activados, la mascota se oculta inmediatamente al pasar el ratón y reaparece al retirarlo."
         }
       },
       "general": {
@@ -58,8 +63,8 @@
         "hints": {
           "showTrayIcon": "Al activarlo, el icono de la aplicación aparece en la bandeja del sistema.",
           "autostartFailed": "No se pudo actualizar la configuración de inicio automático",
-          "inputMonitoringPermission": "Active la supervisión de entrada para recibir eventos de teclado y ratón del sistema.",
-          "inputMonitoringPermissionGuide": "Se necesita el permiso de supervisión de entrada para que la aplicación reciba eventos de teclado y ratón del sistema.\n\nPasos:\n1. Abra Ajustes del Sistema > Privacidad y seguridad > Supervisión de entrada.\n2. Si BongoCat ya aparece en la lista, selecciónelo y pulse el botón \"-\" para eliminarlo.\n3. Pulse el botón \"+\" para buscar y añadir BongoCat.\n4. Reinicie la aplicación para que el permiso tenga efecto.",
+          "inputMonitoringPermission": "Reinicie tras autorizar.",
+          "inputMonitoringPermissionGuide": "La Supervisión de entrada permite que BongoCat vea las teclas pulsadas en otras aplicaciones; el ratón sigue funcionando sin ella. BongoCat crea la escucha al iniciarse, así que un cambio de permiso requiere reiniciar.\n\nPasos:\n1. Abra Ajustes del Sistema → Privacidad y seguridad → Supervisión de entrada.\n2. Active la entrada de BongoCat que ya aparece en la lista; no elimine entradas existentes.\n3. Si BongoCat no está en la lista, pulse \"+\" y añada la copia que está ejecutando (compruebe la ubicación de la aplicación).\n4. Cierre BongoCat por completo y vuelva a iniciarlo para que reconstruya la escucha.\n\nSi el teclado sigue sin responder, puede eliminar y volver a añadir la entrada de BongoCat.",
           "administratorPermission": "Ejecutar la aplicación como administrador ayuda a capturar con mayor fiabilidad algunas teclas del sistema y eventos de entrada.",
           "administratorPermissionGuide": "Para capturar con mayor fiabilidad algunas teclas del sistema y eventos de entrada, se recomienda ejecutar la aplicación como administrador.\n\nCómo hacerlo:\n1. Cierre primero la aplicación.\n2. Busque el archivo exe o su acceso directo en el Explorador de archivos.\n3. Elija cómo iniciarla:\n   - Una vez: haga clic con el botón derecho y elija \"Ejecutar como administrador\".\n   - Siempre: clic derecho > Propiedades > Compatibilidad > marque \"Ejecutar este programa como administrador\" > Aceptar."
         },
@@ -67,7 +72,8 @@
           "authorized": "Autorizado",
           "adminEnabled": "Activado",
           "authorize": "Activar",
-          "viewGuide": "Ver instrucciones"
+          "viewGuide": "Ver instrucciones",
+          "openSettingsFailed": "Ajustes del Sistema → Privacidad y seguridad → Supervisión de entrada."
         },
         "buttons": {
           "openNow": "Abrir ahora",
@@ -88,7 +94,7 @@
           "deleteFailed": "No se pudo eliminar este modelo",
           "importSuccess": "Importado correctamente",
           "importExists": "El modelo ya existe",
-          "importBatchResult": "Importación correcta: %zu; fallida: %zu. Modelos fallidos: %s%s. Primer error: %s",
+          "importBatchResult": "Importación correcta: %zu; fallida: %zu.\nModelos fallidos: %s%s.\nPrimer error: %s",
           "importMoreFailures": " y %zu más",
           "importUnknownSource": "fuente desconocida",
           "importInvalidSource": "La fuente seleccionada ya no existe o no se puede utilizar",
@@ -107,10 +113,12 @@
           "moreModels": "Más modelos"
         },
         "behaviorModal": {
-          "title": "Movimientos y expresiones",
+          "title": "Movimientos, expresiones y audio",
           "labels": {
             "motion": "Movimiento",
             "expression": "Expresión",
+            "audio": "Audio",
+            "stopAllAudio": "Detener todo el audio",
             "motionIndex": "Movimiento {index}",
             "motionGroupIndex": "Grupo de movimientos {index}",
             "expressionIndex": "Expresión {index}"
@@ -187,6 +195,24 @@
     }
   },
   "native": {
+    "about": {
+      "wechat": "WeChat",
+      "wechatHint": "Hover to scan and chat",
+      "loading": "Loading...",
+      "contributorsFailed": "Cannot load contributors. Click to retry.",
+      "qrUnavailable": "QR code unavailable",
+      "reload": "Reload",
+      "qrFailed": "QR code unavailable. Click to retry.",
+      "contributorsTitle": "Open source & community contributions",
+      "contributorsText": "Every step of BongoCat comes from the power of open source. Thank you to all community contributors for making desktop companionship freer and simpler.",
+      "joinTitle": "Want to appear in the contributors list?",
+      "joinText": "Whether you contribute code, improve documentation, report bugs or translate, every contribution makes BongoCat better.",
+      "code": "Code",
+      "docs": "Documentation",
+      "bugs": "Bug reports",
+      "translations": "Translations",
+      "joinGithub": "Contribute on GitHub"
+    },
     "multiplePets": "Mostrar varias a la vez",
     "multiplePetsLimit": "Se pueden mostrar hasta 8 mascotas a la vez",
     "removeDesktopPet": "Cerrar esta mascota de escritorio",
@@ -211,7 +237,8 @@
       "checkingUpdate": "Comprobando...",
       "updateAvailable": "Nueva versión disponible:",
       "updateFailed": "No se pudieron buscar actualizaciones",
-      "downloadUpdate": "Descargar v%s",
+      "updateHttpFailed": "GitHub devolvió el estado HTTP %s",
+      "downloadUpdate": "Actualizar a v%s",
       "openStore": "Abrir Microsoft Store",
       "viewReleases": "Ver versiones",
       "openUpdateFailed": "No se pudo abrir la página de actualización",

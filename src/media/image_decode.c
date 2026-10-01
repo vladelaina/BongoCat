@@ -100,6 +100,7 @@ static bool decode_wic(const char *path, BongoCatImage *image,
     IWICBitmapDecoder *decoder = NULL;
     IWICBitmapFrameDecode *frame = NULL;
     IWICBitmapScaler *scaler = NULL;
+    IWICFormatConverter *premultiplied = NULL;
     IWICFormatConverter *converter = NULL;
     wchar_t *wide = wide_path(path);
     HRESULT result = wide ? CoCreateInstance(&CLSID_WICImagingFactory, NULL,
@@ -128,11 +129,19 @@ static bool decode_wic(const char *path, BongoCatImage *image,
         }
         if (!target_width) target_width = 1;
         if (!target_height) target_height = 1;
+        /* Keep transparent RGB out of the resize filter. WIC pulls pixels
+         * lazily, so this does not allocate a full-size RGBA atlas. */
+        if (SUCCEEDED(result))
+            result = IWICImagingFactory_CreateFormatConverter(factory, &premultiplied);
+        if (SUCCEEDED(result))
+            result = IWICFormatConverter_Initialize(premultiplied,
+                (IWICBitmapSource *)frame, &GUID_WICPixelFormat32bppPRGBA,
+                WICBitmapDitherTypeNone, NULL, 0, WICBitmapPaletteTypeCustom);
         if (SUCCEEDED(result))
             result = IWICImagingFactory_CreateBitmapScaler(factory, &scaler);
         if (SUCCEEDED(result))
             result = IWICBitmapScaler_Initialize(scaler,
-                (IWICBitmapSource *)frame, target_width, target_height,
+                (IWICBitmapSource *)premultiplied, target_width, target_height,
                 WICBitmapInterpolationModeFant);
     }
     IWICBitmapSource *source = scaler ? (IWICBitmapSource *)scaler :
@@ -170,6 +179,7 @@ static bool decode_wic(const char *path, BongoCatImage *image,
     }
     if (converter) IWICFormatConverter_Release(converter);
     if (scaler) IWICBitmapScaler_Release(scaler);
+    if (premultiplied) IWICFormatConverter_Release(premultiplied);
     if (frame) IWICBitmapFrameDecode_Release(frame);
     if (decoder) IWICBitmapDecoder_Release(decoder);
     if (factory) IWICImagingFactory_Release(factory);

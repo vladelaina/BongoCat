@@ -45,7 +45,14 @@ void bongo_cat_platform_raise_window(SDL_Window *window) {
     BringWindowToTop(handle);
     SetForegroundWindow(handle);
     if (proxy) BringWindowToTop(proxy);
-    bongo_cat_windows_capture_configure(handle);
+    /* Preferences windows are transparent too, but are not OBS capture
+       sources. Running the capture style transaction on them can recreate the
+       DWM surface and reintroduce an opaque edge. Only configure windows that
+       were explicitly registered as capture sources. */
+    if (bongo_cat_windows_capture_is_configured(handle))
+        bongo_cat_windows_capture_configure(handle);
+    else
+        bongo_cat_windows_capture_repair_transparency(handle);
 }
 
 bool bongo_cat_platform_set_geometry(BongoCatPlatform *platform,
@@ -66,11 +73,20 @@ bool bongo_cat_platform_set_geometry(BongoCatPlatform *platform,
         !(SDL_GetWindowFlags(platform->window) & SDL_WINDOW_RESIZABLE) &&
         !SDL_SetWindowResizable(platform->window, true))
         return false;
+    UINT flags = SWP_NOZORDER | SWP_NOACTIVATE;
+    if (!position_changed) flags |= SWP_NOMOVE;
+    if (!size_changed) flags |= SWP_NOSIZE;
+    bool preserve_screen = size_changed && position_changed &&
+        bongo_cat_windows_borderless_preserve_screen(window, true);
     bool changed = SetWindowPos(window, NULL, position_changed ? x : current_x,
         position_changed ? y : current_y, size_changed ? width : current_width,
         size_changed ? height : current_height,
-        SWP_NOZORDER | SWP_NOACTIVATE) != 0;
+        flags) != 0;
+    if (preserve_screen)
+        bongo_cat_windows_borderless_preserve_screen(window, false);
     if (!changed) return false;
+    /* Geometry changes retain DWM alpha composition. Reapplying it here
+       invalidates the surface on every animation frame. */
     return SDL_SyncWindow(platform->window);
 }
 #endif

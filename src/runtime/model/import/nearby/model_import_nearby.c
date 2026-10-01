@@ -118,6 +118,7 @@ typedef struct NearbyAdd {
     BongoCatApp *app;
     const char *cache_root;
     char *first_created;
+    bool best_effort;
 } NearbyAdd;
 
 static BongoCatResult add_discovery(NearbyAdd *add, const char *fallback,
@@ -126,8 +127,15 @@ static BongoCatResult add_discovery(NearbyAdd *add, const char *fallback,
         BongoCatImportCandidate *candidate = &discovery->candidates[i];
         const char *source = candidate_source(candidate, fallback);
         if (!add_candidate(add->app, add->cache_root, source, candidate,
-            add->first_created, error)) return error && error->code
+                add->first_created, error)) {
+            if (!add->best_effort) return error && error->code
                 ? error->code : BONGO_CAT_ERROR_IO;
+            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
+                "Skipping nearby model: path=%s model=%s error=%s", source,
+                candidate->directory, error && error->message[0]
+                    ? error->message : "model adaptation failed");
+            if (error) *error = (BongoCatError){0};
+        }
     }
     return BONGO_CAT_OK;
 }
@@ -172,7 +180,7 @@ static BongoCatResult import_root_unlocked(BongoCatApp *app, const char *root,
     BongoCatImportDiscovery *discovery = calloc(1, sizeof(*discovery));
     if (!discovery) return BONGO_CAT_ERROR_MEMORY;
     int direct = discover_direct(root, bounded, discovery, error);
-    NearbyAdd add = {app, cache_root, first_created};
+    NearbyAdd add = {app, cache_root, first_created, bounded};
     BongoCatResult result = direct > 0
         ? add_discovery(&add, root, discovery, error) : BONGO_CAT_OK;
     if (direct <= 0) {

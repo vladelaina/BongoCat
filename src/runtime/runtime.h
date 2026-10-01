@@ -4,6 +4,7 @@
 #include "bongo_cat/app.h"
 #include "bongo_cat/memory_policy.h"
 #include "update_service.h"
+#include "window_snapshot.h"
 #include <SDL3/SDL.h>
 
 BongoCatResult bongo_cat_window_create(BongoCatApp *app, BongoCatError *error);
@@ -13,6 +14,7 @@ void bongo_cat_app_loop(BongoCatApp *app);
 BongoCatResult bongo_cat_model_catalog_scan(BongoCatApp *app, bool cleanup,
     const char *nearby_root);
 void bongo_cat_model_catalog_finish(BongoCatApp *app);
+bool bongo_cat_model_catalog_add_bundled(BongoCatApp *app, bool replace);
 void bongo_cat_model_catalog_finish_package(BongoCatApp *app,
     const char *package_id);
 void bongo_cat_model_refresh_invalidate(BongoCatApp *app);
@@ -66,6 +68,9 @@ bool bongo_cat_window_content_size(BongoCatApp *app,
 bool bongo_cat_window_apply_geometry(BongoCatApp *app, int x, int y,
     float scale, int width, int height);
 bool bongo_cat_window_set_scale(BongoCatApp *app, float scale);
+bool bongo_cat_window_apply_scale_centered(BongoCatApp *app, float scale,
+    int base_width, int base_height, float base_scale,
+    float center_x, float center_y);
 void bongo_cat_window_clamp_to_display(BongoCatApp *app);
 void bongo_cat_window_drag_to(BongoCatApp *app, int x, int y);
 void bongo_cat_window_drag_bounds_refresh(BongoCatApp *app);
@@ -86,10 +91,6 @@ void bongo_cat_gamepads_set_enabled(BongoCatApp *app, bool enabled);
 void bongo_cat_app_reset_gamepad(BongoCatApp *app);
 void bongo_cat_app_apply_mouse(BongoCatApp *app);
 void bongo_cat_app_reset_pointer_tracking(BongoCatApp *app);
-bool bongo_cat_app_map_mver_pointer(BongoCatApp *app, double absolute_x,
-    double absolute_y, double *x, double *y, bool *changed);
-void bongo_cat_app_apply_mouse_coordinates(BongoCatApp *app, double hand_x,
-    double hand_y, double gaze_x, double gaze_y);
 void bongo_cat_app_drain_input(BongoCatApp *app, bool allow_shortcuts);
 void bongo_cat_app_apply_mouse_position(BongoCatApp *app, double x, double y,
     float elapsed_seconds);
@@ -97,7 +98,11 @@ bool bongo_cat_app_audit_screen_pointer(BongoCatApp *app);
 bool bongo_cat_app_audit_display_pointer(BongoCatApp *app);
 void bongo_cat_app_track_hover(BongoCatApp *app, double x, double y);
 void bongo_cat_app_update_hover(BongoCatApp *app, uint64_t now);
+void bongo_cat_app_update_hover_fade(BongoCatApp *app, uint64_t now);
+void bongo_cat_app_cancel_hover_fade(BongoCatApp *app);
 bool bongo_cat_app_shortcuts_self_test(BongoCatApp *app);
+bool bongo_cat_app_sound_shortcuts(BongoCatApp *app, const BongoCatInputEvent *event,
+    bool *changed);
 void bongo_cat_window_menu_action(BongoCatApp *app, BongoCatMenuAction action);
 bool bongo_cat_window_menu_self_test(BongoCatApp *app);
 bool bongo_cat_window_geometry_self_test(BongoCatApp *app);
@@ -110,6 +115,8 @@ void bongo_cat_frame_presentation_prepare(BongoCatApp *app,
     const unsigned char *pixels, int width, int height, bool visible);
 void bongo_cat_frame_presented_audit(BongoCatApp *app);
 void bongo_cat_window_clear_background(BongoCatApp *app);
+void bongo_cat_window_mask_corners(BongoCatApp *app, int width, int height);
+void bongo_cat_window_destroy_corner_mask(void);
 void bongo_cat_app_render_now(BongoCatApp *app);
 bool bongo_cat_app_capture_pending_model_cover(BongoCatApp *app);
 void bongo_cat_runtime_flow_update(BongoCatApp *app, uint64_t now);

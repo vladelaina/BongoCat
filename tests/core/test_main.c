@@ -9,6 +9,7 @@ int main(void) {
     test_models();
     test_mver_pointer();
     test_shortcut();
+    test_sound_shortcut();
     test_update();
     if (bongo_cat_test_failures) {
         fprintf(stderr, "%d checks failed\n", bongo_cat_test_failures);

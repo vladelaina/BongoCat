@@ -1,3 +1,4 @@
+#include "bongo_cat/audio.h"
 #include "bongo_cat/preferences.h"
 #include "bongo_cat/app.h"
 #include "bongo_cat/memory.h"
@@ -31,6 +32,7 @@ void bongo_cat_preferences_page_cache_clear(BongoCatPreferences *value,
     if (!value || previous_page == next_page) return;
     bool released = false;
     if (previous_page == 3 && next_page != 3) {
+        value->about.qr_open = false;
         bongo_cat_preferences_support_assets_clear(value);
         released = true;
     }
@@ -45,7 +47,6 @@ BongoCatPreferences *bongo_cat_preferences_create(BongoCatApp *app) {
         if (!value->import_dialog) { free(value); return NULL; } }
     if (value && app->smoke_preference_page >= 0)
         value->page = app->smoke_preference_page;
-    if (value) value->model_glyphs_loaded = value->page == 1;
     return value;
 }
 
@@ -73,6 +74,20 @@ bool bongo_cat_preferences_needs_frame(BongoCatPreferences *value) {
         value->render_dirty = true;
     }
     if (!value->window || !value->visible) return false;
+    if (value->about.qr_open && SDL_GetTicks() >= value->about.qr_hide_at)
+        value->render_dirty = true;
+    if (value->behavior_dialog && value->app) {
+        for (size_t i = 0; i < value->app->behaviors.count; ++i) {
+            const BongoCatBehaviorEntry *entry = &value->app->behaviors.entries[i];
+            bool playing = entry->kind == BONGO_CAT_BEHAVIOR_SOUND &&
+                (entry->sound_clear ? bongo_cat_audio_any_playing(value->app->audio) :
+                bongo_cat_audio_is_playing(value->app->audio, entry->sound));
+            if (value->behavior_audio_playing[i] != playing) {
+                value->behavior_audio_playing[i] = playing;
+                value->render_dirty = true;
+            }
+        }
+    }
     if (value->render_retry_ns > now) return false;
     bool raster_due = value->pending_raster_scale > 0.0f &&
         value->raster_retry_ns <= now;
@@ -105,6 +120,10 @@ static Uint32 event_window(const SDL_Event *event) {
 
 static void enter_model_drop(BongoCatPreferences *value) {
     value->page = 1;
+    /* Reveal the import card and cancel any pending scroll animation. */
+    value->scroll_current[1] = 0.0f;
+    value->scroll_target[1] = 0.0f;
+    value->scroll_ready[1] = true;
     value->import_drop_active = true;
     value->render_dirty = true;
 }
@@ -139,6 +158,11 @@ void bongo_cat_preferences_drag_tick(BongoCatPreferences *value) {
 
 static bool chrome_event(BongoCatPreferences *value, const SDL_Event *event) {
     if (event->type == SDL_EVENT_KEY_DOWN && event->key.key == SDLK_ESCAPE) {
+        if (value->about.qr_open) {
+            value->about.qr_open = false;
+            value->render_dirty = true;
+            return true;
+        }
         if (bongo_cat_preferences_behavior_dialog_active(value)) {
             bongo_cat_preferences_behavior_dialog_close(value);
             value->render_dirty = true;
@@ -192,6 +216,7 @@ static bool chrome_event(BongoCatPreferences *value, const SDL_Event *event) {
 
 bool bongo_cat_preferences_event(BongoCatPreferences *value, const SDL_Event *event) {
     if (!value || !event) return false;
+    if (bongo_cat_about_event(value, event)) return true;
     if (bongo_cat_preferences_import_event(value->import_dialog, value->app,
         event)) { value->render_dirty = value->visible;
         return true; }
@@ -217,15 +242,20 @@ bool bongo_cat_preferences_event(BongoCatPreferences *value, const SDL_Event *ev
         return true;
     }
     if (bongo_cat_preferences_scale_event(value, event)) return true;
+#ifdef __APPLE__
+    /* The user returns from System Settings through this window. */
+    if (event->type == SDL_EVENT_WINDOW_FOCUS_GAINED) {
+        bongo_cat_preferences_input_monitoring_refresh(value);
+        value->render_dirty = true;
+    }
+#endif
     if (event->type == SDL_EVENT_WINDOW_FOCUS_LOST) {
+        bongo_cat_ui_input_reset(&value->ui);
         if (value->chrome_dragging) SDL_CaptureMouse(false);
         value->chrome_dragging = false;
         value->import_drop_active = false;
         bongo_cat_pref_controls_reset(&value->ui.context);
     }
-    if (value->app->smoke_input_audit && (event->type == SDL_EVENT_MOUSE_BUTTON_DOWN ||
-        event->type == SDL_EVENT_MOUSE_BUTTON_UP)) SDL_Log("Preferences mouse %s at %.1f,%.1f",
-            event->button.down ? "down" : "up", event->button.x, event->button.y);
     if (bongo_cat_preferences_model_rename_event(value, event)) return true;
     if (bongo_cat_preferences_behavior_rename_event(value, event)) return true;
     if (bongo_cat_preferences_shortcut_event(value, event)) return true;
@@ -234,6 +264,7 @@ bool bongo_cat_preferences_event(BongoCatPreferences *value, const SDL_Event *ev
         return true;
     }
     if (event->type == SDL_EVENT_DROP_FILE) {
+        enter_model_drop(value);
         value->import_drop_active = false;
         bongo_cat_preferences_import_path(value->app, value->window, event->drop.data);
         return true;
@@ -252,11 +283,6 @@ void bongo_cat_preferences_models_changed(BongoCatPreferences *value) {
     if (!value) return;
     value->render_dirty = true;
     value->model_directory_watch_known = false;
-    if (value->page != 1) {
-        value->model_glyphs_loaded = false;
-        return;
-    }
-    value->model_glyphs_loaded = true;
     value->font_reload_pending = value->ui_initialized;
     /* Catalog refreshes finish between UI frames. Rebuild before drawing the
        new cards so names never appear with missing-glyph placeholders. */

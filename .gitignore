@@ -64,8 +64,16 @@ Desktop.ini
 !/docs/README.pt-BR.md
 !/docs/README.ru-RU.md
 !/docs/README.es-ES.md
+!/docs/README.id-ID.md
 !/docs/wechat.png
+!/docs/windows-multimonitor-input-validation.md
+!/docs/model-import-rendering.md
 
 # Local Windows audit tools
 /cmake/*.ps1
 !/cmake/RunCubismViewerBlindTest.ps1
+
+# Local diagnostic test state
+/.diagnostic-session/
+/.diagnostic-storage/
+/.diagnostic-storage-morning/

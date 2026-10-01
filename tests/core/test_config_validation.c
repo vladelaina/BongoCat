@@ -1,6 +1,7 @@
 #include "test.h"
 #include "test_config_validation.h"
 #include "bongo_cat/config.h"
+#include "bongo_cat/file.h"
 #include "bongo_cat/model.h"
 
 #include <math.h>
@@ -49,7 +50,14 @@ static void check_defaults_and_validation(void) {
     memcpy(session.active_behaviors[2].model_id, "other", sizeof("other"));
     bongo_cat_settings_validate(&settings);
     bongo_cat_session_validate(&session);
-    CHECK(settings.model.max_fps == 240);
+    CHECK(settings.model.max_fps == 60);
+    const int old_fps[] = {-1, 0, 1, 24, 30, 31, 60, 120, 240};
+    const int new_fps[] = {60, 60, 30, 30, 30, 60, 60, 60, 60};
+    for (size_t i = 0; i < sizeof(old_fps) / sizeof(old_fps[0]); ++i) {
+        settings.model.max_fps = old_fps[i];
+        bongo_cat_settings_validate(&settings);
+        CHECK(settings.model.max_fps == new_fps[i]);
+    }
     CHECK(settings.window.hide_delay_seconds == 0.0f);
     CHECK(settings.window.random_expression_interval_seconds ==
         BONGO_CAT_DEFAULT_RANDOM_EXPRESSION_SECONDS);
@@ -115,8 +123,44 @@ static void check_shortcuts(void) {
         settings.shortcuts.toggle_pet_visibility));
 }
 
+static void check_behavior_companions(void) {
+    static BongoCatSettings settings, loaded;
+    bongo_cat_settings_defaults(&settings);
+    const char *ids[] = {"lucia:motion:CAT_motion_lock:14", "lucia:sound:0",
+        "lucia:expression:0", "lucia:motion:Tap:0", "lucia:sound:3"};
+    settings.behavior_shortcut_count = sizeof(ids) / sizeof(ids[0]);
+    for (size_t i = 0; i < settings.behavior_shortcut_count; ++i)
+        snprintf(settings.behavior_shortcuts[i].id, sizeof(settings.behavior_shortcuts[i].id), "%s", ids[i]);
+    for (size_t i = 0; i < 4; ++i)
+        snprintf(settings.behavior_shortcuts[i].shortcut, BONGO_CAT_SHORTCUT_CAP, "Alt+O");
+    settings.behavior_shortcuts[4].shortcut_disabled = true;
+    snprintf(settings.shortcuts.mirror, BONGO_CAT_SHORTCUT_CAP, "Control+M");
+    for (size_t i = 0; i < 4; ++i) {
+        CHECK(!bongo_cat_settings_shortcut_conflicts(&settings, "alt+o",
+            settings.behavior_shortcuts[i].shortcut));
+        CHECK(bongo_cat_settings_shortcut_conflicts(&settings, "Control+M",
+            settings.behavior_shortcuts[i].shortcut));
+    }
+    bongo_cat_settings_validate(&settings);
+    CHECK(settings.behavior_shortcut_count == 5);
+    for (size_t i = 0; i < 4; ++i)
+        CHECK(!strcmp(settings.behavior_shortcuts[i].shortcut, "Alt+O"));
+    CHECK(bongo_cat_settings_shortcut_conflicts(&settings, "Alt+O", settings.shortcuts.mirror));
+    CHECK(bongo_cat_settings_save("bongocat-audio-config-test.json", &settings, NULL) == BONGO_CAT_OK);
+    bongo_cat_settings_defaults(&loaded);
+    CHECK(bongo_cat_settings_load("bongocat-audio-config-test.json", &loaded, NULL) == BONGO_CAT_OK);
+    CHECK(loaded.behavior_shortcut_count == 5);
+    for (size_t i = 0; i < 4; ++i) {
+        CHECK(!strcmp(loaded.behavior_shortcuts[i].id, ids[i]));
+        CHECK(!strcmp(loaded.behavior_shortcuts[i].shortcut, "Alt+O"));
+    }
+    CHECK(loaded.behavior_shortcuts[4].shortcut_disabled);
+    CHECK(bongo_cat_file_remove("bongocat-audio-config-test.json"));
+}
+
 void test_config_validation(void) {
     check_defaults_and_validation();
+    check_behavior_companions();
     check_shortcuts();
     check_override_canonicalization();
 }

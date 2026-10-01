@@ -39,10 +39,20 @@ static bool matches(const BongoCatPreferences *value,
     if (tab == 0) return entry->kind == BONGO_CAT_BEHAVIOR_MOTION &&
         bongo_cat_live2d_motion_visible(value->app->live2d,
             entry->group, entry->index);
-    return entry->kind == BONGO_CAT_BEHAVIOR_EXPRESSION;
+    if (tab == 1) return entry->kind == BONGO_CAT_BEHAVIOR_EXPRESSION;
+    return entry->kind == BONGO_CAT_BEHAVIOR_SOUND && (entry->sound[0] || entry->sound_clear);
+}
+
+static bool tab_available(const BongoCatPreferences *value, int tab) {
+    for (size_t i = 0; i < value->app->behaviors.count; ++i) {
+        const BongoCatBehaviorEntry *entry = &value->app->behaviors.entries[i];
+        if (matches(value, entry, tab) && (tab != 2 || entry->sound[0])) return true;
+    }
+    return false;
 }
 
 static size_t row_count(const BongoCatPreferences *value) {
+    if (!tab_available(value, value->behavior_tab)) return 0;
     size_t count = 0;
     for (size_t i = 0; i < value->app->behaviors.count; ++i)
         if (matches(value, &value->app->behaviors.entries[i],
@@ -84,7 +94,7 @@ static bool draw_header(BongoCatPreferences *value, struct nk_context *context,
     BongoCatUIPalette p, float opacity, bool enabled) {
     text(canvas, nk_rect(panel.x + 20, panel.y + 21, panel.w - 74, 24),
         tr(value, "pages.preference.model.behaviorModal.title",
-        "Motions and expressions"), value->ui.label_font, alpha(p.text, opacity));
+        "Motions, expressions and audio"), value->ui.label_font, alpha(p.text, opacity));
     struct nk_rect close = nk_rect(panel.x + panel.w - 52, panel.y + 17, 32, 32);
     return bongo_cat_ui_close_button(context, canvas, close,
         alpha(p.muted, opacity), alpha(p.accent, opacity), enabled);
@@ -98,10 +108,15 @@ static void draw_segments(BongoCatPreferences *value,
     nk_fill_rect(canvas, wrapper, 10, alpha(p.field, opacity));
     const char *labels[] = {tr(value,
         "pages.preference.model.behaviorModal.labels.motion", "Motions"), tr(value,
-        "pages.preference.model.behaviorModal.labels.expression", "Expressions")};
-    float width = (wrapper.w - 6) * .5f;
-    for (int i = 0; i < 2; ++i) {
-        struct nk_rect button = nk_rect(wrapper.x + 3 + width * i,
+        "pages.preference.model.behaviorModal.labels.expression", "Expressions"), tr(value,
+        "pages.preference.model.behaviorModal.labels.audio", "Audio")};
+    int count = 0, position = 0;
+    for (int i = 0; i < 3; ++i) count += tab_available(value, i);
+    if (!count) return;
+    float width = (wrapper.w - 6) / count;
+    for (int i = 0; i < 3; ++i) {
+        if (!tab_available(value, i)) continue;
+        struct nk_rect button = nk_rect(wrapper.x + 3 + width * position++,
             wrapper.y + 3, width, 37);
         bool hover = enabled && nk_input_is_mouse_hovering_rect(
             &context->input, button);
@@ -183,6 +198,10 @@ static void draw_rows(BongoCatPreferences *value, struct nk_context *context,
 void bongo_cat_preferences_behavior_dialog_draw(
     BongoCatPreferences *value, struct nk_context *context) {
     if (!bongo_cat_preferences_behavior_dialog_active(value)) return;
+    if (!tab_available(value, value->behavior_tab))
+        for (int i = 0; i < 3; ++i) if (tab_available(value, i)) {
+            value->behavior_tab = i; break;
+        }
     bongo_cat_ui_cursor_reset(context);
     struct nk_rect region = nk_window_get_bounds(context);
     size_t count = row_count(value);

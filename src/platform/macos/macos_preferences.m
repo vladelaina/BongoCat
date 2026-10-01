@@ -44,7 +44,7 @@ void bongo_cat_platform_configure_preferences_window(SDL_Window *sdl_window) {
         SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, NULL);
     if (!window) return;
     NSWindowStyleMask style = [window styleMask];
-    style |= NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
+    style |= NSWindowStyleMaskClosable |
         NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable |
         NSWindowStyleMaskFullSizeContentView;
     [window setStyleMask:style];

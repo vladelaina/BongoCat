@@ -97,6 +97,7 @@ void bongo_cat_preferences_support_assets_clear(BongoCatPreferences *value) {
 
 void bongo_cat_preferences_assets_clear(BongoCatPreferences *value) {
     if (!value) return;
+    bongo_cat_about_assets_clear(value, true);
     clear(&value->logo_texture);
     clear(&value->icon_texture);
     clear(&value->icon_texture_hidpi);
@@ -106,6 +107,7 @@ void bongo_cat_preferences_assets_clear(BongoCatPreferences *value) {
 
 void bongo_cat_preferences_assets_abandon(BongoCatPreferences *value) {
     if (!value) return;
+    bongo_cat_about_assets_clear(value, false);
     value->logo_texture = 0;
     value->icon_texture = 0;
     value->icon_texture_hidpi = 0;

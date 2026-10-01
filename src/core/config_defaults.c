@@ -43,9 +43,12 @@ bool bongo_cat_settings_shortcut_conflicts(const BongoCatSettings *config,
     size_t behavior_count = config->behavior_shortcut_count;
     if (behavior_count > BONGO_CAT_BEHAVIOR_BINDING_CAP)
         behavior_count = BONGO_CAT_BEHAVIOR_BINDING_CAP;
+    /* Model behaviors may share a key; global commands remain exclusive. */
+    for (size_t i = 0; i < behavior_count; ++i)
+        if (config->behavior_shortcuts[i].shortcut == exclude) return false;
     for (size_t i = 0; i < behavior_count; ++i) {
         const char *bound = config->behavior_shortcuts[i].shortcut;
-        if (bound != exclude && shortcut_equal(bound, shortcut)) return true;
+        if (shortcut_equal(bound, shortcut)) return true;
     }
     return false;
 }
@@ -65,9 +68,6 @@ static void validate_shortcuts(BongoCatSettings *config) {
         bool duplicate = false;
         for (size_t j = 0; j < sizeof(global) / sizeof(global[0]); ++j)
             duplicate = duplicate || shortcut_equal(shortcut, global[j]);
-        for (size_t j = 0; j < i; ++j)
-            duplicate = duplicate || shortcut_equal(shortcut,
-                config->behavior_shortcuts[j].shortcut);
         if (duplicate) shortcut[0] = '\0';
     }
 }
@@ -85,8 +85,10 @@ static void compact_behavior_overrides(BongoCatSettings *config) {
         if (!bongo_cat_utf8_valid(entry.id) ||
             !bongo_cat_utf8_valid(entry.shortcut) ||
             !bongo_cat_utf8_valid(entry.label)) continue;
-        if (!entry.id[0] || (!entry.shortcut[0] && !entry.label[0])) continue;
+        if (entry.shortcut[0]) entry.shortcut_disabled = false;
+        if (!entry.id[0] || (!entry.shortcut[0] && !entry.label[0] && !entry.shortcut_disabled)) continue;
         BongoCatBehaviorShortcut canonical = {0};
+        canonical.shortcut_disabled = entry.shortcut_disabled;
         snprintf(canonical.id, sizeof(canonical.id), "%s", entry.id);
         snprintf(canonical.shortcut, sizeof(canonical.shortcut), "%s",
             entry.shortcut);
@@ -98,7 +100,8 @@ static void compact_behavior_overrides(BongoCatSettings *config) {
                 break;
             }
         if (existing < output_count) {
-            if (canonical.shortcut[0]) {
+            if (canonical.shortcut[0] || canonical.shortcut_disabled) {
+                config->behavior_shortcuts[existing].shortcut_disabled = canonical.shortcut_disabled;
                 memset(config->behavior_shortcuts[existing].shortcut, 0,
                     sizeof(config->behavior_shortcuts[existing].shortcut));
                 snprintf(
@@ -194,6 +197,8 @@ void bongo_cat_settings_defaults(BongoCatSettings *config) {
     config->window.always_on_top = true;
     config->window.keep_in_screen = false;
     config->window.obs_background_color = BONGO_CAT_OBS_BACKGROUND_GREEN;
+    config->window.corner_radius_percent = BONGO_CAT_DEFAULT_WINDOW_CORNER_PERCENT;
+    config->window.hide_fade_seconds = BONGO_CAT_DEFAULT_HIDE_FADE_SECONDS;
     config->window.random_expression_interval_seconds =
         BONGO_CAT_DEFAULT_RANDOM_EXPRESSION_SECONDS;
     config->app.tray_visible = true;
@@ -204,10 +209,16 @@ void bongo_cat_settings_defaults(BongoCatSettings *config) {
 
 void bongo_cat_settings_validate(BongoCatSettings *config) {
     if (!config) return;
-    if (config->model.max_fps < 1) config->model.max_fps = 1;
-    if (config->model.max_fps > 240) config->model.max_fps = 240;
+    config->model.max_fps = config->model.max_fps > 0 &&
+        config->model.max_fps <= 30 ? 30 : BONGO_CAT_DEFAULT_MAX_FPS;
     config->window.hide_delay_seconds = clampf_or(
         config->window.hide_delay_seconds, 0.0f, 60.0f, 0.0f);
+    config->window.hide_fade_seconds = clampf_or(
+        config->window.hide_fade_seconds, 0.0f,
+        BONGO_CAT_MAX_HIDE_FADE_SECONDS, BONGO_CAT_DEFAULT_HIDE_FADE_SECONDS);
+    config->window.corner_radius_percent = clampf_or(
+        config->window.corner_radius_percent, 0.0f, 50.0f,
+        BONGO_CAT_DEFAULT_WINDOW_CORNER_PERCENT);
     config->window.random_expression_interval_seconds = clampf_or(
         config->window.random_expression_interval_seconds, 1.0f, 3600.0f,
         BONGO_CAT_DEFAULT_RANDOM_EXPRESSION_SECONDS);

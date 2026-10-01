@@ -7,6 +7,9 @@
 #define BONGO_CAT_DEFAULT_WINDOW_SCALE_PERCENT 100.0f
 #define BONGO_CAT_DEFAULT_WINDOW_OPACITY_PERCENT 100.0f
 #define BONGO_CAT_DEFAULT_RANDOM_EXPRESSION_SECONDS 5.0f
+#define BONGO_CAT_DEFAULT_WINDOW_CORNER_PERCENT 6.0f
+#define BONGO_CAT_DEFAULT_HIDE_FADE_SECONDS 0.3f
+#define BONGO_CAT_MAX_HIDE_FADE_SECONDS 3.0f
 
 typedef enum BongoCatTheme { BONGO_CAT_THEME_AUTO, BONGO_CAT_THEME_LIGHT, BONGO_CAT_THEME_DARK } BongoCatTheme;
 typedef enum BongoCatLanguage {
@@ -51,9 +54,12 @@ typedef struct BongoCatWindowPreferences {
     bool keep_in_screen;
     bool obs_background;
     bool random_expression;
+    bool rounded_corners;
     BongoCatObsBackgroundColor obs_background_color;
     float hide_delay_seconds;
+    float hide_fade_seconds;
     float random_expression_interval_seconds;
+    float corner_radius_percent;
 } BongoCatWindowPreferences;
 
 typedef struct BongoCatWindowState {
@@ -90,6 +96,7 @@ typedef struct BongoCatBehaviorShortcut {
     char id[BONGO_CAT_BEHAVIOR_ID_CAP];
     char shortcut[BONGO_CAT_SHORTCUT_CAP];
     char label[BONGO_CAT_ID_CAP];
+    bool shortcut_disabled;
 } BongoCatBehaviorShortcut;
 
 typedef struct BongoCatModelLabel {
@@ -127,6 +134,7 @@ typedef struct BongoCatSessionState {
     char active_model_id[BONGO_CAT_ID_CAP];
     int last_update_check_day;
     char last_update_check_version[BONGO_CAT_UPDATE_VERSION_CAP];
+    char available_update_version[BONGO_CAT_UPDATE_VERSION_CAP];
     char additional_model_ids[BONGO_CAT_ADDITIONAL_MODEL_CAP][BONGO_CAT_ID_CAP];
     size_t additional_model_count;
     BongoCatActiveBehavior active_behaviors[BONGO_CAT_BEHAVIOR_BINDING_CAP];

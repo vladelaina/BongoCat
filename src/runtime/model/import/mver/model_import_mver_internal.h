@@ -28,6 +28,10 @@ BongoCatMverKeyNames bongo_cat_mver_gamepad_names(int code);
 int bongo_cat_mver_modifier_index(int code);
 bool bongo_cat_mver_chord(const BongoCatImportCandidate *candidate,
     void *row, char *output, size_t capacity);
+bool bongo_cat_mver_sound_chord(void *row, char *output, size_t capacity);
+bool bongo_cat_mver_add_audio(void *output, void *items, void *config, void *rows,
+    const BongoCatImportCandidate *candidate, const BongoCatMverLabels *labels,
+    const char *target);
 bool bongo_cat_mver_effects(void *output, void *items, void *root, void *mode,
     const BongoCatImportCandidate *candidate, const char *target);
 bool bongo_cat_mver_add_behaviors(void *output, void *items, void *mode,

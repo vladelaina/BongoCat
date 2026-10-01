@@ -21,20 +21,25 @@
           "alwaysOnTop": "常に手前に表示",
           "keepInScreen": "画面内に保持",
           "windowSize": "ウィンドウサイズ",
+          "windowCorners": "ウィンドウの角丸 (%)",
           "opacity": "不透明度",
           "randomExpression": "ランダム表情",
           "obsBackground": "単色背景",
           "hideOnHover": "ホバー時に非表示",
+          "hideFadeSeconds": "フェード時間 (秒)",
           "maxFPS": "最大フレームレート"
         },
         "hints": {
-          "passThrough": "有効にすると、クリックはウィンドウに影響せず背後へ通過します。",
+          "hoverUnavailable": "現在のデスクトップ環境では、マウスを重ねて非表示にする機能は利用できません。",
+          "gameInput": "ゲーム中にデスクトップペットが反応しない？",
+          "gameInputHelp": "BongoCat を管理者として起動し、ゲームをウィンドウモードに設定してみてください。",
+          "passThrough": "トレイアイコンの右クリックからもオフにできます",
           "alwaysOnTop": "有効にすると、ウィンドウがほかのすべてのウィンドウより手前に表示されます。",
           "keepInScreen": "有効にすると、ウィンドウが自動的に画面の範囲内に収まります。",
           "obsBackground": "ウィンドウキャプチャが黒い？",
           "obsBackgroundHelp": "OBS：「Windows 7互換」方式でキャプチャする場合はこの項目を有効にし、カラーキーフィルターで背景を除去してください。",
           "windowSize": "マウスをウィンドウ端へ移動するか、Shiftキーを押しながら右ドラッグしてサイズを変更します。",
-          "hideOnHover": "有効にすると、マウスを重ねたときにウィンドウが自動的に隠れます。遅延を設定でき、0ではすぐに隠れます。"
+          "hideOnHover": "クリック透過と最前面表示が有効な場合、ペットにマウスを重ねるとすぐに非表示になり、離すと再表示されます。"
         }
       },
       "general": {
@@ -58,8 +63,8 @@
         "hints": {
           "showTrayIcon": "有効にすると、システムトレイにアプリアイコンを表示します。",
           "autostartFailed": "起動時に実行する設定を更新できません",
-          "inputMonitoringPermission": "システムからキーボードとマウスのイベントを受け取るには、入力監視を有効にしてください。",
-          "inputMonitoringPermissionGuide": "システムからキーボードとマウスのイベントを受け取るには、入力監視の権限が必要です。\n\n手順：\n1. システム設定 > プライバシーとセキュリティ > 入力監視を開きます。\n2. BongoCatがすでに一覧にある場合は選択し、\"-\"ボタンで削除します。\n3. \"+\"ボタンをクリックしてBongoCatを探し、追加します。\n4. 権限を反映するため、アプリを再起動します。",
+          "inputMonitoringPermission": "許可したら再起動してください。",
+          "inputMonitoringPermissionGuide": "入力監視の権限があると、BongoCat は他のアプリでのキー入力を取得できます。マウスは権限なしでも動作します。BongoCat は起動時に監視を構築するため、権限を変更した場合は再起動が必要です。\n\n手順：\n1. 「システム設定」→「プライバシーとセキュリティ」→「入力監視」を開きます。\n2. 一覧にすでにある BongoCat の項目をオンにします。既存の項目は削除しないでください。\n3. 一覧に BongoCat がない場合は「+」をクリックし、現在実行しているアプリを追加します（アプリの場所を確認してください）。\n4. BongoCat を完全に終了してから再起動し、監視を再構築させます。\n\nキーボードが反応しないままの場合は、ご自身で BongoCat の項目を削除して再追加して確認できます。",
           "administratorPermission": "管理者として実行すると、一部のシステムキーや入力イベントをより確実に取得できます。",
           "administratorPermissionGuide": "一部のシステムキーや入力イベントをより確実に取得するため、アプリを管理者として実行することを推奨します。\n\n手順：\n1. まずアプリを終了します。\n2. エクスプローラーでアプリのexeファイルまたはショートカットを探します。\n3. 起動方法を選びます：\n   - 今回のみ：右クリックして\"管理者として実行\"を選びます。\n   - 常に：右クリック > プロパティ > 互換性 > \"管理者としてこのプログラムを実行する\"にチェック > OK。"
         },
@@ -67,7 +72,8 @@
           "authorized": "許可済み",
           "adminEnabled": "有効",
           "authorize": "有効にする",
-          "viewGuide": "手順を表示"
+          "viewGuide": "手順を表示",
+          "openSettingsFailed": "手動で：システム設定 → プライバシーとセキュリティ → 入力監視。"
         },
         "buttons": {
           "openNow": "今すぐ開く",
@@ -88,7 +94,7 @@
           "deleteFailed": "このモデルを削除できません",
           "importSuccess": "インポートしました",
           "importExists": "モデルは既に存在します",
-          "importBatchResult": "インポート成功: %zu件、失敗: %zu件。失敗したモデル: %s%s。最初の失敗理由: %s",
+          "importBatchResult": "インポート成功: %zu件、失敗: %zu件。\n失敗したモデル: %s%s。\n最初の失敗理由: %s",
           "importMoreFailures": "、他%zu件",
           "importUnknownSource": "不明なソース",
           "importInvalidSource": "選択したインポート元は存在しないか、使用できません",
@@ -107,10 +113,12 @@
           "moreModels": "その他のモデル"
         },
         "behaviorModal": {
-          "title": "モーションと表情",
+          "title": "モーション・表情・音声",
           "labels": {
             "motion": "モーション",
             "expression": "表情",
+            "audio": "音声",
+            "stopAllAudio": "すべての音声を停止",
             "motionIndex": "モーション {index}",
             "motionGroupIndex": "モーショングループ {index}",
             "expressionIndex": "表情 {index}"
@@ -187,6 +195,24 @@
     }
   },
   "native": {
+    "about": {
+      "wechat": "WeChat",
+      "wechatHint": "Hover to scan and chat",
+      "loading": "Loading...",
+      "contributorsFailed": "Cannot load contributors. Click to retry.",
+      "qrUnavailable": "QR code unavailable",
+      "reload": "Reload",
+      "qrFailed": "QR code unavailable. Click to retry.",
+      "contributorsTitle": "Open source & community contributions",
+      "contributorsText": "Every step of BongoCat comes from the power of open source. Thank you to all community contributors for making desktop companionship freer and simpler.",
+      "joinTitle": "Want to appear in the contributors list?",
+      "joinText": "Whether you contribute code, improve documentation, report bugs or translate, every contribution makes BongoCat better.",
+      "code": "Code",
+      "docs": "Documentation",
+      "bugs": "Bug reports",
+      "translations": "Translations",
+      "joinGithub": "Contribute on GitHub"
+    },
     "multiplePets": "複数を同時に表示",
     "multiplePetsLimit": "\u4e00\u5ea6\u306b\u8868\u793a\u3067\u304d\u308b\u30c7\u30b9\u30af\u30c8\u30c3\u30d7\u30da\u30c3\u30c8\u306f 8 \u4f53\u307e\u3067\u3067\u3059",
     "removeDesktopPet": "\u3053\u306e\u30c7\u30b9\u30af\u30c8\u30c3\u30d7\u30da\u30c3\u30c8\u3092\u9589\u3058\u308b",
@@ -211,7 +237,8 @@
       "checkingUpdate": "確認中...",
       "updateAvailable": "新しいバージョンがあります：",
       "updateFailed": "更新を確認できませんでした",
-      "downloadUpdate": "v%s をダウンロード",
+      "updateHttpFailed": "GitHub が HTTP ステータス %s を返しました",
+      "downloadUpdate": "v%s に更新",
       "openStore": "Microsoft Store を開く",
       "viewReleases": "リリースを表示",
       "openUpdateFailed": "更新ページを開けませんでした",

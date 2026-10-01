@@ -1,5 +1,6 @@
 #include "linux_internal.h"
 #include "bongo_cat/common.h"
+#include "bongo_cat/log.h"
 
 #if !defined(_WIN32) && !defined(__APPLE__)
 #include <SDL3/SDL.h>
@@ -22,9 +23,15 @@ typedef struct LinuxX11State {
     Window window;
     SDL_Thread *thread;
     bool key_down[BONGO_CAT_INPUT_KEY_STATE_CAP];
+    bool xwayland;
     atomic_bool running;
     atomic_bool supported;
 } LinuxX11State;
+
+static LinuxX11State *x11_state(const BongoCatPlatform *platform) {
+    const LinuxPlatformState *native = platform ? platform->native : NULL;
+    return native ? native->x11 : NULL;
+}
 
 static const char *key_name(KeySym key, char output[16]) {
     if (key >= XK_a && key <= XK_z) {
@@ -154,17 +161,34 @@ static int SDLCALL input_thread(void *userdata) {
 }
 
 bool bongo_cat_linux_x11_start(BongoCatPlatform *platform, BongoCatError *error) {
+    if (!platform || !platform->native || !platform->window) return false;
+    if (x11_state(platform)) return true;
     SDL_PropertiesID properties = SDL_GetWindowProperties(platform->window);
     Display *display = SDL_GetPointerProperty(properties,
         SDL_PROP_WINDOW_X11_DISPLAY_POINTER, NULL);
     Window window = (Window)SDL_GetNumberProperty(properties,
         SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0);
     LinuxX11State *state = calloc(1, sizeof(*state));
-    if (!state) return false;
+    if (!state) {
+        bongo_cat_error_set(error, BONGO_CAT_ERROR_PLATFORM,
+            "Cannot allocate X11 input state");
+        return false;
+    }
     state->platform = platform; state->display = display; state->window = window;
     atomic_init(&state->running, true); atomic_init(&state->supported, false);
-    platform->native = state;
-    if (!display || !window) return true;
+    LinuxPlatformState *native = platform->native;
+    native->x11 = state;
+    /* XWayland advertises a marker extension that native X servers lack.
+       XWayland stops delivering pointer events for a window whose input region
+       is empty, so dynamic hit testing cannot restore the region by itself. */
+    int marker_opcode = 0, marker_event = 0, marker_error = 0;
+    state->xwayland = native->wayland || (display && XQueryExtension(display,
+        "XWAYLAND", &marker_opcode, &marker_event, &marker_error));
+    if (state->xwayland) SDL_LogInfo(BONGO_CAT_LOG_LIFECYCLE,
+        "XWayland detected; automatic transparent-pixel click-through is disabled");
+    /* Select one input backend for the session. Device hotplug must not
+       switch producers midway through a held key or mouse button. */
+    if (!display || !window || native->evdev_selected) return true;
     state->thread = SDL_CreateThread(input_thread,
         BONGO_CAT_SLUG "-x11-input", state);
     if (!state->thread) {
@@ -175,20 +199,26 @@ bool bongo_cat_linux_x11_start(BongoCatPlatform *platform, BongoCatError *error)
 }
 
 void bongo_cat_linux_x11_stop(BongoCatPlatform *platform) {
-    LinuxX11State *state = platform ? platform->native : NULL;
+    LinuxX11State *state = x11_state(platform);
     if (!state) return;
     atomic_store(&state->running, false);
     if (state->thread) SDL_WaitThread(state->thread, NULL);
-    free(state); platform->native = NULL;
+    free(state);
+    ((LinuxPlatformState *)platform->native)->x11 = NULL;
 }
 
 bool bongo_cat_linux_x11_supported(const BongoCatPlatform *platform) {
-    const LinuxX11State *state = platform ? platform->native : NULL;
+    const LinuxX11State *state = x11_state(platform);
     return state && atomic_load(&state->supported);
 }
 
+bool bongo_cat_linux_x11_xwayland(const BongoCatPlatform *platform) {
+    const LinuxX11State *state = x11_state(platform);
+    return state && state->xwayland;
+}
+
 void bongo_cat_linux_x11_click_through(BongoCatPlatform *platform, bool enabled) {
-    LinuxX11State *state = platform ? platform->native : NULL;
+    LinuxX11State *state = x11_state(platform);
     if (!state || !state->display || !state->window) return;
     XserverRegion region = enabled ? XFixesCreateRegion(state->display, NULL, 0) : None;
     XFixesSetWindowShapeRegion(state->display, state->window, ShapeInput, 0, 0, region);
@@ -206,14 +236,21 @@ static void state_message(LinuxX11State *state, const char *name, long action) {
         SubstructureRedirectMask | SubstructureNotifyMask, &event); XFlush(state->display);
 }
 
+void bongo_cat_linux_x11_set_above(BongoCatPlatform *platform, bool enabled) {
+    LinuxX11State *state = x11_state(platform);
+    if (!state || !state->display || !state->window) return;
+    /* Some XWayland compositors need an explicit EWMH request after mapping. */
+    state_message(state, "_NET_WM_STATE_ABOVE", enabled ? 1 : 0);
+}
+
 void bongo_cat_linux_x11_configure_capture_window(BongoCatPlatform *platform) {
-    LinuxX11State *state = platform ? platform->native : NULL;
+    LinuxX11State *state = x11_state(platform);
     if (state && state->display && state->window)
         state_message(state, "_NET_WM_STATE_SKIP_TASKBAR", 1);
 }
 
 void bongo_cat_linux_x11_begin_drag(BongoCatPlatform *platform) {
-    LinuxX11State *state = platform ? platform->native : NULL;
+    LinuxX11State *state = x11_state(platform);
     if (!state || !state->display || !state->window) return;
     Window root = DefaultRootWindow(state->display), child;
     int x, y, wx, wy; unsigned int mask;

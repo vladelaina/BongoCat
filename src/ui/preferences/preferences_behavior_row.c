@@ -1,4 +1,6 @@
 #include "preferences_state.h"
+#include "bongo_cat/audio.h"
+#include "bongo_cat/shortcut.h"
 #include "preferences_overlay.h"
 #include "preferences_shortcut_clear.h"
 #include "ui_animation.h"
@@ -39,9 +41,13 @@ static BongoCatBehaviorShortcut *binding_for(BongoCatSettings *config,
     return binding;
 }
 
-static const char *display_label(const BongoCatBehaviorEntry *entry,
+static const char *display_label(BongoCatPreferences *value, const BongoCatBehaviorEntry *entry,
     const BongoCatBehaviorShortcut *binding) {
-    return binding && binding->label[0] ? binding->label : entry->label;
+    if (binding && binding->label[0])
+        return binding->label;
+    if (entry->sound_clear) return bongo_cat_i18n_get(value->app->i18n,
+        "pages.preference.model.behaviorModal.labels.stopAllAudio", "Stop all audio");
+    return entry->label;
 }
 
 static bool shortcut_editor(BongoCatPreferences *value,
@@ -62,9 +68,11 @@ static bool shortcut_editor(BongoCatPreferences *value,
         (hover ? p.hover : p.field), opacity));
     nk_stroke_rect(canvas, bounds, 10, 1, alpha(active ? p.pink :
         (hover ? p.accent : p.border_subtle), opacity));
+    char shortcut_label[BONGO_CAT_SHORTCUT_CAP * 2];
+    bongo_cat_shortcut_format(shortcut->shortcut, shortcut_label, sizeof(shortcut_label));
     const char *shown = active ? bongo_cat_i18n_get(value->app->i18n,
         "components.shortcut.hints.pressRecordShortcut", "Press shortcut") :
-        (shortcut->shortcut[0] ? shortcut->shortcut :
+        (shortcut->shortcut[0] ? shortcut_label :
         bongo_cat_i18n_get(value->app->i18n,
         "components.shortcut.hints.clickRecordShortcut",
         "Click to record shortcut"));
@@ -82,7 +90,9 @@ static bool shortcut_editor(BongoCatPreferences *value,
         bounds.y + 8, 17, 20);
     if (bongo_cat_pref_shortcut_clear(context, canvas, id, clear, p,
         opacity, enabled && !active && shortcut->shortcut[0])) {
-        shortcut->shortcut[0] = '\0'; value->render_dirty = true; return false;
+        shortcut->shortcut[0] = '\0';
+        shortcut->shortcut_disabled = true;
+        value->render_dirty = true; return false;
     }
     if (hover) bongo_cat_ui_cursor_hover_rect(context, bounds,
         BONGO_CAT_UI_CURSOR_POINTER);
@@ -93,7 +103,7 @@ static void draw_name(BongoCatPreferences *value, struct nk_context *context,
     struct nk_command_buffer *canvas, struct nk_rect bounds,
     BongoCatBehaviorEntry *entry, BongoCatBehaviorShortcut *binding,
     BongoCatUIPalette p, float opacity, bool enabled) {
-    const char *label = display_label(entry, binding);
+    const char *label = display_label(value, entry, binding);
     BongoCatPreferencesTextSession *session = &value->behavior_rename;
     bool renaming = !strcmp(session->id, entry->id);
     bool hover = enabled && nk_input_is_mouse_hovering_rect(
@@ -141,18 +151,27 @@ void bongo_cat_preferences_behavior_row_draw(BongoCatPreferences *value,
     BongoCatBehaviorShortcut *binding = binding_for(&value->app->settings,
         entry->id);
     draw_name(value, context, canvas, name, entry, binding, p, opacity, enabled);
-    bool play_hover = enabled && nk_input_is_mouse_hovering_rect(
+    bool play_enabled = enabled;
+    bool play_hover = play_enabled && nk_input_is_mouse_hovering_rect(
         &context->input, play);
     nk_fill_rect(canvas, play, 10, alpha(play_hover ? p.hover : p.field, opacity));
     nk_stroke_rect(canvas, play, 10, 1, alpha(play_hover ? p.accent :
         p.border_subtle, opacity));
-    bongo_cat_preferences_icon_draw(value, canvas, BONGO_CAT_UI_ICON_PLAY,
+    bool playing = entry->kind == BONGO_CAT_BEHAVIOR_SOUND &&
+        bongo_cat_audio_is_playing(value->app->audio, entry->sound);
+    if (playing)
+        nk_fill_rect(canvas, nk_rect(play.x + 12, play.y + 12, 12, 12), 2,
+            alpha(!play_enabled ? p.muted : play_hover ? p.accent : p.text, opacity));
+    else bongo_cat_preferences_icon_draw(value, canvas, BONGO_CAT_UI_ICON_PLAY,
         nk_rect(play.x + 10, play.y + 10, 16, 16),
-        alpha(play_hover ? p.accent : p.text, opacity));
+        alpha(!play_enabled ? p.muted : play_hover ? p.accent : p.text, opacity));
     if (play_hover) bongo_cat_ui_cursor_hover_rect(context, play,
         BONGO_CAT_UI_CURSOR_POINTER);
-    if (hit(context, play, enabled))
-        bongo_cat_app_run_behavior(value->app, entry);
+    if (hit(context, play, play_enabled)) {
+        if (playing) bongo_cat_audio_stop_path(value->app->audio, entry->sound);
+        else bongo_cat_app_run_behavior(value->app, entry);
+        value->render_dirty = true;
+    }
     if (!binding) return;
     char id[BONGO_CAT_ID_CAP + 16];
     snprintf(id, sizeof(id), "behavior-%.*s", (int)sizeof(id) - 10, entry->id);

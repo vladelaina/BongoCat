@@ -35,6 +35,7 @@ typedef struct BongoCatScheduledRelease {
 } BongoCatScheduledRelease;
 
 typedef struct BongoCatInputState {
+    atomic_bool queue_busy;
     BongoCatInputEvent queue[BONGO_CAT_INPUT_QUEUE_CAP];
     atomic_uint_fast16_t head;
     atomic_uint_fast16_t tail;

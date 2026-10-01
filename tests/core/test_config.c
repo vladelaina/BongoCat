@@ -217,7 +217,7 @@ void test_config(void) {
         BONGO_CAT_OK);
     CHECK(bongo_cat_session_load(session_path, &loaded_session, &error) ==
         BONGO_CAT_OK);
-    CHECK(loaded_settings.model.max_fps == 240);
+    CHECK(loaded_settings.model.max_fps == 60);
     CHECK(loaded_session.window.scale_percent == 10.0f);
 
     const char *append_path = "bongocat-append.log";

@@ -1,5 +1,4 @@
 #include "runtime.h"
-#include "bongo_cat/audio.h"
 #include "bongo_cat/overlay.h"
 #include "bongo_cat/preferences.h"
 #include "bongo_cat/shortcut.h"
@@ -9,36 +8,6 @@
 
 static void toggle_pet_visibility(BongoCatApp *app) {
     bongo_cat_window_set_visible(app, !app->session.window.visible);
-}
-
-bool bongo_cat_app_run_behavior(BongoCatApp *app,
-    const BongoCatBehaviorEntry *behavior) {
-    if (!app || !behavior) return false;
-    if (behavior->kind == BONGO_CAT_BEHAVIOR_EFFECT) {
-        if (!bongo_cat_overlay_effect(app->overlay, behavior->effect)) return false;
-    } else if (behavior->kind == BONGO_CAT_BEHAVIOR_SOUND) {
-        if (!behavior->sound[0]) {
-            bongo_cat_audio_stop(app->audio);
-            return true;
-        }
-        BongoCatError error = {0};
-        bongo_cat_audio_play(app->audio, behavior->sound, &error);
-    } else if (behavior->kind == BONGO_CAT_BEHAVIOR_MOTION) {
-        bool started = bongo_cat_live2d_start_motion(app->live2d,
-            behavior->group, behavior->index);
-        if (!started) return false;
-        if (behavior->sound[0]) {
-            BongoCatError error = {0};
-            bongo_cat_audio_play(app->audio, behavior->sound, &error);
-        }
-    } else {
-        int expression = bongo_cat_live2d_expression(app->live2d) ==
-            behavior->index ? -1 : behavior->index;
-        if (!bongo_cat_live2d_set_expression(app->live2d, expression)) return false;
-    }
-    bongo_cat_app_capture_behavior_state(app);
-    app->dirty = true;
-    return true;
 }
 
 static bool hidden_toggle_has_visible_binding(BongoCatApp *app,
@@ -66,21 +35,18 @@ static bool hidden_toggle_has_visible_binding(BongoCatApp *app,
     return false;
 }
 
-static bool behavior_shortcut(BongoCatApp *app, const BongoCatInputEvent *event) {
-    bool handled = false;
+static bool behavior_shortcut(BongoCatApp *app, const BongoCatInputEvent *event,
+    bool handled, bool sound_edge) {
     for (size_t i = 0; i < app->settings.behavior_shortcut_count; ++i) {
         BongoCatBehaviorShortcut *shortcut = &app->settings.behavior_shortcuts[i];
         for (size_t j = 0; j < app->behaviors.count; ++j) {
             BongoCatBehaviorEntry *behavior = &app->behaviors.entries[j];
+            if (behavior->kind == BONGO_CAT_BEHAVIOR_SOUND) continue;
             if (strcmp(shortcut->id, behavior->id) != 0) continue;
             if (behavior->momentary &&
                 bongo_cat_shortcut_release_matches(event, shortcut->shortcut)) {
                 if (behavior->kind == BONGO_CAT_BEHAVIOR_EFFECT)
                     handled = bongo_cat_overlay_effect(app->overlay, NULL) || handled;
-                else if (behavior->kind == BONGO_CAT_BEHAVIOR_SOUND) {
-                    bongo_cat_audio_stop(app->audio);
-                    handled = true;
-                }
             } else if (bongo_cat_shortcut_matches(&app->shortcut_state,
                 event, shortcut->shortcut) &&
                 !hidden_toggle_has_visible_binding(app, behavior,
@@ -91,6 +57,7 @@ static bool behavior_shortcut(BongoCatApp *app, const BongoCatInputEvent *event)
     if (handled) return true;
     size_t limit = app->behaviors.count < 10 ? app->behaviors.count : 10;
     for (size_t i = 0; i < limit; ++i) {
+        if (app->behaviors.entries[i].kind == BONGO_CAT_BEHAVIOR_SOUND && !sound_edge) continue;
         char alias[8];
         snprintf(alias, sizeof(alias), "Alt+%c", i == 9 ? '0' : (char)('1' + i));
         if (bongo_cat_shortcut_matches(&app->shortcut_state, event, alias))
@@ -100,14 +67,16 @@ static bool behavior_shortcut(BongoCatApp *app, const BongoCatInputEvent *event)
 }
 
 void bongo_cat_app_shortcuts(BongoCatApp *app, const BongoCatInputEvent *event) {
-    if (!app) return;
+    if (!app || !event) return;
+    bool sound_edge = false;
+    bool sound_handled = bongo_cat_app_sound_shortcuts(app, event, &sound_edge);
     if (event->kind == BONGO_CAT_INPUT_GAMEPAD_BUTTON) {
-        behavior_shortcut(app, event);
+        behavior_shortcut(app, event, sound_handled, sound_edge);
         return;
     }
     bool primary = bongo_cat_shortcut_update(&app->shortcut_state, event);
     if (!primary) {
-        behavior_shortcut(app, event);
+        behavior_shortcut(app, event, sound_handled, sound_edge);
         return;
     }
     BongoCatShortcutPreferences *shortcuts = &app->settings.shortcuts;
@@ -135,7 +104,7 @@ void bongo_cat_app_shortcuts(BongoCatApp *app, const BongoCatInputEvent *event) 
         bongo_cat_window_mark_hit_dirty(app);
         bongo_cat_window_sync_click_through(app);
         bongo_cat_preferences_invalidate(app->preferences);
-    } else behavior_shortcut(app, event);
+    } else behavior_shortcut(app, event, sound_handled, sound_edge);
 }
 
 static void test_key(BongoCatApp *app, BongoCatInputKind kind, const char *name) {
@@ -175,5 +144,17 @@ bool bongo_cat_app_shortcuts_self_test(BongoCatApp *app) {
         app->settings.window.pass_through && app->settings.window.always_on_top &&
         bongo_cat_preferences_visible(app->preferences);
     bongo_cat_preferences_close(app->preferences);
+    bool ignored = app->smoke_ignore_global_input;
+    app->smoke_ignore_global_input = false;
+    test_key(app, BONGO_CAT_INPUT_KEY_DOWN, "ControlLeft");
+    BongoCatInputEvent release = {.kind = BONGO_CAT_INPUT_KEY_UP};
+    snprintf(release.name, sizeof(release.name), "ControlLeft");
+    bongo_cat_input_push(&app->input, &release);
+    bongo_cat_app_drain_input(app, false);
+    bool mirror = app->settings.model.mirror;
+    test_press(app, "KeyM");
+    result = result && !app->shortcut_state.control &&
+        app->settings.model.mirror == mirror;
+    app->smoke_ignore_global_input = ignored;
     return result;
 }

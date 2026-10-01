@@ -34,6 +34,7 @@ unsigned int bongo_cat_image_texture_thumbnail(const char *path, int max_width,
 unsigned int bongo_cat_image_texture_resampled(const char *path,
     int max_width, int max_height, float rounding, int *width, int *height,
     BongoCatError *error);
+/* Returns a premultiplied-alpha texture for the Cubism renderer. */
 unsigned int bongo_cat_image_texture_model(const char *path, bool direct_decode,
     int *width, int *height, BongoCatImageAlphaMask *alpha,
     BongoCatImageProgress progress, void *userdata, BongoCatError *error);

@@ -58,6 +58,68 @@ static const char *canonical_key(const char *name, char output[16]) {
     return name;
 }
 
+static const char *display_key(const char *token, size_t length) {
+    static const struct { const char *name; const char *label; } names[] = {
+        {"Control", "Ctrl"}, {"Ctrl", "Ctrl"},
+#if defined(_WIN32)
+        {"Meta", "Win"}, {"Super", "Win"}, {"Command", "Win"},
+#elif defined(__APPLE__)
+        {"Meta", "Cmd"}, {"Super", "Cmd"}, {"Command", "Cmd"},
+#else
+        {"Meta", "Super"}, {"Command", "Super"},
+#endif
+        {"Escape", "Esc"}, {"Delete", "Del"}, {"Insert", "Ins"},
+        {"PageUp", "PgUp"}, {"PageDown", "PgDn"},
+        {"PrintScreen", "PrtSc"}, {"Return", "Enter"},
+        {"ArrowUp", "\xE2\x86\x91"}, {"ArrowDown", "\xE2\x86\x93"},
+        {"ArrowLeft", "\xE2\x86\x90"}, {"ArrowRight", "\xE2\x86\x92"},
+        {"UpArrow", "\xE2\x86\x91"}, {"DownArrow", "\xE2\x86\x93"},
+        {"LeftArrow", "\xE2\x86\x90"}, {"RightArrow", "\xE2\x86\x92"},
+        {"BackQuote", "`"}, {"Minus", "-"}, {"Equal", "="},
+        {"BracketLeft", "["}, {"BracketRight", "]"},
+        {"Backslash", "\\"}, {"Semicolon", ";"}, {"Quote", "'"},
+        {"Comma", ","}, {"Period", "."}, {"Slash", "/"},
+        {"Kp0", "Num 0"}, {"Kp1", "Num 1"}, {"Kp2", "Num 2"},
+        {"Kp3", "Num 3"}, {"Kp4", "Num 4"}, {"Kp5", "Num 5"},
+        {"Kp6", "Num 6"}, {"Kp7", "Num 7"}, {"Kp8", "Num 8"},
+        {"Kp9", "Num 9"}, {"KpMultiply", "Num *"}, {"KpPlus", "Num +"},
+        {"KpMinus", "Num -"}, {"KpDecimal", "Num ."}, {"KpDivide", "Num /"}
+    };
+    for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); ++i) {
+        if (strlen(names[i].name) != length) continue;
+        size_t j = 0;
+        while (j < length && tolower((unsigned char)token[j]) ==
+            tolower((unsigned char)names[i].name[j])) ++j;
+        if (j == length) return names[i].label;
+    }
+    return NULL;
+}
+
+void bongo_cat_shortcut_format(const char *shortcut, char *output, size_t capacity) {
+    if (!output || !capacity) return;
+    output[0] = '\0';
+    if (!shortcut) return;
+    if (strncmp(shortcut, "Gamepad:", 8) == 0) {
+        snprintf(output, capacity, "%s", shortcut);
+        return;
+    }
+    size_t used = 0;
+    while (*shortcut && used < capacity - 1) {
+        const char *plus = strchr(shortcut, '+');
+        size_t length = plus ? (size_t)(plus - shortcut) : strlen(shortcut);
+        const char *label = display_key(shortcut, length);
+        const char *shown = label ? label : shortcut;
+        size_t count = label ? strlen(label) : length;
+        if (count > capacity - 1 - used) count = capacity - 1 - used;
+        memcpy(output + used, shown, count);
+        used += count;
+        if (!plus) break;
+        if (used < capacity - 1) output[used++] = '+';
+        shortcut = plus + 1;
+    }
+    output[used] = '\0';
+}
+
 static bool modifier_token(const char *token, size_t length, bool *control,
     bool *shift, bool *alt, bool *meta) {
     char value[24];

@@ -1,5 +1,7 @@
 #include "window_menu.h"
 #include "bongo_cat/audio.h"
+#include "bongo_cat/i18n.h"
+#include "bongo_cat/shortcut.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -10,6 +12,7 @@ static const BongoCatBehaviorEntry *nth_behavior(BongoCatApp *app,
     for (size_t i = 0; i < app->behaviors.count; ++i) {
         const BongoCatBehaviorEntry *entry = &app->behaviors.entries[i];
         if (entry->kind != kind) continue;
+        if (kind == BONGO_CAT_BEHAVIOR_SOUND && !entry->sound[0] && !entry->sound_clear) continue;
         if (kind == BONGO_CAT_BEHAVIOR_MOTION &&
             !bongo_cat_live2d_motion_visible(app->live2d,
                 entry->group, entry->index)) continue;
@@ -57,6 +60,8 @@ static const char *behavior_label(const BongoCatApp *app,
         if (strcmp(binding->id, entry->id) == 0 && binding->label[0])
             return binding->label;
     }
+    if (entry->sound_clear) return bongo_cat_i18n_get(app->i18n,
+        "pages.preference.model.behaviorModal.labels.stopAllAudio", "Stop all audio");
     return entry->label;
 }
 
@@ -64,8 +69,10 @@ static void menu_label(char output[BONGO_CAT_MENU_LABEL_CAP],
     const BongoCatApp *app, const BongoCatBehaviorEntry *entry) {
     const char *label = behavior_label(app, entry);
     const char *shortcut = behavior_shortcut(app, entry->id);
+    char shortcut_label[BONGO_CAT_SHORTCUT_CAP * 2];
+    bongo_cat_shortcut_format(shortcut, shortcut_label, sizeof(shortcut_label));
     if (shortcut && shortcut[0]) snprintf(output, BONGO_CAT_MENU_LABEL_CAP,
-        "%s - %s", label, shortcut);
+        "%s - %s", label, shortcut_label);
     else snprintf(output, BONGO_CAT_MENU_LABEL_CAP, "%s", label);
 }
 
@@ -124,6 +131,15 @@ bool bongo_cat_window_behavior_action(BongoCatApp *app,
         action < BONGO_CAT_MENU_EXPRESSION_FIRST + BONGO_CAT_BEHAVIOR_CAP) {
         kind = BONGO_CAT_BEHAVIOR_EXPRESSION;
         position = (size_t)(action - BONGO_CAT_MENU_EXPRESSION_FIRST);
+    } else if (action >= BONGO_CAT_MENU_AUDIO_FIRST &&
+        action < BONGO_CAT_MENU_AUDIO_FIRST + BONGO_CAT_BEHAVIOR_CAP) {
+        const BongoCatBehaviorEntry *sound = nth_behavior(app, BONGO_CAT_BEHAVIOR_SOUND,
+            (size_t)(action - BONGO_CAT_MENU_AUDIO_FIRST));
+        if (!sound) return false;
+        if (bongo_cat_audio_is_playing(app->audio, sound->sound))
+            bongo_cat_audio_stop_path(app->audio, sound->sound);
+        else return bongo_cat_app_run_behavior(app, sound);
+        return true;
     } else return false;
     const BongoCatBehaviorEntry *entry = nth_behavior(app, kind, position);
     return entry && run_binding(app, entry);
@@ -185,4 +201,19 @@ bool bongo_cat_window_behavior_menu_action(BongoCatMenuAction action) {
         action < BONGO_CAT_MENU_MOTION_FIRST + BONGO_CAT_BEHAVIOR_CAP) ||
         (action >= BONGO_CAT_MENU_EXPRESSION_FIRST &&
             action < BONGO_CAT_MENU_EXPRESSION_FIRST + BONGO_CAT_BEHAVIOR_CAP);
+}
+
+void bongo_cat_window_audio_labels(BongoCatApp *app,
+    char names[][BONGO_CAT_MENU_LABEL_CAP], bool *checked, size_t *count) {
+    *count = 0;
+    bool available = false;
+    for (size_t i = 0; i < app->behaviors.count; ++i) {
+        const BongoCatBehaviorEntry *entry = &app->behaviors.entries[i];
+        if (entry->kind != BONGO_CAT_BEHAVIOR_SOUND || (!entry->sound[0] && !entry->sound_clear)) continue;
+        available = available || entry->sound[0];
+        menu_label(names[*count], app, entry);
+        checked[*count] = bongo_cat_audio_is_playing(app->audio, entry->sound);
+        ++*count;
+    }
+    if (!available) *count = 0;
 }

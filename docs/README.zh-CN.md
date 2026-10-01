@@ -6,24 +6,41 @@
 </div>
 
 <p align="center">💘 C/C++ × SDL3 × OpenGL，搅拌在一起，尽情敲击！Bong~ Bongo Cat!!!</p>
+
+ <p align="center">支持的操作系统：Windows、macOS、Linux</p>
+
 <p align="center">
-  选择语言 ❯ <a href="https://github.com/vladelaina/BongoCat/blob/main/README.md">English</a> • <strong>简体中文</strong> • <a href="https://github.com/vladelaina/BongoCat/blob/main/docs/README.zh-Hant.md">繁體中文</a> • <a href="https://github.com/vladelaina/BongoCat/blob/main/docs/README.fr-FR.md">Français</a> • <a href="https://github.com/vladelaina/BongoCat/blob/main/docs/README.de-DE.md">Deutsch</a> • <a href="https://github.com/vladelaina/BongoCat/blob/main/docs/README.ja-JP.md">日本語</a> • <a href="https://github.com/vladelaina/BongoCat/blob/main/docs/README.ko-KR.md">한국어</a> • <a href="https://github.com/vladelaina/BongoCat/blob/main/docs/README.pt-BR.md">Português</a> • <a href="https://github.com/vladelaina/BongoCat/blob/main/docs/README.ru-RU.md">Русский</a> • <a href="https://github.com/vladelaina/BongoCat/blob/main/docs/README.es-ES.md">Español</a>
+   <a href="https://github.com/vladelaina/BongoCat/blob/main/README.md">English</a> • <strong>简体中文</strong> • <a href="https://github.com/vladelaina/BongoCat/blob/main/docs/README.zh-Hant.md">繁體中文</a> • <a href="https://github.com/vladelaina/BongoCat/blob/main/docs/README.fr-FR.md">Français</a> • <a href="https://github.com/vladelaina/BongoCat/blob/main/docs/README.de-DE.md">Deutsch</a> • <a href="https://github.com/vladelaina/BongoCat/blob/main/docs/README.ja-JP.md">日本語</a> • <a href="https://github.com/vladelaina/BongoCat/blob/main/docs/README.ko-KR.md">한국어</a> • <a href="https://github.com/vladelaina/BongoCat/blob/main/docs/README.pt-BR.md">Português</a> • <a href="https://github.com/vladelaina/BongoCat/blob/main/docs/README.ru-RU.md">Русский</a> • <a href="https://github.com/vladelaina/BongoCat/blob/main/docs/README.es-ES.md">Español</a> • <a href="https://github.com/vladelaina/BongoCat/blob/main/docs/README.id-ID.md">Bahasa Indonesia</a>
+</p>
+<p align="center">
+  <a href="https://github.com/vladelaina/BongoCat/blob/main/LICENSE"><img src="https://img.shields.io/badge/AGPL--3.0-1fa669?style=flat&logo=gnu&logoColor=white"></a>
+  <a href="https://github.com/vladelaina/BongoCat"><img src="https://img.shields.io/badge/C-A8B9CC?style=flat&logo=c&logoColor=white"></a>
+  <a href="https://discord.gg/vf8jqnattk"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fdiscord.com%2Fapi%2Finvites%2Fvf8jqnattk%3Fwith_counts%3Dtrue&query=%24.approximate_member_count&suffix=%20members&logo=discord&logoColor=white&label=%20&color=7389D8&labelColor=6A7EC2"></a>
+  <a href="https://github.com/vladelaina/BongoCat/blob/main/docs/wechat.png"><img src="https://img.shields.io/badge/WeChat-%2307C160?logo=wechat&logoColor=%2307C160&labelColor=FFFFFF"></a>
+  <a href="https://qm.qq.com/q/cYlRBbvuda"><img src="https://img.shields.io/badge/QQ-%2312B7F5?logo=qq&labelColor=FFFFFF"></a>
 </p>
 
 <div align="center"><video src="https://github.com/user-attachments/assets/75719230-9e49-4124-ae5a-8e35592c5d49" autoplay loop style="border-radius: 8px; max-width: 800px;"></video></div>
 
-> [!TIP]
+> [!NOTE]
 > 演示中使用的模型来自 [宇痕冫](https://space.bilibili.com/348616056)。
->
-> 🎁 想找**免费**模型？欢迎访问官网：[bongocat.pet](https://bongocat.pet/models)
+
+>[!TIP]
+> 想找**免费**模型？我们与才华横溢的模型创作者们合作，为您带来丰富多样的免费模型，持续探索更多有趣的桌面体验！请访问我们的官方网站：[bongocat.pet](https://bongocat.pet/models)
+
+<p align="center">
+  <a href="https://bongocat.pet/models">
+    <img height="1080" src="https://github.com/user-attachments/assets/dedd83ca-742a-4f8c-a64a-69e659fca564" />
+  </a>
+</p>
 
 <p align="center"><img src="https://count.getloli.com/@bongocat?name=bongocat&theme=booru-qualityhentais&padding=7&offset=0&align=top&scale=1&pixelated=1&darkmode=auto" width="400"></p>
 
 ## 📥 下载
+- ### Microsoft Store
+  <a href="https://apps.microsoft.com/detail/9p41mlsx72xw?referrer=appbadge" target="_self"><img src="https://get.microsoft.com/images/en-us%20light.svg" width="600"></a>
 
-<a href="https://apps.microsoft.com/detail/9p41mlsx72xw?referrer=appbadge" target="_self"><img src="https://get.microsoft.com/images/en-us%20light.svg" width="600"></a>
-
-- GitHub Releases
+- ### GitHub Releases
 
   从 [GitHub Releases](https://github.com/vladelaina/BongoCat/releases/latest) 下载最新版本。
 
@@ -33,7 +50,7 @@ BongoCat 使用 CMake，需要 C11 编译器、C++17 编译器、CMake 3.24 或�
 
 请在项目根目录（包含 `CMakeLists.txt` 的目录）运行以下命令。
 
-### 📋 平台前置条件
+### 平台前置条件
 
 - **Windows：** Visual Studio 2022（安装“使用 C++ 的桌面开发”工作负载）和 CMake。请使用 MSVC 生成器；MinGW 可构建诊断后端，但不支持 Cubism SDK。
 - **macOS：** Xcode Command Line Tools、CMake 和 Ninja。如果目标架构与主机默认架构不同，请通过 `CMAKE_OSX_ARCHITECTURES` 指定。
@@ -42,31 +59,35 @@ BongoCat 使用 CMake，需要 C11 编译器、C++17 编译器、CMake 3.24 或�
   ```bash
   sudo apt-get update
   sudo apt-get install -y build-essential cmake ninja-build \
-    libgl1-mesa-dev libx11-dev libxi-dev libxfixes-dev
+    libgl1-mesa-dev libx11-dev libxi-dev libxfixes-dev libcurl4-openssl-dev
   ```
 
-### 🔧 配置与构建
+### 配置与构建
 
-在 Linux 和 macOS 上，请使用 Ninja 这样的单配置生成器：
+- **在 Linux 和 macOS 上**，请使用类似 Ninja 这样的单配置生成器运行：
 
-```bash
-cmake -S . -B build -G Ninja \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DBONGO_CAT_FETCH_DEPS=ON
-cmake --build build --parallel
-```
+  ```bash
+  cmake -S . -B build -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DBONGO_CAT_FETCH_DEPS=ON
+  cmake --build build --parallel
+  ```
 
-在 Windows 上，请从 Visual Studio 2022 开发者命令行（或 MSVC 可用的其他命令行）运行：
+- **在 Windows 上**，请从 Visual Studio 2022 开发者命令行（或 MSVC 可用的其他命令行）运行：
 
-```powershell
-cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
-  -DBONGO_CAT_FETCH_DEPS=ON
-cmake --build build --config Release --parallel
-```
+  ```powershell
+  cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
+    -DBONGO_CAT_FETCH_DEPS=ON
+  cmake --build build --config Release --parallel
+  ```
+> [!NOTE]
+> 可执行文件位置：
+>
+> - Linux：`build/BongoCat`
+> - macOS：`build/BongoCat.app/Contents/MacOS/BongoCat`
+> - Windows（Visual Studio 构建）：`build/Release/BongoCat.exe`
 
-可执行文件位于：Linux 的 `build/BongoCat`，macOS 的 `build/BongoCat.app/Contents/MacOS/BongoCat`，Visual Studio 构建的 Windows 版本为 `build/Release/BongoCat.exe`。
-
-### 🧪 测试
+### 测试
 
 CTest 目标默认启用。构建后运行：
 
@@ -80,7 +101,7 @@ ctest --test-dir build --output-on-failure
 ctest --test-dir build -C Release --output-on-failure
 ```
 
-### 🎭 Live2D / Cubism SDK（可选）
+### Live2D / Cubism SDK（可选）
 
 如果未找到 Cubism SDK，CMake 会发出警告并构建诊断后端。该后端用于启动和平台诊断，不提供 Live2D 模型渲染。要构建完整运行时，请安装兼容的 Cubism SDK for Native，将其放置在 `vendor/CubismSdkForNative`，或显式传入路径：
 
@@ -93,7 +114,7 @@ cmake -S . -B build -G Ninja \
 
 SDK 必须包含 Core 库、Framework 源码，以及 `cmake/Cubism.cmake` 所要求布局中的 OpenGL GLEW 第三方目录。Windows Cubism 构建需要 Visual Studio 2022。`BONGO_CAT_REQUIRE_CUBISM=ON` 会在 SDK 不可用时使配置失败，而不是静默选择诊断后端。
 
-### ⚙️ CMake 选项
+### CMake 选项
 
 | 选项 | 默认值 | 说明 |
 | --- | --- | --- |
@@ -127,27 +148,26 @@ BongoCat 源代码和本地运行时采用 [AGPL-3.0-only](../LICENSE) 许可证
 
 当前原生版本基于 C/C++、SDL3 和 OpenGL 构建。下图重点展示运行时数据流；构建与打包细节请参阅 CMake 文件。
 
-### 🔄 运行时所有权与帧调度
+### 运行时所有权与帧调度
 
 每个进程拥有一个 `BongoCatApp` 和一个主线程事件/渲染循环。平台监听器在输入边界处停止：
 
-```text
-平台监听器（键盘/指针）
-            |
-            v
-  C11 输入状态（原子边沿队列 + 合并后的指针位置）
-            |
-            v
-  主线程应用 <----- SDL3 事件
-            |
-            v
-  模型参数、覆盖层和 UI 状态
-            |
-            v
-  模型更新 -> OpenGL 合成 -> 平台呈现
+```mermaid
+flowchart TB
+    Listener["平台监听器（键盘/指针）"] --> InputState["C11 输入状态（原子边沿队列 + 合并后的指针位置）"]
+    InputState --> MainThread["主线程应用"]
+    SDLEvent["SDL3 事件"] --> MainThread
+    MainThread --> ModelState["模型参数、覆盖层和 UI 状态"]
+
+    subgraph Render["渲染阶段"]
+        direction LR
+        ModelUpdate["模型更新"] --> Compose["OpenGL 合成"] --> Present["平台呈现"]
+    end
+
+    ModelState --> Render
 ```
 
-Windows 低级钩子、macOS Quartz 事件 tap 和 Linux XInput2 监听器运行在主循环之外。它们将带时间戳的按键和鼠标按钮边沿发布到有界原子队列，并通过独立的合并槽发布指针坐标；成功发布后会推送原生 SDL 唤醒事件，从而避免高频移动事件挤出有序的按键和按钮边沿。在 Windows 上，只有当模型请求相对移动时，才会通过平台指针接口使用 DirectInput。SDL3 窗口、偏好设置和手柄事件在主线程处理，手柄事件会先标准化再传递给模型参数或快捷键。任何平台监听器都不会直接调用 Live2D、覆盖层或 UI 代码。
+Windows Raw Input 接收器、macOS Quartz 事件 tap 和 Linux XInput2 监听器运行在主循环之外。按键和鼠标按钮边沿进入有界原子队列，移动量单独合并，并通过 SDL 事件唤醒主线程，避免高频移动挤出按键事件。Windows 使用独立消息窗口，以 `RIDEV_INPUTSINK | RIDEV_DEVNOTIFY` 订阅后台键鼠输入并保留普通窗口消息；其他程序隐藏或锁定光标时，模型使用设备上报的移动量，桌面跟随则读取 SDL 提供的系统光标位置。接收器分别管理各设备的按下状态，在设备拔出或输入桌面切换时清理。Windows 不再安装输入钩子或使用 DirectInput，也不向游戏发送输入。SDL3 窗口、偏好设置和手柄事件仍在主线程处理，平台监听器不会直接调用 Live2D、覆盖层或 UI 代码。
 
 `bongo_cat_app_run` 负责更新、关闭和次级进程参数，确保主进程的单实例所有权，分配应用状态，执行初始化，进入 `bongo_cat_app_loop`，随后按定义顺序刷新状态并销毁资源。初始化会加载配置和存储路径、定位资源、创建 SDL/OpenGL 宠物窗口、初始化平台后端、创建 Live2D/覆盖层/音频服务、扫描内置/已安装/附近的模型来源，并加载可用模型。`BongoCatApp` 持有设置、会话状态、模型和行为目录、平台句柄及运行时服务句柄。
 
@@ -211,17 +231,40 @@ flowchart TB
 
 ## ❓ 常见问题
 
-### 🔒 BongoCat 会记录我的键盘或鼠标输入吗？
+### BongoCat 会记录我的键盘或鼠标输入吗？
 
-不会。BongoCat 在本地处理键盘和鼠标输入，用于驱动动画和快捷键。它不会记录或上传按键、鼠标操作或其他交互数据。配置也只保存在本地，应用不包含广告、分析工具或用户跟踪代码。执行更新检查时只会请求公开的版本元数据，不会发送输入、配置或使用数据。
+不会。BongoCat 仅在本地即时处理键盘和鼠标输入，用于渲染动画和触发快捷键。它不会记录或上传按键、鼠标操作或其他交互数据。配置也只保存在本地。BongoCat 不包含广告、分析工具或用户跟踪代码。执行更新检查时只会请求公开的版本元数据，不会发送输入、配置或使用数据。
 
-### 🖼️ 为什么使用 OpenGL 而不是 Vulkan？
+### Linux Wayland 输入
 
-这不是因为 Vulkan 不好，而是 BongoCat 不需要那种程度的复杂性。应用主要渲染一个 Live2D 模型、少量 UI 图层和透明桌面窗口，OpenGL 已能轻松满足需求，并且能自然地与 SDL3 及 Cubism 的 OpenGL 渲染器配合。迁移到 Vulkan 将需要在三个桌面平台维护更多渲染和同步代码，却不会为用户带来明显提升。对于 BongoCat 当前的工作负载，OpenGL 让渲染器更精简、更易调试和维护，同时仍能提供所需性能。
+X11 默认使用 XInput2。Wayland 的实验性 evdev 输入默认关闭；阅读
+[输入权限风险](../SECURITY.md#linux-input) 后，可以为单次启动显式启用：
+
+```sh
+BONGOCAT_ENABLE_EVDEV=1 ./build/BongoCat
+```
+
+这个开关不会授予设备权限。不要为此以 root 身份运行程序，或把账户加入
+`input` 组。原始输入可能包含密码框里的按键，监听不会在锁屏或切换会话时自动暂停。
+退出程序才会停止监听，隐藏宠物不会停止；不带该变量重新启动即可恢复默认后端。
+鼠标跟随使用未经加速的设备位移，窗口定位、点击穿透和置顶仍取决于 Wayland 合成器。
+
+### 为什么使用 OpenGL 而不是 Vulkan？
+
+不是因为 Vulkan 不好，而是 BongoCat 不需要那种程度的复杂性。应用主要渲染一个 Live2D 模型、少量 UI 图层和透明桌面窗口，OpenGL 已能轻松满足，并且能自然地与 SDL3 及 Cubism 的 OpenGL 渲染器配合。迁移到 Vulkan 将需要在三个桌面平台维护更多渲染和同步代码，却不会为用户带来明显提升。对于 BongoCat 当前的工作负载，OpenGL 让渲染器更精简、更易调试和维护，同时仍能提供所需性能。
 
 ## 🙏 特别感谢
+> [!NOTE] 
+> BongoCat 的每一步都得益于开源精神。我们衷心感谢所有社区贡献者的无私奉献（按贡献日期先后排序列于下方）。正是你们的支持，让桌面陪伴更加自由与真诚。❤️‍🔥
 
-<a href="https://openomy.com/vladelaina/BongoCat" target="_blank"><img src="https://openomy.com/svg?repo=vladelaina/BongoCat&chart=bubble" alt="贡献排行榜" style="display: block; width: 100%;"></a>
+
+<a href="https://bongocat.pet">
+    <img src="https://bongocat.pet/co" />
+</a>
+
+
+[linux.do](https://linux.do/t/topic/2845597)
+---
 
 <div align="center">
 版权所有 © 2026 - **BongoCat**<br>

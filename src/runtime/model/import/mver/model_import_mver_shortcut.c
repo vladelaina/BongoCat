@@ -73,3 +73,38 @@ bool bongo_cat_mver_chord(const BongoCatImportCandidate *candidate,
     return candidate && candidate->gamepad_buttons && code >= 0 && code <= 15
         ? gamepad_chord(row, output, capacity) : keyboard_chord(row, output, capacity);
 }
+
+/* Mver's audio uses Windows keys even when its visual mode uses a gamepad.
+   Preserve arbitrary chords, modifier-only keys, and mouse buttons. */
+bool bongo_cat_mver_sound_chord(void *raw, char *output, size_t capacity) {
+    yyjson_val *row = raw;
+    if (!output || !capacity || !yyjson_is_arr(row) || !yyjson_arr_size(row)) return false;
+    output[0] = '\0';
+    size_t index, count; yyjson_val *key;
+    yyjson_arr_foreach(row, index, count, key) {
+        if (!yyjson_is_int(key) && !yyjson_is_uint(key)) return false;
+        int64_t raw_code = yyjson_get_sint(key);
+        if (raw_code <= 0 || raw_code > 255) return false;
+        int code = (int)raw_code;
+        const char *name = NULL;
+        if (code == 1) name = "Left";
+        else if (code == 2) name = "Right";
+        else if (code == 4) name = "Middle";
+        else if (code == 5) name = "Back";
+        else if (code == 6) name = "Forward";
+        else if (code == 16) name = "Shift";
+        else if (code == 17) name = "Control";
+        else if (code == 18) name = "Alt";
+        else if (code == 160) name = "ShiftLeft";
+        else if (code == 161) name = "ShiftRight";
+        else if (code == 162) name = "ControlLeft";
+        else if (code == 163) name = "ControlRight";
+        else if (code == 164) name = "Alt";
+        else if (code == 165) name = "AltGr";
+        char generated[16];
+        if (!name) name = shortcut_key(code, generated);
+        if (!name || (index && !append(output, capacity, "+")) ||
+            !append(output, capacity, name)) return false;
+    }
+    return true;
+}

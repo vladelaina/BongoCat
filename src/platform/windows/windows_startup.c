@@ -7,6 +7,7 @@
 #include <objbase.h>
 #include <shlobj.h>
 #include <shobjidl.h>
+#include <stdio.h>
 #include <string.h>
 #include <windows.h>
 
@@ -14,12 +15,15 @@ static HANDLE instance_mutex;
 static HANDLE instance_wake_event;
 static HANDLE instance_update_shutdown_event;
 static HANDLE instance_stopped_event;
+static HANDLE instance_info_mapping;
+static BongoCatWindowsInstanceInfo *instance_info;
 static wchar_t instance_title[96] = BONGO_CAT_PET_WINDOW_TITLE_W;
 static wchar_t instance_mutex_name[128] = L"Local\\BongoCat.SingleInstance";
 static wchar_t instance_wake_name[128] = L"Local\\BongoCat.WakeInstance";
 static wchar_t instance_update_shutdown_name[128] =
     L"Local\\BongoCat.UpdateShutdown";
 static wchar_t instance_stopped_name[128] = L"Local\\BongoCat.InstanceStopped";
+static wchar_t instance_info_name[128] = L"Local\\BongoCat.InstanceInfo";
 static bool identity_ready;
 
 static bool safe_identity(const char *value) {
@@ -49,10 +53,25 @@ static void initialize_identity(void) {
     swprintf(instance_stopped_name,
         sizeof(instance_stopped_name) / sizeof(instance_stopped_name[0]),
         L"Local\\BongoCat.InstanceStopped.%hs", value);
+    swprintf(instance_info_name,
+        sizeof(instance_info_name) / sizeof(instance_info_name[0]),
+        L"Local\\BongoCat.InstanceInfo.%hs", value);
 }
 
 const wchar_t *bongo_cat_windows_instance_title(void) {
     initialize_identity(); return instance_title;
+}
+
+const wchar_t *bongo_cat_windows_update_shutdown_name(void) {
+    initialize_identity(); return instance_update_shutdown_name;
+}
+
+const wchar_t *bongo_cat_windows_instance_stopped_name(void) {
+    initialize_identity(); return instance_stopped_name;
+}
+
+const wchar_t *bongo_cat_windows_instance_info_name(void) {
+    initialize_identity(); return instance_info_name;
 }
 
 static void create_instance_events(void) {
@@ -64,6 +83,22 @@ static void create_instance_events(void) {
     if (!instance_stopped_event)
         instance_stopped_event = CreateEventW(NULL, TRUE, FALSE,
             instance_stopped_name);
+    if (!instance_info_mapping) {
+        instance_info_mapping = CreateFileMappingW(INVALID_HANDLE_VALUE, NULL,
+            PAGE_READWRITE, 0, sizeof(BongoCatWindowsInstanceInfo),
+            instance_info_name);
+        if (instance_info_mapping)
+            instance_info = MapViewOfFile(instance_info_mapping,
+                FILE_MAP_WRITE, 0, 0, sizeof(BongoCatWindowsInstanceInfo));
+        if (instance_info) {
+            memset(instance_info, 0, sizeof(*instance_info));
+            instance_info->magic = 0x42434D49u;
+            GetModuleFileNameW(NULL, instance_info->executable_path,
+                BONGO_CAT_WINDOWS_INSTANCE_PATH_CAP);
+            snprintf(instance_info->version, sizeof(instance_info->version),
+                "%s", BONGO_CAT_VERSION);
+        }
+    }
 }
 
 static void wake_existing_instance(void) {
@@ -92,8 +127,19 @@ bool bongo_cat_platform_single_instance_begin(void) {
     if (GetLastError() != ERROR_ALREADY_EXISTS) {
         create_instance_events(); return true;
     }
-    wake_existing_instance();
     CloseHandle(instance_mutex); instance_mutex = NULL;
+    if (bongo_cat_windows_update_handoff()) {
+        for (int attempt = 0; attempt < 30; ++attempt) {
+            instance_mutex = CreateMutexW(NULL, FALSE, instance_mutex_name);
+            if (instance_mutex && GetLastError() != ERROR_ALREADY_EXISTS) {
+                create_instance_events(); return true;
+            }
+            if (instance_mutex) CloseHandle(instance_mutex);
+            instance_mutex = NULL;
+            Sleep(100);
+        }
+    }
+    wake_existing_instance();
     instance_mutex = CreateMutexW(NULL, FALSE, instance_mutex_name);
     if (instance_mutex && GetLastError() != ERROR_ALREADY_EXISTS) {
         create_instance_events(); return true;
@@ -143,6 +189,10 @@ void bongo_cat_platform_single_instance_end(void) {
     instance_update_shutdown_event = NULL;
     if (instance_stopped_event) CloseHandle(instance_stopped_event);
     instance_stopped_event = NULL;
+    if (instance_info) UnmapViewOfFile(instance_info);
+    instance_info = NULL;
+    if (instance_info_mapping) CloseHandle(instance_info_mapping);
+    instance_info_mapping = NULL;
     if (instance_wake_event) CloseHandle(instance_wake_event);
     instance_wake_event = NULL;
     if (instance_mutex) CloseHandle(instance_mutex);

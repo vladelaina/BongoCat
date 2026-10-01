@@ -10,6 +10,7 @@ static const wchar_t original_proc_property[] = L"BongoCat.BorderlessWindowProc"
 static const wchar_t click_through_property[] = L"BongoCat.ClickThrough";
 static const wchar_t menu_binding_property[] = L"BongoCat.MenuBinding";
 static const wchar_t drag_binding_property[] = L"BongoCat.DragBinding";
+static const wchar_t preserve_screen_property[] = L"BongoCat.PreserveScreenPixels";
 #define BONGO_CAT_MENU_PREVIEW_TIMER ((UINT_PTR)0xBC4E)
 #define BONGO_CAT_DRAG_MODAL_TIMER ((UINT_PTR)0xBC50)
 #define BONGO_CAT_DRAG_FRAME_INTERVAL_MS 16
@@ -56,6 +57,26 @@ static LRESULT CALLBACK borderless_window_proc(HWND window, UINT message,
     WNDPROC original = (WNDPROC)GetPropW(window, original_proc_property);
     WindowsMenuBinding *menu = GetPropW(window, menu_binding_property);
     WindowsDragBinding *drag = GetPropW(window, drag_binding_property);
+    if (message == WM_NCCALCSIZE && wparam && lparam &&
+        GetPropW(window, preserve_screen_property)) {
+        NCCALCSIZE_PARAMS *sizes = (NCCALCSIZE_PARAMS *)lparam;
+        RECT previous_client = sizes->rgrc[2];
+        /* SDL must still calculate the new client rectangle and update its
+           border bookkeeping. Its redraw/alignment flags are replaced only
+           for our synchronous move-and-resize transaction. */
+        CallWindowProcW(original ? original : DefWindowProcW,
+            window, message, wparam, lparam);
+        RECT overlap;
+        if (IntersectRect(&overlap, &previous_client, &sizes->rgrc[0])) {
+            /* Both rectangles use screen coordinates. Equal source and
+               destination preserve the old frame in place, rather than
+               shifting it with the new window origin before the GL swap. */
+            sizes->rgrc[1] = overlap;
+            sizes->rgrc[2] = overlap;
+            return WVR_VALIDRECTS;
+        }
+        return WVR_REDRAW;
+    }
     if (bongo_cat_windows_capture_handle_message(window, message, wparam)) {
         return 0;
     } else if (message == WM_NCHITTEST) {
@@ -179,6 +200,17 @@ void bongo_cat_windows_borderless_uninstall(HWND window) {
     SetWindowLongPtrW(window, GWLP_WNDPROC, (LONG_PTR)original);
     RemovePropW(window, original_proc_property);
     RemovePropW(window, click_through_property);
+    RemovePropW(window, preserve_screen_property);
+}
+
+bool bongo_cat_windows_borderless_preserve_screen(HWND window, bool enabled) {
+    if (!window) return false;
+    if (!enabled) {
+        RemovePropW(window, preserve_screen_property);
+        return true;
+    }
+    return GetPropW(window, original_proc_property) &&
+        SetPropW(window, preserve_screen_property, (HANDLE)1);
 }
 
 void bongo_cat_windows_borderless_set_click_through(HWND window,

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-set(BONGO_CAT_VERSION "1.3.0")
+set(BONGO_CAT_VERSION "1.10.0")
 project(BongoCat VERSION ${BONGO_CAT_VERSION} DESCRIPTION "BongoCat" HOMEPAGE_URL "https://github.com/vladelaina/BongoCat" LANGUAGES C CXX)
 include(cmake/Version.cmake)
 include(FetchContent)
@@ -31,6 +31,7 @@ else()
   endif()
 endif()
 include(cmake/Dependencies.cmake)
+include(cmake/AudioDecoder.cmake)
 find_package(OpenGL REQUIRED)
 set(BONGO_CAT_LIVE2D_SOURCES src/live2d/live2d_stub.c)
 set(BONGO_CAT_CUBISM_ENABLED OFF)
@@ -74,8 +75,9 @@ add_library(bongo_cat_core STATIC
   src/core/input_state.c src/core/mver_pointer.c
   src/core/mouse_tracking.c src/core/sha256.c src/core/utf8.c
   src/core/model_catalog.c
-  src/core/model_behavior.c
+  src/core/model_behavior.c src/core/model_json.c
   src/core/path.c src/core/path_io.c src/core/json.c src/core/shortcut.c
+  src/core/sound_shortcut.c
   src/core/update_release.c src/core/update_version.c)
 target_include_directories(bongo_cat_core PUBLIC "${BONGO_CAT_GENERATED_INCLUDE_DIR}" include)
 target_link_libraries(bongo_cat_core PUBLIC yyjson PRIVATE bongo_cat_warnings)
@@ -95,17 +97,17 @@ target_include_directories(bongo_cat_runtime PRIVATE
   ${BONGO_CAT_RUNTIME_INTERNAL_INCLUDE_DIRS})
 target_include_directories(bongo_cat_runtime SYSTEM PRIVATE
   ${BONGO_CAT_STB_INCLUDE_DIR} ${BONGO_CAT_NUKLEAR_INCLUDE_DIR})
-target_link_libraries(bongo_cat_runtime PRIVATE bongo_cat_warnings)
+target_link_libraries(bongo_cat_runtime PRIVATE bongo_cat_warnings bongo_cat_archive)
 target_link_libraries(bongo_cat_runtime PUBLIC bongo_cat_core SDL3::SDL3-static OpenGL::GL ${BONGO_CAT_MINIAUDIO_TARGET})
 if(MSVC)
-  set_source_files_properties(src/media/stb_image_impl.c src/media/image_resize.c src/ui/backend/nuklear_impl.c
+  set_source_files_properties(src/media/stb_image_impl.c src/media/image_resize.c src/ui/backend/nuklear_impl.c src/ui/preferences/about/preferences_about_svg.c
     PROPERTIES COMPILE_OPTIONS "/W0")
 else()
-  set_source_files_properties(src/media/stb_image_impl.c src/media/image_resize.c src/ui/backend/nuklear_impl.c
+  set_source_files_properties(src/media/stb_image_impl.c src/media/image_resize.c src/ui/backend/nuklear_impl.c src/ui/preferences/about/preferences_about_svg.c
     PROPERTIES COMPILE_OPTIONS "-w")
 endif()
 if(BONGO_CAT_CUBISM_ENABLED)
-  target_link_libraries(bongo_cat_runtime PUBLIC Framework Live2DCubismCore glew_s)
+  target_link_libraries(bongo_cat_runtime PUBLIC Framework)
   target_compile_definitions(bongo_cat_runtime PUBLIC BONGO_CAT_HAS_CUBISM=1)
 endif()
 target_compile_definitions(bongo_cat_runtime PRIVATE
@@ -113,6 +115,7 @@ target_compile_definitions(bongo_cat_runtime PRIVATE
   BONGO_CAT_DEV_LOCALE_ROOT="${CMAKE_CURRENT_SOURCE_DIR}/resources/assets/locales")
 
 include(cmake/PlatformRuntime.cmake)
+include(cmake/AboutWebP.cmake)
 
 add_executable(bongo_cat src/main.c)
 target_link_libraries(bongo_cat PRIVATE bongo_cat_runtime bongo_cat_warnings)
@@ -121,6 +124,16 @@ bongo_cat_enable_release_ipo(Framework bongo_cat_core bongo_cat_runtime bongo_ca
 
 include(cmake/ValidationTools.cmake)
 include(cmake/ApplicationResources.cmake)
+if(MSVC AND BONGO_CAT_SDL_WINDOWS_TRIMMED)
+  get_filename_component(BONGO_CAT_MSVC_TOOL_DIR "${CMAKE_LINKER}" DIRECTORY)
+  find_program(BONGO_CAT_DUMPBIN dumpbin PATHS "${BONGO_CAT_MSVC_TOOL_DIR}" REQUIRED)
+  add_custom_command(TARGET bongo_cat POST_BUILD
+    COMMAND ${CMAKE_COMMAND} "-DEXECUTABLE=$<TARGET_FILE:bongo_cat>"
+      "-DDUMPBIN=${BONGO_CAT_DUMPBIN}"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckWindowsImports.cmake"
+    COMMENT "Checking the final Windows executable's input capabilities"
+    VERBATIM)
+endif()
 if(MSVC)
   set_property(SOURCE src/main.c APPEND PROPERTY COMPILE_OPTIONS "/experimental:c11atomics")
   get_target_property(BONGO_CAT_RUNTIME_SOURCES bongo_cat_runtime SOURCES)
@@ -133,6 +146,17 @@ if(MSVC)
 endif()
 
 bongo_cat_stage_cubism_assets(bongo_cat)
+
+if(APPLE)
+  # The linker signs the executable on its own before the bundle's resources are
+  # copied in, which leaves strict verification failing with "code has no resources
+  # but signature indicates they must be present". Re-sign once every resource and
+  # executable change has landed, so this must stay the last POST_BUILD step.
+  add_custom_command(TARGET bongo_cat POST_BUILD
+    COMMAND /usr/bin/codesign --force --sign - "$<TARGET_BUNDLE_DIR:bongo_cat>"
+    COMMENT "Ad-hoc signing the BongoCat bundle"
+    VERBATIM)
+endif()
 
 add_custom_target(check-lines ALL
   COMMAND ${CMAKE_COMMAND} -DROOT=${CMAKE_CURRENT_SOURCE_DIR}

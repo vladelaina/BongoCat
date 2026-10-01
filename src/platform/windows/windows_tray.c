@@ -1,6 +1,7 @@
 #include "bongo_cat/platform.h"
 #include "windows_popup.h"
 #include "windows_tray.h"
+#include "bongo_cat/tray.h"
 
 #ifdef _WIN32
 #include <stdlib.h>
@@ -30,6 +31,7 @@ static LRESULT CALLBACK tray_window_proc(HWND window, UINT message,
         return 0;
     }
     if (message == WM_USER + 1 && LOWORD(lparam) == WM_CONTEXTMENU && binding) {
+        bongo_cat_tray_prepare_menu(binding->userdata, window);
         if (binding->modal_tick) {
             binding->modal_tick(binding->userdata);
             SetTimer(window, BONGO_CAT_TRAY_MODAL_TIMER, 16, NULL);

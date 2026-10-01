@@ -202,6 +202,10 @@ void bongo_cat_window_drag_to(BongoCatApp *app, int x, int y) {
     app->session.window.x = next.x; app->session.window.y = next.y;
     app->session.window.position_known = true;
     bongo_cat_window_mark_hit_dirty(app);
+    if (app->window_snapshot) {
+        bongo_cat_window_snapshot_geometry(app, NULL);
+        app->dirty = true;
+    }
 }
 
 bool bongo_cat_window_recover_to_display(BongoCatApp *app) {
@@ -218,6 +222,7 @@ void bongo_cat_window_display_event(BongoCatApp *app, const SDL_Event *event) {
     if (!app || !event) return;
     if (event->type < SDL_EVENT_DISPLAY_FIRST ||
         event->type > SDL_EVENT_DISPLAY_LAST) return;
+    bongo_cat_window_snapshot_end(app);
     if (app->window_drag_active && app->settings.window.keep_in_screen)
         bongo_cat_window_drag_bounds_refresh(app);
     bongo_cat_app_reset_pointer_tracking(app);

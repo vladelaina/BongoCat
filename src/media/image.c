@@ -4,7 +4,9 @@
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_opengl.h>
+#include <math.h>
 #include <stb_image.h>
+#include <stb_image_resize2.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -32,6 +34,16 @@ void bongo_cat_image_free(BongoCatImage *image) {
 }
 static unsigned int upload(const BongoCatImage *image, GLuint texture,
     bool model_texture) {
+    /* Premultiply in place before any GPU filtering. Cubism must use its
+     * premultiplied shader for these model textures, including fallback. */
+    if (model_texture) {
+        size_t count = (size_t)image->width * image->height;
+        for (size_t i = 0; i < count; ++i) {
+            unsigned char *pixel = image->pixels + i * 4;
+            for (int c = 0; c < 3; ++c)
+                pixel[c] = (unsigned char)((pixel[c] * pixel[3] + 127) / 255);
+        }
+    }
     bool created = texture == 0;
     if (created) glGenTextures(1, &texture);
     glBindTexture(GL_TEXTURE_2D, texture);
@@ -135,6 +147,40 @@ static void report_stage_progress(void *userdata, float progress) {
         stage->progress(stage->userdata, stage->start + stage->span * progress);
 }
 
+/* stb decodes a model atlas at full resolution, so an oversized sheet still
+   costs its whole pixel buffer transiently. Constraining the pixels before the
+   alpha mask and the upload bounds what stays resident in the GL texture and
+   its mipmap chain for as long as the model is loaded. Leaves the image
+   untouched and reports failure when the resize cannot be allocated. */
+static bool constrain_model_texture(BongoCatImage *image, int limit) {
+    if (!image || !image->pixels || limit < 1 ||
+        (image->width <= limit && image->height <= limit)) return true;
+    float scale = SDL_min((float)limit / (float)image->width,
+        (float)limit / (float)image->height);
+    int target_width = SDL_max(1, (int)lroundf((float)image->width * scale));
+    int target_height = SDL_max(1, (int)lroundf((float)image->height * scale));
+    size_t count = (size_t)target_width * (size_t)target_height;
+    unsigned char *pixels = count <= SIZE_MAX / 4 ? malloc(count * 4) : NULL;
+    if (!pixels || !stbir_resize_uint8_srgb(image->pixels, image->width,
+        image->height, image->width * 4, pixels, target_width, target_height,
+        target_width * 4, STBIR_RGBA)) {
+        free(pixels);
+        return false;
+    }
+    unsigned char *previous_pixels = image->pixels;
+    bool previous_stbi = image->pixels_stbi;
+    SDL_Surface *previous_surface = image->surface;
+    image->pixels = pixels;
+    image->pixels_stbi = false;
+    image->surface = NULL;
+    image->width = target_width;
+    image->height = target_height;
+    if (previous_surface) SDL_DestroySurface(previous_surface);
+    if (previous_stbi) stbi_image_free(previous_pixels);
+    else free(previous_pixels);
+    return true;
+}
+
 unsigned int bongo_cat_image_texture_model(const char *path, bool direct_decode,
     int *width, int *height, BongoCatImageAlphaMask *alpha,
     BongoCatImageProgress progress, void *userdata, BongoCatError *error) {
@@ -178,6 +224,20 @@ unsigned int bongo_cat_image_texture_model(const char *path, bool direct_decode,
     (void)direct_decode;
     if (bongo_cat_image_decode_pixels_responsive(path, &image,
         staged, &stage, error) != BONGO_CAT_OK) return 0;
+    /* WIC scales an oversized atlas while decoding; stb cannot, so the same
+       bound is applied to the decoded pixels. Only the resident texture and
+       its mipmap chain shrink; the decode peak is unchanged. */
+    int efficient_limit = SDL_min(hardware_limit,
+        BONGO_CAT_LIVE2D_EFFICIENT_TEXTURE_LIMIT);
+    if (image.width > efficient_limit || image.height > efficient_limit) {
+        if (constrain_model_texture(&image, efficient_limit))
+            SDL_Log("Live2D texture constrained to %dx%d by a %d pixel "
+                "texture limit: %s", image.width, image.height,
+                efficient_limit, path);
+        else SDL_LogWarn(SDL_LOG_CATEGORY_RENDER, "Live2D texture kept at "
+            "%dx%d because constraining it to %d pixels failed: %s",
+            image.width, image.height, efficient_limit, path);
+    }
 #endif
     if (progress) progress(userdata, .30f);
     stage = (ImageProgressStage){progress, userdata, .30f, .30f};

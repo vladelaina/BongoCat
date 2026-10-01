@@ -13,8 +13,8 @@ void bongo_cat_preferences_import_record_failure(BongoCatImportJob *job,
         BONGO_CAT_IMPORT_FAILURE_NAME_CAP) return;
     const char *name = bongo_cat_path_name(source);
     if (!name || !name[0]) return;
-    snprintf(job->failed_names[job->failed_name_count++], BONGO_CAT_ID_CAP,
-        "%s", name);
+    SDL_utf8strlcpy(job->failed_names[job->failed_name_count++], name,
+        BONGO_CAT_ID_CAP);
 }
 
 void bongo_cat_preferences_import_merge_failures(BongoCatImportJob *job,

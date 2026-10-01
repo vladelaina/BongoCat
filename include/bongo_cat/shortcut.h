@@ -12,6 +12,8 @@ typedef struct BongoCatShortcutState {
 } BongoCatShortcutState;
 
 void bongo_cat_shortcut_init(BongoCatShortcutState *state);
+/* Format UI labels without changing the stored binding. */
+void bongo_cat_shortcut_format(const char *shortcut, char *output, size_t capacity);
 bool bongo_cat_shortcut_update(BongoCatShortcutState *state, const BongoCatInputEvent *event);
 bool bongo_cat_shortcut_matches(const BongoCatShortcutState *state,
     const BongoCatInputEvent *event, const char *shortcut);

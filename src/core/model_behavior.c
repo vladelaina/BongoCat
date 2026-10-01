@@ -97,6 +97,7 @@ static bool read_adapter_assets(BongoCatBehaviorCatalog *catalog,
                 model->adapter_directory)) {
                 ok = false; break;
             }
+            catalog->entries[catalog->count - 1].sound_clear = sound;
             continue;
         }
         const char *asset = yyjson_get_str(yyjson_obj_get(item, effect ? "effect" : "sound"));
@@ -109,8 +110,11 @@ static bool read_adapter_assets(BongoCatBehaviorCatalog *catalog,
         if (!add_behavior(catalog, model, effect ? BONGO_CAT_BEHAVIOR_EFFECT :
             BONGO_CAT_BEHAVIOR_SOUND, NULL, current, label, asset,
             model->adapter_directory)) { ok = false; break; }
-        catalog->entries[catalog->count - 1].momentary =
-            yyjson_get_bool(yyjson_obj_get(item, "momentary"));
+        BongoCatBehaviorEntry *entry = &catalog->entries[catalog->count - 1];
+        bool momentary = yyjson_get_bool(yyjson_obj_get(item, "momentary"));
+        entry->momentary = effect && momentary;
+        yyjson_val *overlap = yyjson_obj_get(item, "overlap");
+        entry->sound_overlap = sound && (overlap ? yyjson_get_bool(overlap) : true);
     }
     yyjson_doc_free(document);
     return ok;
@@ -123,13 +127,10 @@ BongoCatResult bongo_cat_behaviors_load(BongoCatBehaviorCatalog *catalog,
     char path[BONGO_CAT_PATH_CAP];
     if (!bongo_cat_path_join(path, sizeof(path), model->directory, model->setting_file))
         return BONGO_CAT_ERROR_FORMAT;
-    yyjson_read_err json_error = {0};
-    FILE *file = bongo_cat_file_open(path, "rb");
-    yyjson_doc *document = file ? yyjson_read_fp(file, 0, NULL, &json_error) : NULL;
-    if (file) fclose(file);
+    yyjson_doc *document = bongo_cat_model_json_read(path, NULL);
     if (!document) {
         bongo_cat_error_set(error, BONGO_CAT_ERROR_FORMAT, "Cannot read model setting: %s",
-            json_error.msg ? json_error.msg : "cannot open file");
+            path);
         return BONGO_CAT_ERROR_FORMAT;
     }
     yyjson_val *references = yyjson_obj_get(yyjson_doc_get_root(document), "FileReferences");

@@ -1,4 +1,5 @@
 #include "window_menu.h"
+#include "bongo_cat/shortcut.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -170,8 +171,11 @@ bool bongo_cat_window_behavior_self_test(BongoCatApp *app) {
         passed = motion_count > 0 && checked[0] && passed;
         bool initial_passed = passed;
         const char *first_shortcut = test_behavior_shortcut(app, first->id);
-        if (first_shortcut && first_shortcut[0])
-            passed = strstr(motions[0], first_shortcut) != NULL && passed;
+        if (first_shortcut && first_shortcut[0]) {
+            char shortcut_label[BONGO_CAT_SHORTCUT_CAP * 2];
+            bongo_cat_shortcut_format(first_shortcut, shortcut_label, sizeof(shortcut_label));
+            passed = strstr(motions[0], shortcut_label) != NULL && passed;
+        }
         memcpy(before, checked, motion_count * sizeof(before[0]));
         size_t preview_position = test_nth_behavior(app,
             BONGO_CAT_BEHAVIOR_MOTION, 1) ? 1 : 0;

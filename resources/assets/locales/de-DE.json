@@ -21,20 +21,25 @@
           "alwaysOnTop": "Immer im Vordergrund",
           "keepInScreen": "Auf dem Bildschirm halten",
           "windowSize": "Fenstergröße",
+          "windowCorners": "Fensterrundung (%)",
           "opacity": "Deckkraft",
           "randomExpression": "Zufällige Ausdrücke",
           "obsBackground": "Einfarbiger Hintergrund",
           "hideOnHover": "Beim Darüberfahren ausblenden",
+          "hideFadeSeconds": "Ausblendedauer (s)",
           "maxFPS": "Maximale Bildrate"
         },
         "hints": {
-          "passThrough": "Wenn aktiviert, gehen Klicks durch das Fenster hindurch, ohne es zu beeinflussen.",
+          "hoverUnavailable": "Ausblenden bei Mausberührung ist in dieser Desktop-Umgebung nicht verfügbar.",
+          "gameInput": "Desktop-Tier reagiert im Spiel nicht?",
+          "gameInputHelp": "Versuche, BongoCat als Administrator auszuführen und das Spiel in den Fenstermodus zu versetzen.",
+          "passThrough": "Auch per Rechtsklick auf das Symbol im Infobereich deaktivierbar",
           "alwaysOnTop": "Wenn aktiviert, bleibt das Fenster über allen anderen Fenstern.",
           "keepInScreen": "Wenn aktiviert, bleibt das Fenster automatisch innerhalb der Bildschirmgrenzen.",
           "obsBackground": "Fensteraufnahme schwarz?",
           "obsBackgroundHelp": "OBS: Diese Option aktivieren, die Windows-7-Kompatibilitätsmethode verwenden und den Hintergrund mit einem Farbschlüssel-Filter entfernen.",
           "windowSize": "Bewegen Sie die Maus an den Fensterrand oder halten Sie Umschalt gedrückt und ziehen Sie mit der rechten Maustaste.",
-          "hideOnHover": "Wenn aktiviert, wird das Fenster beim Darüberfahren mit der Maus automatisch ausgeblendet. Die Verzögerung 0 blendet es sofort aus."
+          "hideOnHover": "Wenn Klickdurchlässigkeit und Immer im Vordergrund aktiviert sind, wird das Haustier beim Darüberfahren sofort ausgeblendet und beim Verlassen wieder angezeigt."
         }
       },
       "general": {
@@ -58,8 +63,8 @@
         "hints": {
           "showTrayIcon": "Wenn aktiviert, wird das Anwendungssymbol im Infobereich angezeigt.",
           "autostartFailed": "Die Einstellung für den automatischen Start konnte nicht aktualisiert werden",
-          "inputMonitoringPermission": "Aktivieren Sie die Eingabeüberwachung, um Tastatur- und Mausereignisse vom System zu empfangen.",
-          "inputMonitoringPermissionGuide": "Die Berechtigung zur Eingabeüberwachung ist erforderlich, damit die Anwendung Tastatur- und Mausereignisse vom System empfangen kann.\n\nSchritte:\n1. Öffnen Sie Systemeinstellungen > Datenschutz & Sicherheit > Eingabeüberwachung.\n2. Falls BongoCat bereits aufgeführt ist, wählen Sie es aus und entfernen Sie es mit der Schaltfläche \"-\".\n3. Klicken Sie auf \"+\", um BongoCat zu suchen und hinzuzufügen.\n4. Starten Sie die Anwendung neu, damit die Berechtigung wirksam wird.",
+          "inputMonitoringPermission": "Nach dem Erlauben neu starten.",
+          "inputMonitoringPermissionGuide": "Die Eingabeüberwachung erlaubt BongoCat, in anderen Apps gedrückte Tasten zu sehen; die Maus funktioniert auch ohne sie. BongoCat baut die Überwachung beim Start auf, eine Berechtigungsänderung erfordert daher einen Neustart.\n\nSchritte:\n1. Öffnen Sie Systemeinstellungen → Datenschutz & Sicherheit → Eingabeüberwachung.\n2. Schalten Sie den bereits gelisteten BongoCat-Eintrag ein; entfernen Sie keine vorhandenen Einträge.\n3. Falls BongoCat fehlt, klicken Sie auf \"+\" und fügen Sie die laufende Kopie hinzu (prüfen Sie den Speicherort).\n4. Beenden Sie BongoCat vollständig und starten Sie es erneut, damit es die Überwachung neu aufbaut.\n\nWenn die Tastatur weiterhin nicht reagiert, können Sie den BongoCat-Eintrag selbst entfernen und neu hinzufügen.",
           "administratorPermission": "Als Administrator kann die Anwendung bestimmte Systemtasten und Eingabeereignisse zuverlässiger erfassen.",
           "administratorPermissionGuide": "Für eine zuverlässigere Erfassung bestimmter Systemtasten und Eingabeereignisse wird empfohlen, die Anwendung als Administrator auszuführen.\n\nVorgehen:\n1. Beenden Sie zuerst die Anwendung.\n2. Suchen Sie die exe-Datei oder ihre Verknüpfung im Datei-Explorer.\n3. Wählen Sie die Startart:\n   - Einmalig: Rechtsklick und \"Als Administrator ausführen\" wählen.\n   - Immer: Rechtsklick > Eigenschaften > Kompatibilität > \"Programm als Administrator ausführen\" aktivieren > OK."
         },
@@ -67,7 +72,8 @@
           "authorized": "Autorisiert",
           "adminEnabled": "Aktiviert",
           "authorize": "Aktivieren",
-          "viewGuide": "Anleitung anzeigen"
+          "viewGuide": "Anleitung anzeigen",
+          "openSettingsFailed": "Systemeinstellungen → Datenschutz & Sicherheit → Eingabeüberwachung."
         },
         "buttons": {
           "openNow": "Jetzt öffnen",
@@ -88,7 +94,7 @@
           "deleteFailed": "Dieses Modell konnte nicht gelöscht werden",
           "importSuccess": "Erfolgreich importiert",
           "importExists": "Modell ist bereits vorhanden",
-          "importBatchResult": "Import erfolgreich: %zu; fehlgeschlagen: %zu. Fehlende Modelle: %s%s. Erster Fehler: %s",
+          "importBatchResult": "Import erfolgreich: %zu; fehlgeschlagen: %zu.\nFehlende Modelle: %s%s.\nErster Fehler: %s",
           "importMoreFailures": " und %zu weitere",
           "importUnknownSource": "unbekannte Quelle",
           "importInvalidSource": "Die ausgewählte Quelle ist nicht mehr vorhanden oder kann nicht verwendet werden",
@@ -107,10 +113,12 @@
           "moreModels": "Weitere Modelle"
         },
         "behaviorModal": {
-          "title": "Bewegungen und Ausdrücke",
+          "title": "Bewegungen, Ausdrücke und Audio",
           "labels": {
             "motion": "Bewegung",
             "expression": "Ausdruck",
+            "audio": "Audio",
+            "stopAllAudio": "Alle Audios stoppen",
             "motionIndex": "Bewegung {index}",
             "motionGroupIndex": "Bewegungsgruppe {index}",
             "expressionIndex": "Ausdruck {index}"
@@ -187,6 +195,24 @@
     }
   },
   "native": {
+    "about": {
+      "wechat": "WeChat",
+      "wechatHint": "Hover to scan and chat",
+      "loading": "Loading...",
+      "contributorsFailed": "Cannot load contributors. Click to retry.",
+      "qrUnavailable": "QR code unavailable",
+      "reload": "Reload",
+      "qrFailed": "QR code unavailable. Click to retry.",
+      "contributorsTitle": "Open source & community contributions",
+      "contributorsText": "Every step of BongoCat comes from the power of open source. Thank you to all community contributors for making desktop companionship freer and simpler.",
+      "joinTitle": "Want to appear in the contributors list?",
+      "joinText": "Whether you contribute code, improve documentation, report bugs or translate, every contribution makes BongoCat better.",
+      "code": "Code",
+      "docs": "Documentation",
+      "bugs": "Bug reports",
+      "translations": "Translations",
+      "joinGithub": "Contribute on GitHub"
+    },
     "multiplePets": "Mehrere gleichzeitig anzeigen",
     "multiplePetsLimit": "Bis zu 8 Desktop-Begleiter k\u00f6nnen gleichzeitig angezeigt werden",
     "removeDesktopPet": "Diesen Desktop-Begleiter schlie\u00dfen",
@@ -211,7 +237,8 @@
       "checkingUpdate": "Wird geprüft...",
       "updateAvailable": "Neue Version verfügbar:",
       "updateFailed": "Updates konnten nicht geprüft werden",
-      "downloadUpdate": "Version v%s herunterladen",
+      "updateHttpFailed": "GitHub meldete den HTTP-Status %s",
+      "downloadUpdate": "Auf v%s aktualisieren",
       "openStore": "Microsoft Store öffnen",
       "viewReleases": "Versionen anzeigen",
       "openUpdateFailed": "Die Update-Seite konnte nicht geöffnet werden",

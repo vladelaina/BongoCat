@@ -92,7 +92,8 @@ BongoCatResult bongo_cat_sha256_file(const char *path, char output[65], BongoCat
     Sha256 value; initialize(&value);
     unsigned char buffer[8192]; size_t count;
     while ((count = fread(buffer, 1, sizeof(buffer), file)) > 0) update(&value, buffer, count);
-    bool ok = !ferror(file) && fclose(file) == 0;
+    bool ok = !ferror(file);
+    if (fclose(file) != 0) ok = false;
     if (!ok) { bongo_cat_error_set(error, BONGO_CAT_ERROR_IO, "Cannot read file"); return BONGO_CAT_ERROR_IO; }
     finish(&value, output); return BONGO_CAT_OK;
 }

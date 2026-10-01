@@ -21,20 +21,25 @@
           "alwaysOnTop": "窗口置顶",
           "keepInScreen": "保持在屏幕内",
           "windowSize": "窗口尺寸",
+          "windowCorners": "窗口圆角 (%)",
           "opacity": "不透明度",
           "randomExpression": "随机表情",
           "obsBackground": "纯色背景",
           "hideOnHover": "鼠标移入隐藏",
+          "hideFadeSeconds": "鼠标移入淡出时长（秒）",
           "maxFPS": "最大帧率"
         },
         "hints": {
-          "passThrough": "启用后，窗口不影响对其他应用程序的操作。",
+          "hoverUnavailable": "当前桌面环境暂不支持鼠标移入隐藏。",
+          "gameInput": "游戏中桌宠没反应？",
+          "gameInputHelp": "试试以管理员身份启动 BongoCat，并将游戏设为窗口模式。",
+          "passThrough": "右键托盘图标也可关闭此功能",
           "alwaysOnTop": "启用后，窗口始终显示在其他应用程序上方。",
           "keepInScreen": "启用后，窗口会自动调整位置，防止超出屏幕边界。",
           "obsBackground": "窗口捕获黑屏？",
           "obsBackgroundHelp": "OBS：开启当前选项，使用 Windows 7 兼容捕获，并用色键滤镜移除背景。\n哔哩哔哩直播姬：无需开启当前选项，选择游戏进程捕获，并开启允许窗口透明。",
           "windowSize": "将鼠标移至窗口边缘，或按住 Shift 并右键拖动，也可以调整窗口大小。",
-          "hideOnHover": "启用后，鼠标悬停窗口时自动隐藏。可设置延迟时间，0 表示立即隐藏。"
+          "hideOnHover": "鼠标穿透和置顶均开启时，鼠标移到桌宠上立即隐藏，移开后恢复显示。"
         }
       },
       "general": {
@@ -58,8 +63,8 @@
         "hints": {
           "showTrayIcon": "启用后，在系统托盘中显示应用图标。",
           "autostartFailed": "无法更新开机启动设置",
-          "inputMonitoringPermission": "开启输入监控权限，以便接收系统的键盘和鼠标事件来响应你的操作。",
-          "inputMonitoringPermissionGuide": "开启输入监控权限后，应用才能接收系统的键盘和鼠标事件，从而响应你的操作。\n\n操作方式：\n1. 打开「系统设置」→「隐私与安全性」→「输入监控」。\n2. 若列表中已存在 BongoCat，请先选中它，点击「-」按钮将其删除。\n3. 点击「+」按钮，找到并添加 BongoCat 应用。\n4. 重启应用，以确保权限正式生效。",
+          "inputMonitoringPermission": "授权后请重启",
+          "inputMonitoringPermissionGuide": "输入监控权限让 BongoCat 能接收其他应用中的按键；鼠标移动和点击无需该权限。BongoCat 在启动时建立监听，因此权限变更后需要重启。\n\n操作方式：\n1. 打开「系统设置」→「隐私与安全性」→「输入监控」。\n2. 直接开启列表中已有的 BongoCat 条目，不要删除现有条目。\n3. 若列表中没有 BongoCat，点击「+」按钮，添加你当前运行的那份应用（注意确认应用位置）。\n4. 完全退出 BongoCat 后重新启动，让它重建监听。\n\n若键盘仍然无响应，可由你自行删除并重新添加 BongoCat 条目来排障。",
           "administratorPermission": "以管理员身份运行应用，可以更稳定地捕获部分系统级按键与输入事件。",
           "administratorPermissionGuide": "为了能更稳定地捕获部分系统级按键与输入事件，建议以管理员身份运行应用。\n\n操作方式：\n1. 先退出应用。\n2. 在资源管理器中找到应用的 exe 或快捷方式。\n3. 根据需要选择启动方式：\n   • 仅本次：右键并选择「以管理员身份运行」。\n   • 永久默认：右键 → 属性 → 兼容性选项卡 → 勾选「以管理员身份运行此程序」→ 确定。"
         },
@@ -67,7 +72,8 @@
           "authorized": "已授权",
           "adminEnabled": "已启用",
           "authorize": "去授权",
-          "viewGuide": "查看操作说明"
+          "viewGuide": "查看操作说明",
+          "openSettingsFailed": "无法打开系统设置，请手动打开：隐私与安全性 → 输入监控"
         },
         "buttons": {
           "openNow": "前往开启",
@@ -88,7 +94,7 @@
           "deleteFailed": "无法删除此模型",
           "importSuccess": "导入成功",
           "importExists": "模型已存在，无需重复导入",
-          "importBatchResult": "导入成功 %zu 个，导入失败 %zu 个。失败模型：%s%s。首个失败原因：%s",
+          "importBatchResult": "导入成功 %zu 个，导入失败 %zu 个。\n失败模型：%s%s。\n首个失败原因：%s",
           "importMoreFailures": "等其余 %zu 个",
           "importUnknownSource": "未知来源",
           "importInvalidSource": "所选来源已不存在或无法使用",
@@ -107,10 +113,12 @@
           "moreModels": "模型库"
         },
         "behaviorModal": {
-          "title": "动作与表情",
+          "title": "动作、表情与音频",
           "labels": {
             "motion": "动作",
             "expression": "表情",
+            "audio": "音频",
+            "stopAllAudio": "停止所有音频",
             "motionIndex": "动作{index}",
             "motionGroupIndex": "动作组{index}",
             "expressionIndex": "表情{index}"
@@ -187,6 +195,24 @@
     }
   },
   "native": {
+    "about": {
+      "wechat": "微信群",
+      "wechatHint": "悬停扫码，一起交流",
+      "loading": "正在加载...",
+      "contributorsFailed": "贡献者加载失败，点击重试。",
+      "qrUnavailable": "二维码暂时无法加载",
+      "reload": "重新加载",
+      "qrFailed": "二维码暂时无法加载，点击重新加载",
+      "contributorsTitle": "开源共建与 社区贡献",
+      "contributorsText": "BongoCat 的每一步都源于开源的力量。感谢所有社区贡献者的无私付出，是你们让桌面陪伴变得更加自由与纯粹。",
+      "joinTitle": "想出现在贡献者名单中吗？",
+      "joinText": "无论是提交代码、改善文档、报告 Bug 还是贡献多语言翻译，你的每一次参与都在让 BongoCat 变得更好。",
+      "code": "代码贡献",
+      "docs": "文档改进",
+      "bugs": "Bug 反馈",
+      "translations": "翻译国际化",
+      "joinGithub": "参与 GitHub 贡献"
+    },
     "multiplePets": "同时显示多个",
     "multiplePetsLimit": "\u6700\u591a\u53ef\u540c\u65f6\u663e\u793a 8 \u4e2a\u684c\u5ba0",
     "removeDesktopPet": "\u5173\u95ed\u6b64\u684c\u5ba0",
@@ -211,7 +237,8 @@
       "checkingUpdate": "正在检查...",
       "updateAvailable": "发现新版本：",
       "updateFailed": "无法检查更新",
-      "downloadUpdate": "下载 v%s",
+      "updateHttpFailed": "GitHub 返回 HTTP 状态码 %s",
+      "downloadUpdate": "更新至 v%s",
       "openStore": "打开 Microsoft Store",
       "viewReleases": "查看发布版本",
       "openUpdateFailed": "无法打开更新页面",

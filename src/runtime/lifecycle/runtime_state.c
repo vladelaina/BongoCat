@@ -71,7 +71,8 @@ static bool write_state(BongoCatApp *app, const char *stage,
     for (const char *cursor = stage; *cursor; ++cursor)
         if (fputc(*cursor == '\r' || *cursor == '\n' ? ' ' : *cursor,
             file) == EOF) written = false;
-    if (fputc('\n', file) == EOF || fclose(file) != 0) written = false;
+    if (fputc('\n', file) == EOF) written = false;
+    if (fclose(file) != 0) written = false;
     if (written && bongo_cat_file_replace(temporary, path, true)) return true;
     bongo_cat_file_remove(temporary);
     return false;

@@ -27,6 +27,7 @@ if(BONGO_CAT_FETCH_DEPS)
   # dummy fallback enabled for diagnostics, while omitting unused APIs.
   set(SDL_OPENGLES OFF CACHE BOOL "" FORCE)
   set(SDL_VULKAN OFF CACHE BOOL "" FORCE)
+  set(SDL_METAL OFF CACHE BOOL "" FORCE)
   set(SDL_OFFSCREEN OFF CACHE BOOL "" FORCE)
   set(SDL_VIRTUAL_JOYSTICK OFF CACHE BOOL "" FORCE)
   set(SDL_CAMERA OFF CACHE BOOL "" FORCE)
@@ -34,16 +35,29 @@ if(BONGO_CAT_FETCH_DEPS)
   set(SDL_HAPTIC OFF CACHE BOOL "" FORCE)
   set(SDL_POWER OFF CACHE BOOL "" FORCE)
   set(SDL_SENSOR OFF CACHE BOOL "" FORCE)
+  if(WIN32)
+    set(SDL_DIALOG OFF CACHE BOOL "" FORCE)
+  endif()
+  set(YYJSON_DISABLE_INCR_READER ON CACHE BOOL "" FORCE)
+  set(YYJSON_DISABLE_UTILS ON CACHE BOOL "" FORCE)
+  set(YYJSON_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+  set(YYJSON_BUILD_FUZZER OFF CACHE BOOL "" FORCE)
+  set(YYJSON_BUILD_MISC OFF CACHE BOOL "" FORCE)
+  set(YYJSON_BUILD_DOC OFF CACHE BOOL "" FORCE)
+  set(YYJSON_INSTALL OFF CACHE BOOL "" FORCE)
   set(MINIAUDIO_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
   set(MINIAUDIO_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+  set(MINIAUDIO_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
   set(MINIAUDIO_INSTALL OFF CACHE BOOL "" FORCE)
   set(MINIAUDIO_NO_EXTRA_NODES ON CACHE BOOL "" FORCE)
   set(MINIAUDIO_NO_LIBVORBIS ON CACHE BOOL "" FORCE)
   set(MINIAUDIO_NO_LIBOPUS ON CACHE BOOL "" FORCE)
   set(MINIAUDIO_NO_ENCODING ON CACHE BOOL "" FORCE)
+  set(MINIAUDIO_NO_CUSTOM ON CACHE BOOL "" FORCE)
   # Motion metadata may reference WAV/MP3 files, so keep both decoders enabled.
   # FORCE also repairs build trees created by older size-only configurations.
   set(MINIAUDIO_NO_WAV OFF CACHE BOOL "" FORCE)
+  set(MINIAUDIO_NO_FLAC OFF CACHE BOOL "" FORCE)
   set(MINIAUDIO_NO_MP3 OFF CACHE BOOL "" FORCE)
   set(MINIAUDIO_NO_GENERATION ON CACHE BOOL "" FORCE)
   FetchContent_Declare(SDL3 URL https://github.com/libsdl-org/SDL/archive/402fc52af4e731184ad6a704068b5ccd27d8f1b8.tar.gz
@@ -57,6 +71,10 @@ if(BONGO_CAT_FETCH_DEPS)
   FetchContent_Declare(nuklear URL https://github.com/Immediate-Mode-UI/Nuklear/archive/8109cfbabe04f8705408c5d8ab1a6cd48649ccda.tar.gz
     URL_HASH SHA256=23e5e1b12e897f1d568eb703aa313b7224c9b75e1118764ceba477d13b8e39f4)
   FetchContent_MakeAvailable(SDL3 yyjson stb miniaudio nuklear)
+  if(WIN32)
+    include("${CMAKE_CURRENT_LIST_DIR}/SDLWindowsRuntime.cmake")
+    bongo_cat_trim_sdl_windows(SDL3-static "${sdl3_SOURCE_DIR}")
+  endif()
   set(BONGO_CAT_STB_INCLUDE_DIR "${stb_SOURCE_DIR}")
   set(BONGO_CAT_MINIAUDIO_INCLUDE_DIR "${miniaudio_SOURCE_DIR}")
   set(BONGO_CAT_NUKLEAR_INCLUDE_DIR "${nuklear_SOURCE_DIR}")
@@ -103,16 +121,12 @@ else()
     bongo_cat_require_dependency_header(BONGO_CAT_MINIAUDIO_INCLUDE_DIR miniaudio.h
       "Install miniaudio headers or a miniaudio CMake package")
 
-    set(miniaudio_impl "${CMAKE_CURRENT_BINARY_DIR}/generated/miniaudio_impl.c")
-    file(CONFIGURE OUTPUT "${miniaudio_impl}" CONTENT [=[
-#define MINIAUDIO_IMPLEMENTATION
-#include <miniaudio.h>
-]=] @ONLY)
-    add_library(bongo_cat_miniaudio_system STATIC "${miniaudio_impl}")
-    target_include_directories(bongo_cat_miniaudio_system SYSTEM PUBLIC
+    # AudioDecoder.cmake supplies the implementation and the Vorbis backend.
+    add_library(bongo_cat_miniaudio_system INTERFACE)
+    target_include_directories(bongo_cat_miniaudio_system SYSTEM INTERFACE
       "${BONGO_CAT_MINIAUDIO_INCLUDE_DIR}")
-    target_compile_definitions(bongo_cat_miniaudio_system PRIVATE
-      MA_NO_ENCODING MA_NO_GENERATION)
     set(BONGO_CAT_MINIAUDIO_TARGET bongo_cat_miniaudio_system)
   endif()
 endif()
+
+include("${CMAKE_CURRENT_LIST_DIR}/Archive.cmake")

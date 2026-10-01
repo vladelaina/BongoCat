@@ -73,7 +73,8 @@ static bool content_matches(const char *path, const unsigned char *expected, siz
         }
         offset += count;
     }
-    bool ok = fgetc(file) == EOF && !ferror(file) && fclose(file) == 0;
+    bool ok = fgetc(file) == EOF && !ferror(file);
+    if (fclose(file) != 0) ok = false;
     return ok;
 }
 

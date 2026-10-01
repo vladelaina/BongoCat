@@ -6,6 +6,7 @@
   <key>CFBundleDevelopmentRegion</key><string>en</string>
   <key>CFBundleDisplayName</key><string>BongoCat</string>
   <key>CFBundleExecutable</key><string>BongoCat</string>
+  <key>CFBundleIconFile</key><string>${MACOSX_BUNDLE_ICON_FILE}</string>
   <key>CFBundleIdentifier</key><string>com.bongocat.desktop</string>
   <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
   <key>CFBundleName</key><string>BongoCat</string>
@@ -16,7 +17,7 @@
   <key>LSMinimumSystemVersion</key><string>11.0</string>
   <key>LSUIElement</key><true/>
   <key>NSInputMonitoringUsageDescription</key>
-  <string>BongoCat needs input monitoring access to animate from global keyboard and mouse input.</string>
+  <string>BongoCat needs input monitoring access to animate from global keyboard input.</string>
   <key>NSHighResolutionCapable</key><true/>
 </dict>
 </plist>

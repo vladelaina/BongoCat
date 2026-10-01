@@ -159,7 +159,7 @@ static void draw_actions(BongoCatPreferences *value,
     bool *action_hover) {
     struct nk_rect actions = nk_rect(bounds.x + 1, bounds.y + bounds.h - 39,
         bounds.w - 2, 38);
-    nk_fill_rect(canvas, actions, 0, p.field);
+    nk_fill_rect(canvas, actions, 0, p.surface);
     bool deletable = !entry->preset && !entry->managed;
     bool delete_enabled = deletable && !storage_busy;
     float width = actions.w / (deletable ? 3.0f : 2.0f);
@@ -236,7 +236,7 @@ void bongo_cat_preferences_model_card(BongoCatPreferences *value,
     float preview_height = NK_MIN(128.0f, bounds.w * 354.0f / 612.0f);
     struct nk_rect preview = nk_rect(bounds.x + 1, bounds.y + 1,
         bounds.w - 2, preview_height);
-    nk_fill_rect(canvas, preview, 12, p.field);
+    nk_fill_rect(canvas, preview, 12, p.surface);
     draw_cover(value, canvas, preview, entry, p);
     if (app->settings.model.multiple_pets)
         bongo_cat_preferences_model_card_draw_selection_badge(

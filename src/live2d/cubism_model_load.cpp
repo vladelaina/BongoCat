@@ -2,6 +2,7 @@
 #include "cubism_viewer_look.hpp"
 #include "bongo_cat/file.h"
 #include "bongo_cat/image.h"
+#include "bongo_cat/json.h"
 
 #include <Effect/CubismBreath.hpp>
 #include <Effect/CubismEyeBlink.hpp>
@@ -88,6 +89,22 @@ bool NativeModel::load(const char *directory, const char *setting_file,
         bongo_cat_error_set(error, BONGO_CAT_ERROR_IO, "Cannot read model setting: %s", setting_file);
         return false;
     }
+    bool normalized = false;
+    yyjson_doc *document = bongo_cat_model_json_parse(
+        reinterpret_cast<const char *>(json.data()), json.size(), &normalized);
+    if (document && normalized) {
+        size_t size = 0;
+        char *canonical = yyjson_write(document, 0, &size);
+        if (!canonical) {
+            yyjson_doc_free(document);
+            bongo_cat_error_set(error, BONGO_CAT_ERROR_MEMORY,
+                "Cannot prepare model setting: %s", setting_file);
+            return false;
+        }
+        json.assign(canonical, canonical + size);
+        std::free(canonical);
+    }
+    yyjson_doc_free(document);
     if (!validate_model_setting_json(json, setting_file, error)) return false;
     if (progress) progress(userdata, .10f);
     setting_ = new(std::nothrow)

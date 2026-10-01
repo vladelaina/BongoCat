@@ -83,7 +83,9 @@ static void model_load_progress(void *userdata, float progress) {
     app->model_load_last_frame_ns = now;
     float elapsed = (float)((now - previous) / 1000000000.0);
     bongo_cat_app_drain_input(app, false);
+    now = SDL_GetTicksNS();
     bongo_cat_app_update_hover(app, now);
+    bongo_cat_app_update_hover_fade(app, now);
     if (!app->smoke_freeze_model && elapsed > 0.0f)
         bongo_cat_app_step_live2d(app, elapsed);
     app->last_frame_ns = now;
@@ -116,6 +118,7 @@ bool bongo_cat_app_select_model_with_error(BongoCatApp *app,
             "Model is not installed: %s", id);
         return false;
     }
+    bongo_cat_window_snapshot_end(app);
     if (app->loaded_model[0] && strcmp(app->loaded_model, entry->id) == 0) {
         commit_model(app, entry, false, false);
         return true;
@@ -223,7 +226,7 @@ bool bongo_cat_app_select_model_with_error(BongoCatApp *app,
     free(behaviors);
     optional = (BongoCatError){0};
     if (bongo_cat_overlay_load(app->overlay, entry->adapter_directory,
-        model_pointer, &optional) != BONGO_CAT_OK) {
+        model_pointer, &render_options, &optional) != BONGO_CAT_OK) {
         if (optional.message[0])
             SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "%s", optional.message);
         bongo_cat_overlay_clear(app->overlay);
@@ -245,7 +248,9 @@ bool bongo_cat_app_select_model_with_error(BongoCatApp *app,
         SDL_GetWindowSizeInPixels(app->window, &pixel_width, &pixel_height);
     }
     bongo_cat_live2d_resize(app->live2d, pixel_width, pixel_height);
-    bongo_cat_audio_stop(app->audio);
+    bongo_cat_audio_reset(app->audio);
+    memset(&app->sound_shortcut_state, 0, sizeof(app->sound_shortcut_state));
+    memset(app->sound_shortcut_active, 0, sizeof(app->sound_shortcut_active));
     commit_model(app, entry, true, replacing_model);
     bongo_cat_app_reapply_input(app);
     bongo_cat_app_apply_mouse(app);

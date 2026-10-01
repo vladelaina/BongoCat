@@ -21,20 +21,25 @@
           "alwaysOnTop": "視窗置頂",
           "keepInScreen": "保持在螢幕內",
           "windowSize": "視窗尺寸",
+          "windowCorners": "視窗圓角 (%)",
           "opacity": "不透明度",
           "randomExpression": "隨機表情",
           "obsBackground": "純色背景",
           "hideOnHover": "滑鼠游標移入隱藏",
+          "hideFadeSeconds": "隱藏漸變時長 (秒)",
           "maxFPS": "最大幀率"
         },
         "hints": {
-          "passThrough": "啟用後，視窗不影響對其他應用程式的操作。",
+          "hoverUnavailable": "目前桌面環境暫不支援滑鼠移入隱藏。",
+          "gameInput": "遊戲中桌寵沒反應？",
+          "gameInputHelp": "試試以系統管理員身分啟動 BongoCat，並將遊戲設為視窗模式。",
+          "passThrough": "右鍵點擊系統匣圖示也可關閉此功能",
           "alwaysOnTop": "啟用後，視窗始終顯示在其他應用程式上方。",
           "keepInScreen": "啟用後，視窗會自動調整位置，防止超出螢幕邊界。",
           "obsBackground": "視窗擷取黑屏？",
           "obsBackgroundHelp": "OBS：開啟目前選項，使用 Windows 7 相容擷取，並用色鍵濾鏡移除背景。\n嗶哩嗶哩直播姬：不需要開啟目前選項，選擇遊戲程序擷取，並開啟允許視窗透明。",
           "windowSize": "將滑鼠游標移至視窗邊緣，或按住 Shift 並右鍵拖曳，也可以調整視窗大小。",
-          "hideOnHover": "啟用後，滑鼠游標懸停視窗時自動隱藏。可設定延遲時間，0 表示立即隱藏。"
+          "hideOnHover": "滑鼠穿透和置頂皆啟用時，滑鼠移到桌寵上立即隱藏，移開後恢復顯示。"
         }
       },
       "general": {
@@ -58,8 +63,8 @@
         "hints": {
           "showTrayIcon": "啟用後，在系統托盤中顯示應用程式圖示。",
           "autostartFailed": "無法更新開機啟動設定",
-          "inputMonitoringPermission": "開啟輸入監控權限，以便接收系統的鍵盤和滑鼠游標事件來回應您的操作。",
-          "inputMonitoringPermissionGuide": "開啟輸入監控權限後，應用程式才能接收系統的鍵盤和滑鼠事件，進而回應你的操作。\n\n操作方式：\n1. 開啟「系統設定」→「隱私權與安全性」→「輸入監控」。\n2. 若清單中已存在 BongoCat，請先選取它，點擊「-」按鈕將其刪除。\n3. 點擊「+」按鈕，找到並新增 BongoCat 應用程式。\n4. 重新啟動應用程式，以確保權限正式生效。",
+          "inputMonitoringPermission": "授權後請重新啟動",
+          "inputMonitoringPermissionGuide": "輸入監控權限讓 BongoCat 能接收其他應用程式中的按鍵；滑鼠移動和點擊無需該權限。BongoCat 在啟動時建立監聽，因此權限變更後需要重新啟動。\n\n操作方式：\n1. 開啟「系統設定」→「隱私權與安全性」→「輸入監控」。\n2. 直接開啟清單中已有的 BongoCat 項目，不要刪除現有項目。\n3. 若清單中沒有 BongoCat，點擊「+」按鈕，加入你目前執行的那份應用程式（請確認應用程式位置）。\n4. 完全結束 BongoCat 後重新啟動，讓它重建監聽。\n\n若鍵盤仍然沒有反應，可由你自行移除並重新加入 BongoCat 項目來排解問題。",
           "administratorPermission": "以系統管理員身分執行應用程式，可以更穩定地擷取部分系統層級按鍵與輸入事件。",
           "administratorPermissionGuide": "為了能更穩定地擷取部分系統層級按鍵與輸入事件，建議以系統管理員身分執行應用程式。\n\n操作方式：\n1. 先退出應用程式。\n2. 在檔案總管中找到應用程式的 exe 或捷徑。\n3. 根據需求選擇啟動方式：\n   • 僅本次：右鍵並選擇「以系統管理員身分執行」。\n   • 永久預設：右鍵 → 內容 → 相容性索引標籤 → 勾選「以系統管理員身分執行此程式」→ 確定。"
         },
@@ -67,7 +72,8 @@
           "authorized": "已授權",
           "adminEnabled": "已啟用",
           "authorize": "去授權",
-          "viewGuide": "查看操作說明"
+          "viewGuide": "查看操作說明",
+          "openSettingsFailed": "無法開啟系統設定，請手動開啟：隱私權與安全性 → 輸入監控"
         },
         "buttons": {
           "openNow": "前往開啟",
@@ -88,7 +94,7 @@
           "deleteFailed": "無法刪除此模型",
           "importSuccess": "匯入成功",
           "importExists": "模型已存在，無需重複匯入",
-          "importBatchResult": "匯入成功 %zu 個，匯入失敗 %zu 個。失敗模型：%s%s。首個失敗原因：%s",
+          "importBatchResult": "匯入成功 %zu 個，匯入失敗 %zu 個。\n失敗模型：%s%s。\n首個失敗原因：%s",
           "importMoreFailures": "等其餘 %zu 個",
           "importUnknownSource": "未知來源",
           "importInvalidSource": "所選來源已不存在或無法使用",
@@ -107,10 +113,12 @@
           "moreModels": "模型庫"
         },
         "behaviorModal": {
-          "title": "動作與表情",
+          "title": "動作、表情與音訊",
           "labels": {
             "motion": "動作",
             "expression": "表情",
+            "audio": "音訊",
+            "stopAllAudio": "停止所有音訊",
             "motionIndex": "動作{index}",
             "motionGroupIndex": "動作組{index}",
             "expressionIndex": "表情{index}"
@@ -187,6 +195,24 @@
     }
   },
   "native": {
+    "about": {
+      "wechat": "微信群組",
+      "wechatHint": "懸停掃碼，一起交流",
+      "loading": "正在載入...",
+      "contributorsFailed": "貢獻者載入失敗，點擊重試。",
+      "qrUnavailable": "QR 碼暫時無法載入",
+      "reload": "重新載入",
+      "qrFailed": "二維碼暫時無法載入，點擊重新載入",
+      "contributorsTitle": "開源共建與 社群貢獻",
+      "contributorsText": "BongoCat 的每一步都源於開源的力量。感謝所有社群貢獻者的無私付出，是你們讓桌面陪伴變得更加自由與純粹。",
+      "joinTitle": "想出現在貢獻者名單中嗎？",
+      "joinText": "無論是提交程式碼、改善文件、回報 Bug 還是貢獻多語言翻譯，你的每一次參與都在讓 BongoCat 變得更好。",
+      "code": "程式碼貢獻",
+      "docs": "文件改進",
+      "bugs": "Bug 回報",
+      "translations": "翻譯國際化",
+      "joinGithub": "參與 GitHub 貢獻"
+    },
     "multiplePets": "同時顯示多個",
     "multiplePetsLimit": "\u6700\u591a\u53ef\u540c\u6642\u986f\u793a 8 \u500b\u684c\u5bf5",
     "removeDesktopPet": "\u95dc\u9589\u6b64\u684c\u5bf5",
@@ -211,7 +237,8 @@
       "checkingUpdate": "正在檢查...",
       "updateAvailable": "發現新版本：",
       "updateFailed": "無法檢查更新",
-      "downloadUpdate": "下載 v%s",
+      "updateHttpFailed": "GitHub 回傳 HTTP 狀態碼 %s",
+      "downloadUpdate": "更新至 v%s",
       "openStore": "開啟 Microsoft Store",
       "viewReleases": "查看發佈版本",
       "openUpdateFailed": "無法開啟更新頁面",

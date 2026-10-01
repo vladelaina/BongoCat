@@ -4,10 +4,22 @@
 #include <SDL3/SDL_opengl.h>
 
 bool bongo_cat_window_visible_at_pointer(BongoCatApp *app, float x, float y) {
+    if (app->window_snapshot) return bongo_cat_window_snapshot_hit(app, x, y);
     int width, height, pixel_width, pixel_height;
     if (!SDL_GetWindowSize(app->window, &width, &height) ||
         !SDL_GetWindowSizeInPixels(app->window, &pixel_width, &pixel_height) ||
         width <= 0 || height <= 0 || pixel_width <= 0 || pixel_height <= 0) return false;
+    if (app->settings.window.rounded_corners) {
+        float radius = SDL_min(pixel_width, pixel_height) *
+            SDL_clamp(app->settings.window.corner_radius_percent, 0.0f, 50.0f) / 100.0f;
+        float px = x * pixel_width / width;
+        float py = y * pixel_height / height;
+        float dx = SDL_max(SDL_fabsf(px - pixel_width * 0.5f) -
+            (pixel_width * 0.5f - radius), 0.0f);
+        float dy = SDL_max(SDL_fabsf(py - pixel_height * 0.5f) -
+            (pixel_height * 0.5f - radius), 0.0f);
+        if (dx * dx + dy * dy > radius * radius) return false;
+    }
     int pixel_x = SDL_clamp((int)(x * pixel_width / width), 0, pixel_width - 1);
     int pixel_y = pixel_height - 1 -
         SDL_clamp((int)(y * pixel_height / height), 0, pixel_height - 1);
@@ -33,7 +45,10 @@ bool bongo_cat_window_visible_at_pointer(BongoCatApp *app, float x, float y) {
 }
 
 void bongo_cat_window_capture_pointer_hit(BongoCatApp *app) {
+    /* Backends without dynamic hit testing would discard the readback, so the
+       alpha sample would only stall the pipeline for every presented frame. */
     if (!app || !app->window || !app->pointer_known ||
+        !bongo_cat_platform_dynamic_hit_supported() ||
         app->settings.window.pass_through || app->hover_hidden ||
         app->left_mouse_down || app->right_mouse_down) return;
     float local_x, local_y;
@@ -54,7 +69,18 @@ void bongo_cat_window_mark_hit_dirty(BongoCatApp *app) {
 void bongo_cat_window_set_visible(BongoCatApp *app, bool visible) {
     if (!app || !app->window) return;
     app->session.window.visible = visible;
+    if (!visible) bongo_cat_window_snapshot_discard(app);
     if (!visible) {
+        app->startup_visibility_pending = false;
+#if defined(__linux__)
+        /* Remember XWayland placement before unmapping the surface. */
+        int x = 0, y = 0;
+        if (SDL_GetWindowPosition(app->window, &x, &y)) {
+            app->session.window.x = x;
+            app->session.window.y = y;
+            app->session.window.position_known = true;
+        }
+#endif
         bongo_cat_platform_set_visible(&app->platform, false);
         return;
     }
@@ -62,18 +88,29 @@ void bongo_cat_window_set_visible(BongoCatApp *app, bool visible) {
         SDL_RestoreWindow(app->window);
     app->window_minimized = false;
     app->hover_hidden = false;
+    bongo_cat_app_cancel_hover_fade(app);
     bongo_cat_app_reset_pointer_tracking(app);
     bongo_cat_platform_set_opacity(&app->platform,
         app->session.window.opacity_percent / 100.0f);
+#if defined(__linux__)
+    /* Restore before clamping so stale off-screen coordinates cannot undo it. */
+    if (app->session.window.position_known)
+        SDL_SetWindowPosition(app->window, app->session.window.x,
+            app->session.window.y);
+#endif
     if (app->settings.window.keep_in_screen) bongo_cat_window_clamp_to_display(app);
     else bongo_cat_window_recover_to_display(app);
-    bongo_cat_platform_set_visible(&app->platform, true);
+    /* Keep the native surface hidden until the first complete frame has been
+       submitted. The render loop will reveal it next to that presentation. */
+    bongo_cat_platform_set_visible(&app->platform,
+        !app->startup_visibility_pending);
     bongo_cat_window_mark_hit_dirty(app);
     app->dirty = true;
 }
 
 void bongo_cat_window_raise_when_due(BongoCatApp *app, uint64_t now) {
-    if (!app || !app->startup_raise_due_ns || now < app->startup_raise_due_ns) return;
+    if (!app || !app->startup_raise_due_ns ||
+        app->startup_visibility_pending || now < app->startup_raise_due_ns) return;
     app->startup_raise_due_ns = 0;
     bongo_cat_window_set_visible(app, true);
     bongo_cat_platform_raise_window(app->window);
@@ -100,6 +137,7 @@ void bongo_cat_window_schedule_hit_check(BongoCatApp *app) {
 void bongo_cat_window_sync_click_through(BongoCatApp *app) {
     if (!app || !app->window) return;
     bool forced = app->settings.window.pass_through || app->hover_hidden;
+    if (forced && app->window_snapshot) bongo_cat_window_snapshot_end(app);
     if (!forced && !bongo_cat_platform_dynamic_hit_supported()) {
         app->pointer_transparent = false;
         app->pointer_hit_dirty = false;
@@ -129,14 +167,22 @@ void bongo_cat_window_sync_click_through(BongoCatApp *app) {
 }
 
 void bongo_cat_window_apply_pending_resize(BongoCatApp *app) {
-    if (!app || !app->resize_pending) return;
-    app->model_pointer_anchor_ready = false;
+    if (!app) return;
+    if (app->window_snapshot) return;
     if (app->wheel_animation_active) {
+        if (!app->resize_pending) return;
+        app->resize_pending = false;
+        app->resize_render_target_pending = true;
+        /* Keep the normalized gaze anchor stable throughout the gesture. */
         bongo_cat_live2d_reshape(app->live2d,
             app->resize_pixel_width, app->resize_pixel_height);
         return;
     }
+    if (!app->resize_pending && !app->resize_render_target_pending) return;
     app->resize_pending = false;
+    if (!app->resize_render_target_pending)
+        app->model_pointer_anchor_ready = false;
+    app->resize_render_target_pending = false;
     bongo_cat_live2d_resize(app->live2d,
         app->resize_pixel_width, app->resize_pixel_height);
     bongo_cat_window_mark_hit_dirty(app);

@@ -25,17 +25,17 @@ static unsigned char *next_level(const unsigned char *source,
         for (size_t i = 0; i < 4; ++i) {
             unsigned sample_alpha = samples[i][3];
             alpha += sample_alpha;
-            red += samples[i][0] * sample_alpha;
-            green += samples[i][1] * sample_alpha;
-            blue += samples[i][2] * sample_alpha;
+            red += samples[i][0];
+            green += samples[i][1];
+            blue += samples[i][2];
         }
         unsigned char *pixel = target + ((size_t)y * *width + x) * 4;
         pixel[3] = (unsigned char)((alpha + 2) / 4);
-        if (alpha) {
-            pixel[0] = (unsigned char)((red + alpha / 2) / alpha);
-            pixel[1] = (unsigned char)((green + alpha / 2) / alpha);
-            pixel[2] = (unsigned char)((blue + alpha / 2) / alpha);
-        } else pixel[0] = pixel[1] = pixel[2] = 0;
+        /* Source RGB already includes alpha; averaging it again with alpha
+         * weights would darken translucent edges at every mip level. */
+        pixel[0] = (unsigned char)((red + 2) / 4);
+        pixel[1] = (unsigned char)((green + 2) / 4);
+        pixel[2] = (unsigned char)((blue + 2) / 4);
     }
     return target;
 }

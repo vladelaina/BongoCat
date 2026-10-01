@@ -138,6 +138,15 @@ BongoCatResult bongo_cat_app_remove_model(BongoCatApp *app, const char *id,
         bongo_cat_settings_restore_model_package(&app->settings, package_id);
     bongo_cat_app_forget_behavior_state(app, id);
     bongo_cat_settings_set_model_label(&app->settings, id, "");
+    size_t output = 0;
+    size_t id_length = strlen(id);
+    for (size_t i = 0; i < app->settings.behavior_shortcut_count; ++i) {
+        BongoCatBehaviorShortcut *shortcut = &app->settings.behavior_shortcuts[i];
+        if (!strncmp(shortcut->id, id, id_length) &&
+            shortcut->id[id_length] == ':') continue;
+        app->settings.behavior_shortcuts[output++] = *shortcut;
+    }
+    app->settings.behavior_shortcut_count = output;
     bongo_cat_app_rescan_models(app);
     return BONGO_CAT_OK;
 }

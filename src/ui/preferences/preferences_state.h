@@ -4,6 +4,7 @@
 #include "preferences_internal.h"
 #include "preferences_scrollbar.h"
 #include "preferences_text_session.h"
+#include "about/preferences_about.h"
 #include "ui_backend.h"
 
 #define BONGO_CAT_MODEL_LOAD_VISUAL_DURATION_NS 5000000000ull
@@ -15,9 +16,12 @@
 #include "modal_frame.h"
 
 typedef struct BongoCatPreferenceNotice {
-    char message[384];
+    char message[1024];
     uint64_t started_ns;
     uint64_t until_ns;
+    uint64_t timer_updated_ns;
+    struct nk_rect bounds;
+    bool hovered;
     bool error;
 } BongoCatPreferenceNotice;
 
@@ -41,6 +45,7 @@ struct BongoCatPreferences {
     int catime_width, catime_height;
     int vlaina_width, vlaina_height;
     bool support_assets_loaded;
+    BongoCatAboutState about;
     struct nk_user_font support_logs_font;
     int page;
     int style_theme;
@@ -57,7 +62,6 @@ struct BongoCatPreferences {
     bool font_reload_defer_once;
     size_t pending_import_name_count;
     char pending_import_names[BONGO_CAT_MODEL_CAP][BONGO_CAT_ID_CAP];
-    bool model_glyphs_loaded;
     bool model_directory_watch_active;
     bool model_directory_watch_known;
     bool model_directory_watch_refresh;
@@ -98,7 +102,8 @@ struct BongoCatPreferences {
     uint64_t behavior_dialog_opened_ns;
     uint64_t behavior_dialog_closing_ns;
     uint64_t behavior_tab_transition_ns;
-    float behavior_scroll[2];
+    float behavior_scroll[3];
+    bool behavior_audio_playing[BONGO_CAT_BEHAVIOR_CAP];
     BongoCatPreferencesScrollbar behavior_scrollbar;
     BongoCatPreferencesTextSession behavior_rename;
     BongoCatPreferencesTextSession model_rename;
@@ -122,11 +127,23 @@ struct BongoCatPreferences {
     SDL_Keycode shortcut_key;
     bool shortcut_recording;
     uint64_t shortcut_suppress_until_ns;
+#ifdef __APPLE__
+    /* The permission changes while the user is in System Settings, so the page
+       reads it again when it becomes visible and when the window regains focus
+       instead of querying macOS per frame. */
+    bool input_monitoring_authorized;
+    bool input_monitoring_valid;
+#endif
 };
+
+#ifdef __APPLE__
+void bongo_cat_preferences_input_monitoring_refresh(BongoCatPreferences *value);
+#endif
 
 int bongo_cat_preferences_resolved_theme(const BongoCatPreferences *value);
 void bongo_cat_preferences_apply_theme(BongoCatPreferences *value);
 bool bongo_cat_preferences_open_window(BongoCatPreferences *value);
+void bongo_cat_preferences_release_idle_window(BongoCatPreferences *value);
 bool bongo_cat_preferences_scale_event(BongoCatPreferences *value,
     const SDL_Event *event);
 bool bongo_cat_preferences_refresh_raster(BongoCatPreferences *value);

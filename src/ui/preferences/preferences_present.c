@@ -1,6 +1,7 @@
 #include "preferences_state.h"
 #include "preferences_render_internal.h"
 #include "preferences_controls.h"
+#include "preferences_model_glyphs.h"
 #include "ui_animation.h"
 #include "ui_paint.h"
 #include "bongo_cat/memory_policy.h"
@@ -8,6 +9,7 @@
 #include <SDL3/SDL_opengl.h>
 
 void bongo_cat_preferences_render(BongoCatPreferences *value) {
+    bongo_cat_preferences_release_idle_window(value);
     if (!value || !value->window || !value->visible) return;
     bongo_cat_preferences_drag_tick(value);
     uint64_t now = SDL_GetTicksNS();
@@ -37,7 +39,13 @@ void bongo_cat_preferences_render(BongoCatPreferences *value) {
         bongo_cat_preferences_refresh_raster(value);
         bongo_cat_preferences_reload_language(value);
     }
-    if (value->font_reload_pending && !importing && !refreshing_models) {
+    bool notice_font_reload = false;
+    for (size_t i = 0; i < sizeof(value->notices) / sizeof(value->notices[0]); ++i)
+        if (value->notices[i].message[0] && value->notices[i].until_ns > now &&
+            !bongo_cat_preferences_model_glyphs_ready(value, value->notices[i].message))
+            notice_font_reload = true;
+    if (value->font_reload_pending &&
+        (notice_font_reload || (!importing && !refreshing_models))) {
         if (value->font_reload_defer_once) {
             value->font_reload_defer_once = false;
             value->render_dirty = true;
@@ -67,9 +75,13 @@ void bongo_cat_preferences_render(BongoCatPreferences *value) {
         value->transparent_window ? 0.0f : palette.background.b / 255.0f,
         value->transparent_window ? 0.0f : 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
-    bongo_cat_ui_render(&value->ui);
+    bool rendered = bongo_cat_ui_render(&value->ui);
     bongo_cat_preferences_smoke_frame(value);
-    if (!SDL_GL_SwapWindow(value->window)) {
+    if (!rendered) {
+        /* Keep the last complete front buffer instead of presenting corruption. */
+        value->render_dirty = true;
+        value->render_retry_ns = now + 1000000000ull;
+    } else if (!SDL_GL_SwapWindow(value->window)) {
         value->render_dirty = true;
         value->render_retry_ns = now + 1000000000ull;
         SDL_LogWarn(SDL_LOG_CATEGORY_VIDEO,

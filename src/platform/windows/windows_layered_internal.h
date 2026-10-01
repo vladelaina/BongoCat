@@ -17,6 +17,8 @@ typedef struct BongoCatWindowsLayered {
     int width, height, source_width, source_height;
     bool readback_valid, active, has_frame, mode_logged;
     bool source_transparent, visible, topmost;
+    BYTE applied_alpha;
+    bool applied_alpha_valid;
 } BongoCatWindowsLayered;
 
 bool bongo_cat_windows_layered_update_proxy(BongoCatPlatform *platform,

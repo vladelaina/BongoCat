@@ -33,6 +33,112 @@ static bool wait_for_model(BongoCatApp *app, const char *name, bool visible) {
     return model_displayed(app, name) == visible;
 }
 
+static bool broken_expression_fixture(const char *root) {
+    char path[BONGO_CAT_PATH_CAP];
+    return mver_fixture(root) &&
+        child(path, sizeof(path), root, "config.json", false) &&
+        write_text(path, "{\"standard\":{\"l2d\":true,\"keyboard\":[[65]],"
+            "\"hand\":[[65]],\"l2d_expression\":[[999999]]}}") &&
+        child(path, sizeof(path), root,
+            "img/standard/cat_model/cat.model3.json", false) &&
+        write_text(path, "{\"Version\":3,\"FileReferences\":{"
+            "\"Moc\":\"cat.moc3\",\"Textures\":[\"texture.png\"],"
+            "\"Expressions\":[{\"Name\":\"bad\",\"File\":\"bad.exp3.json\"}]}}") &&
+        child(path, sizeof(path), root,
+            "img/standard/cat_model/bad.exp3.json", false) &&
+        write_text(path, "{\"Type\":\"Live2D Expression\",\"Parameters\":[]}");
+}
+
+static void catalog_failure_isolation(const char *temporary) {
+    char root[BONGO_CAT_PATH_CAP], models[BONGO_CAT_PATH_CAP];
+    char nearby[BONGO_CAT_PATH_CAP], bad[BONGO_CAT_PATH_CAP];
+    char good[BONGO_CAT_PATH_CAP], path[BONGO_CAT_PATH_CAP];
+    snprintf(root, sizeof(root), "%s/bongocat-scan-failure-%llu", temporary,
+        (unsigned long long)SDL_GetTicksNS());
+    CHECK(SDL_CreateDirectory(root));
+    CHECK(child(models, sizeof(models), root, "models", true));
+    CHECK(child(nearby, sizeof(nearby), root, "nearby", true));
+    CHECK(child(bad, sizeof(bad), models, "a-broken", false));
+    CHECK(broken_expression_fixture(bad));
+    CHECK(child(good, sizeof(good), models, "z-valid", false));
+    CHECK(mver_fixture(good));
+    BongoCatApp *app = calloc(1, sizeof(*app));
+    CHECK(app != NULL);
+    if (!app) goto cleanup;
+    bongo_cat_settings_defaults(&app->settings);
+    bongo_cat_session_defaults(&app->session);
+    snprintf(app->asset_root, sizeof(app->asset_root),
+        "%s/resources/assets", BONGO_CAT_NATIVE_SOURCE_DIR);
+    snprintf(app->models_root, sizeof(app->models_root), "%s", models);
+    CHECK(child(app->cache_root, sizeof(app->cache_root), root, "cache", true));
+    snprintf(app->nearby_root, sizeof(app->nearby_root), "%s", nearby);
+
+    /* Verify that this fixture actually exercises the reported failure. */
+    BongoCatError error = {0};
+    CHECK(bongo_cat_import_nearby_root(app, bad, &error) == BONGO_CAT_ERROR_FORMAT);
+    CHECK(strstr(error.message, "not a supported input chord") != NULL);
+    snprintf(app->session.active_model_id, sizeof(app->session.active_model_id),
+        "a-broken");
+    app->settings.behavior_shortcut_count = 1;
+    snprintf(app->settings.behavior_shortcuts[0].id,
+        sizeof(app->settings.behavior_shortcuts[0].id), "a-broken:expression:0");
+    snprintf(app->settings.behavior_shortcuts[0].shortcut,
+        sizeof(app->settings.behavior_shortcuts[0].shortcut), "Alt+1");
+    bongo_cat_app_rescan_models(app);
+    CHECK(app->models.count == 4);
+    CHECK(bongo_cat_models_find(&app->models, "standard") != NULL);
+    CHECK(model_displayed(app, "z-valid"));
+    CHECK(!model_displayed(app, "a-broken"));
+    CHECK(strcmp(app->session.active_model_id, "standard") == 0);
+    CHECK(app->settings.behavior_shortcut_count == 1);
+    CHECK(strcmp(app->settings.behavior_shortcuts[0].shortcut, "Alt+1") == 0);
+
+    CHECK(child(bad, sizeof(bad), nearby, "a-broken-nearby", false));
+    CHECK(broken_expression_fixture(bad));
+    CHECK(child(good, sizeof(good), nearby, "z-valid-nearby", false));
+    CHECK(mver_fixture(good));
+    CHECK(child(path, sizeof(path), good, "img/standard/cat_model/cat.moc3", false));
+    CHECK(write_text(path, "MOC3-distinct-nearby"));
+    bongo_cat_app_refresh_nearby_models(app);
+    CHECK(app->models.count == 5);
+    CHECK(model_displayed(app, "z-valid-nearby"));
+    CHECK(!model_displayed(app, "a-broken-nearby"));
+    bongo_cat_app_request_nearby_model_refresh(app);
+    uint64_t deadline = SDL_GetTicksNS() + 5000000000ull;
+    while (bongo_cat_app_model_refresh_busy(app) && SDL_GetTicksNS() < deadline) {
+        bongo_cat_model_refresh_update(app);
+        SDL_Delay(2);
+    }
+    CHECK(!bongo_cat_app_model_refresh_busy(app));
+    CHECK(app->models.count == 5);
+    CHECK(model_displayed(app, "z-valid"));
+    CHECK(model_displayed(app, "z-valid-nearby"));
+    bongo_cat_model_refresh_shutdown(app);
+    CHECK(app->settings.behavior_shortcut_count == 1);
+
+    /* A file at the cache/storage path deterministically simulates an
+       unavailable directory without depending on platform ACLs. */
+    CHECK(child(path, sizeof(path), root, "blocked", false));
+    CHECK(write_text(path, "blocked"));
+    snprintf(app->cache_root, sizeof(app->cache_root), "%s", path);
+    CHECK(bongo_cat_model_catalog_scan(app, false, nearby) == BONGO_CAT_OK);
+    CHECK(app->models.count == 3);
+    snprintf(app->models_root, sizeof(app->models_root), "%s", path);
+    CHECK(bongo_cat_model_catalog_scan(app, true, nearby) == BONGO_CAT_OK);
+    CHECK(app->models.count == 3);
+    const BongoCatModelEntry *entry = bongo_cat_models_find(&app->models, "standard");
+    CHECK(entry && strstr(entry->directory, "resources/assets/models") != NULL);
+    snprintf(app->models_root, sizeof(app->models_root), "%s", models);
+    CHECK(bongo_cat_model_catalog_scan(app, false, NULL) == BONGO_CAT_OK);
+    CHECK(bongo_cat_model_catalog_add_bundled(app, true));
+    entry = bongo_cat_models_find(&app->models, "standard");
+    CHECK(entry && strstr(entry->directory, "resources/assets/models") != NULL);
+    CHECK(app->models.count == 3);
+    free(app);
+cleanup:
+    CHECK(bongo_cat_model_remove_tree(root, NULL));
+}
+
 static void background_installed_refresh(const char *temporary) {
     unsigned long long nonce = (unsigned long long)SDL_GetTicksNS();
     char root[BONGO_CAT_PATH_CAP], data[BONGO_CAT_PATH_CAP];
@@ -166,6 +272,7 @@ int test_mver_nearby_refresh(void) {
         return failures;
     }
     background_installed_refresh(temporary);
+    catalog_failure_isolation(temporary);
 
     BongoCatApp *parsed = calloc(1, sizeof(*parsed));
     CHECK(parsed != NULL);

@@ -21,20 +21,25 @@
           "alwaysOnTop": "Always on Top",
           "keepInScreen": "Keep on Screen",
           "windowSize": "Window Size",
+          "windowCorners": "Window Corners (%)",
           "opacity": "Opacity",
           "randomExpression": "Random Expressions",
           "obsBackground": "Solid Background",
           "hideOnHover": "Hide on Hover",
+          "hideFadeSeconds": "Fade Duration (s)",
           "maxFPS": "Max Frame Rate"
         },
         "hints": {
-          "passThrough": "When enabled, clicks pass through the window without affecting it.",
+          "hoverUnavailable": "Hover hiding is unavailable in the current desktop environment.",
+          "gameInput": "Pet not responding in games?",
+          "gameInputHelp": "Try running BongoCat as administrator and setting the game to windowed mode.",
+          "passThrough": "You can also turn this off by right-clicking the tray icon",
           "alwaysOnTop": "When enabled, the window stays above all other windows.",
           "keepInScreen": "When enabled, the window automatically stays within the screen boundaries.",
           "obsBackground": "Window capture is black?",
           "obsBackgroundHelp": "OBS: enable this option, use the Windows 7 compatibility method, and remove the background with a color key filter.",
           "windowSize": "Move mouse to window edge, or hold Shift and right-drag to resize.",
-          "hideOnHover": "When enabled, the window hides automatically on mouse hover. You can set a delay; 0 means hide immediately."
+          "hideOnHover": "With Pass Through and Always on Top enabled, hide the pet immediately on hover and show it again when the pointer leaves."
         }
       },
       "general": {
@@ -58,8 +63,8 @@
         "hints": {
           "showTrayIcon": "When enabled, the app icon is displayed in the system tray.",
           "autostartFailed": "Unable to update launch-on-startup settings",
-          "inputMonitoringPermission": "Enable input monitoring to receive keyboard and mouse events from the system.",
-          "inputMonitoringPermissionGuide": "Input Monitoring permission is required for the app to receive keyboard and mouse events from the system.\n\nSteps:\n1. Open System Settings → Privacy & Security → Input Monitoring.\n2. If BongoCat already appears in the list, select it and click the \"-\" button to remove it.\n3. Click the \"+\" button to find and add BongoCat.\n4. Restart the app for the permission to take effect.",
+          "inputMonitoringPermission": "Restart after granting it.",
+          "inputMonitoringPermissionGuide": "Input Monitoring lets BongoCat see keys pressed in other apps; the mouse keeps working without it. BongoCat builds the listener when it starts, so a permission change needs a restart.\n\nSteps:\n1. Open System Settings → Privacy & Security → Input Monitoring.\n2. Turn on the BongoCat entry that is already listed; do not remove existing entries.\n3. If BongoCat is not listed, click the \"+\" button and add the copy you are running (check the app location).\n4. Quit BongoCat completely and start it again, so it rebuilds the listener.\n\nIf the keyboard still stays silent, you can remove and re-add the BongoCat entry yourself.",
           "administratorPermission": "Running the app as administrator helps capture some system-level keys and input events more reliably.",
           "administratorPermissionGuide": "To capture some system-level keys and input events more reliably, it is recommended to run the app as administrator.\n\nHow to do it:\n1. Exit the app first.\n2. Find the app exe or its shortcut in File Explorer.\n3. Choose how to launch:\n   • One-time: Right-click and choose \"Run as administrator\".\n   • Always (default): Right-click → Properties → Compatibility tab → check \"Run this program as an administrator\" → OK."
         },
@@ -67,7 +72,8 @@
           "authorized": "Authorized",
           "adminEnabled": "Enabled",
           "authorize": "Go to Enable",
-          "viewGuide": "View Instructions"
+          "viewGuide": "View Instructions",
+          "openSettingsFailed": "Cannot open System Settings. Open Privacy & Security → Input Monitoring."
         },
         "buttons": {
           "openNow": "Open Now",
@@ -88,7 +94,7 @@
           "deleteFailed": "Unable to delete this model",
           "importSuccess": "Imported Successfully",
           "importExists": "Model already exists",
-          "importBatchResult": "Import succeeded: %zu; failed: %zu. Failed models: %s%s. First failure: %s",
+          "importBatchResult": "Import succeeded: %zu; failed: %zu.\nFailed models: %s%s.\nFirst failure: %s",
           "importMoreFailures": " and %zu more",
           "importUnknownSource": "unknown source",
           "importInvalidSource": "The selected source no longer exists or cannot be used",
@@ -107,10 +113,12 @@
           "moreModels": "More Models"
         },
         "behaviorModal": {
-          "title": "Motions and Expressions",
+          "title": "Motions, Expressions and Audio",
           "labels": {
             "motion": "Motion",
             "expression": "Expression",
+            "audio": "Audio",
+            "stopAllAudio": "Stop all audio",
             "motionIndex": "Motion {index}",
             "motionGroupIndex": "Motion Group {index}",
             "expressionIndex": "Expression {index}"
@@ -187,6 +195,24 @@
     }
   },
   "native": {
+    "about": {
+      "wechat": "WeChat",
+      "wechatHint": "Hover to scan and chat",
+      "loading": "Loading...",
+      "contributorsFailed": "Cannot load contributors. Click to retry.",
+      "qrUnavailable": "QR code unavailable",
+      "reload": "Reload",
+      "qrFailed": "QR code unavailable. Click to retry.",
+      "contributorsTitle": "Open source & community contributions",
+      "contributorsText": "Every step of BongoCat comes from the power of open source. Thank you to all community contributors for making desktop companionship freer and simpler.",
+      "joinTitle": "Want to appear in the contributors list?",
+      "joinText": "Whether you contribute code, improve documentation, report bugs or translate, every contribution makes BongoCat better.",
+      "code": "Code",
+      "docs": "Documentation",
+      "bugs": "Bug reports",
+      "translations": "Translations",
+      "joinGithub": "Contribute on GitHub"
+    },
     "multiplePets": "Display multiple",
     "multiplePetsLimit": "Up to 8 desktop pets can be displayed at once",
     "removeDesktopPet": "Close this desktop pet",
@@ -211,7 +237,8 @@
       "checkingUpdate": "Checking...",
       "updateAvailable": "New version available:",
       "updateFailed": "Unable to check for updates",
-      "downloadUpdate": "Download v%s",
+      "updateHttpFailed": "GitHub returned HTTP status %s",
+      "downloadUpdate": "Update to v%s",
       "openStore": "Open Microsoft Store",
       "viewReleases": "View releases",
       "openUpdateFailed": "Unable to open the update page",

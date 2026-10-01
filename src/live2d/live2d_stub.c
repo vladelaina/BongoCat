@@ -1,5 +1,7 @@
 #include "bongo_cat/model.h"
 #include "model_import_manifest.h"
+#include "bongo_cat/json.h"
+#include "bongo_cat/path.h"
 
 #include <SDL3/SDL_log.h>
 #include <stdlib.h>
@@ -41,8 +43,16 @@ BongoCatResult bongo_cat_live2d_load(BongoCatLive2D *live2d, const char *model_d
     (void)preset; (void)render_options;
     if (!live2d || !model_dir || !setting_file) return BONGO_CAT_ERROR_ARGUMENT;
     if (progress) progress(userdata, 0.1f);
-    if (!bongo_cat_import_manifest_valid(model_dir, setting_file, error))
+    char path[BONGO_CAT_PATH_CAP];
+    yyjson_doc *document = bongo_cat_path_join(path, sizeof(path), model_dir,
+        setting_file) ? bongo_cat_model_json_read(path, NULL) : NULL;
+    bool valid = bongo_cat_import_manifest_document_valid(model_dir, document, true);
+    yyjson_doc_free(document);
+    if (!valid) {
+        bongo_cat_error_set(error, BONGO_CAT_ERROR_FORMAT,
+            "Model manifest or required assets are invalid: %s", setting_file);
         return BONGO_CAT_ERROR_FORMAT;
+    }
     live2d->loaded = true;
     if (progress) progress(userdata, 1.0f);
     return BONGO_CAT_OK;

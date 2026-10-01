@@ -120,6 +120,8 @@ void bongo_cat_session_validate(BongoCatSessionState *session) {
         session->last_update_check_day = 0;
     normalize_text(session->last_update_check_version,
         sizeof(session->last_update_check_version));
+    normalize_text(session->available_update_version,
+        sizeof(session->available_update_version));
     compact_additional_models(session);
     compact_active_behaviors(session);
 }

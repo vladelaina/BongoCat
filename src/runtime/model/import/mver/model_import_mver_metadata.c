@@ -61,13 +61,14 @@ static bool add_standard_pointer(yyjson_mut_doc *output, yyjson_mut_val *root,
     const char *right = mouse ? "resources/mver-pointer/mouse_right.png" :
         "resources/mver-pointer/tablet_right.png";
     const char *side = mouse ? "resources/mver-pointer/mouse_side.png" : "";
-    bool enabled = pointer_asset(candidate, "arm.png") &&
+    /* Mver 0.1.6's l2d switch replaces the sprite renderer. The older
+       standalone mode 98 instead draws a sprite pointer over Live2D. */
+    bool sprite_pointer = !yyjson_is_true(live2d_value) ||
+        yyjson_get_int(yyjson_obj_get(config, "mode")) == 98;
+    bool enabled = sprite_pointer && pointer_asset(candidate, "arm.png") &&
         pointer_asset(candidate, mouse ? "mouse.png" : "tablet.png");
     yyjson_mut_val *pointer = yyjson_mut_obj_add_obj(output, root, "standardPointer");
     return pointer &&
-        /* Mver draws the pointer layer after the Live2D model in both standard
-           and Live2D-standard modes. Keep it enabled so the authored hand,
-           device, and button overlays continue to follow the pointer. */
         yyjson_mut_obj_add_bool(output, pointer, "enabled", enabled) &&
         yyjson_mut_obj_add_bool(output, pointer, "mouse", mouse) &&
         yyjson_mut_obj_add_bool(output, pointer, "leftHanded",
@@ -128,6 +129,8 @@ static bool add_render_profile(yyjson_mut_doc *output, yyjson_mut_val *root,
     yyjson_mut_val *render = yyjson_mut_obj_add_obj(output, root, "render");
     return render &&
         yyjson_mut_obj_add_str(output, render, "profile", "mver-0.1.6") &&
+        yyjson_mut_obj_add_bool(output, render, "autoFrame",
+            yyjson_get_bool(yyjson_obj_get(decoration, "l2d_auto_frame"))) &&
         yyjson_mut_obj_add_real(output, render, "projectionScale", scale) &&
         yyjson_mut_obj_add_real(output, render, "offsetX", offset_x) &&
         yyjson_mut_obj_add_real(output, render, "offsetY", offset_y) &&
@@ -148,68 +151,6 @@ static bool add_render_profile(yyjson_mut_doc *output, yyjson_mut_val *root,
 static bool add_native_render(yyjson_mut_doc *output, yyjson_mut_val *root) {
     yyjson_mut_val *render = yyjson_mut_obj_add_obj(output, root, "render");
     return render && yyjson_mut_obj_add_str(output, render, "profile", "native");
-}
-
-static bool sound_source(const BongoCatImportCandidate *candidate, size_t index,
-    char *source, size_t capacity, char *relative, size_t relative_capacity) {
-    static const char *extensions[] = {"wav", "ogg", "flac"};
-    for (size_t i = 0; i < sizeof(extensions) / sizeof(extensions[0]); ++i) {
-        char name[40], sounds[BONGO_CAT_PATH_CAP];
-        snprintf(name, sizeof(name), "%zu.%s", index, extensions[i]);
-        if (!bongo_cat_path_join(sounds, sizeof(sounds), candidate->assets, "sounds") ||
-            !bongo_cat_path_join(source, capacity, sounds, name) ||
-            !bongo_cat_path_is_file(source)) continue;
-        snprintf(relative, relative_capacity, "resources/sounds/%s", name);
-        return true;
-    }
-    return false;
-}
-
-static bool add_sound_clear(yyjson_mut_doc *output, yyjson_mut_val *items,
-    yyjson_val *config, const BongoCatImportCandidate *candidate) {
-    yyjson_val *decoration = yyjson_obj_get(config, "decoration");
-    yyjson_val *row = yyjson_obj_get(decoration, "soundClear");
-    if (!row) return true;
-    char shortcut[BONGO_CAT_SHORTCUT_CAP];
-    if (!bongo_cat_mver_chord(candidate, row, shortcut, sizeof(shortcut))) return false;
-    yyjson_mut_val *item = yyjson_mut_arr_add_obj(output, items);
-    return item && yyjson_mut_obj_add_str(output, item, "kind", "sound-clear") &&
-        yyjson_mut_obj_add_strcpy(output, item, "shortcut", shortcut);
-}
-
-static bool add_sounds(yyjson_mut_doc *output, yyjson_mut_val *items,
-    yyjson_val *config, yyjson_val *rows,
-    const BongoCatImportCandidate *candidate, const BongoCatMverLabels *labels,
-    const char *target) {
-    if (!rows) return true;
-    if (!yyjson_is_arr(rows)) return false;
-    char target_resources[BONGO_CAT_PATH_CAP], target_sounds[BONGO_CAT_PATH_CAP];
-    if (!bongo_cat_path_join(target_resources, sizeof(target_resources), target, "resources") ||
-        !bongo_cat_path_join(target_sounds, sizeof(target_sounds), target_resources, "sounds") ||
-        !bongo_cat_path_create_directory(target_sounds)) return false;
-    yyjson_val *decoration = yyjson_obj_get(config, "decoration");
-    yyjson_val *keep_value = yyjson_obj_get(decoration, "soundKeep");
-    bool keep = !keep_value || yyjson_get_bool(keep_value);
-    size_t emitted = 0, index, count; yyjson_val *row;
-    yyjson_arr_foreach(rows, index, count, row) {
-        char shortcut[BONGO_CAT_SHORTCUT_CAP], source[BONGO_CAT_PATH_CAP];
-        char relative[BONGO_CAT_PATH_CAP], destination[BONGO_CAT_PATH_CAP];
-        if (!bongo_cat_mver_chord(candidate, row, shortcut, sizeof(shortcut))) return false;
-        if (!sound_source(candidate, index, source, sizeof(source), relative,
-            sizeof(relative))) continue;
-        const char *name = bongo_cat_path_name(source);
-        if (!bongo_cat_path_join(destination, sizeof(destination), target_sounds, name) ||
-            !bongo_cat_path_copy_file(source, destination)) return false;
-        yyjson_mut_val *item = yyjson_mut_arr_add_obj(output, items);
-        const char *label = bongo_cat_mver_label(labels, "sounds", index);
-        if (!item || !yyjson_mut_obj_add_str(output, item, "kind", "sound") ||
-            !yyjson_mut_obj_add_strcpy(output, item, "shortcut", shortcut) ||
-            !yyjson_mut_obj_add_strcpy(output, item, "sound", relative) ||
-            (label && !yyjson_mut_obj_add_strcpy(output, item, "label", label)) ||
-            (!keep && !yyjson_mut_obj_add_bool(output, item, "momentary", true))) return false;
-        emitted++;
-    }
-    return !emitted || !keep || add_sound_clear(output, items, config, candidate);
 }
 
 bool bongo_cat_import_adapter_metadata(const BongoCatImportCandidate *candidate,
@@ -235,7 +176,7 @@ bool bongo_cat_import_adapter_metadata(const BongoCatImportCandidate *candidate,
     if (ok && mver) ok = yyjson_is_obj(mode) &&
         add_render_profile(output, root, config, candidate) &&
         bongo_cat_mver_add_behaviors(output, items, mode, candidate, &labels, error) &&
-        add_sounds(output, items, config, yyjson_obj_get(mode, "sounds"),
+        bongo_cat_mver_add_audio(output, items, config, yyjson_obj_get(mode, "sounds"),
             candidate, &labels, target) &&
         bongo_cat_mver_effects(output, items, config, mode, candidate, target);
     else if (ok) ok = add_native_render(output, root);

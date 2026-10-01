@@ -61,6 +61,7 @@ static uint64_t session_hash(const BongoCatSessionState *session) {
     HASH_FIELD(session->active_model_id);
     HASH_FIELD(session->last_update_check_day);
     HASH_FIELD(session->last_update_check_version);
+    HASH_FIELD(session->available_update_version);
     HASH_FIELD(session->additional_model_count);
     size_t model_count = session->additional_model_count;
     if (model_count > BONGO_CAT_ADDITIONAL_MODEL_CAP)

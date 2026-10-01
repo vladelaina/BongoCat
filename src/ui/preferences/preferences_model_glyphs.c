@@ -77,6 +77,8 @@ void bongo_cat_preferences_model_glyphs(const BongoCatApp *app,
     size_t used = 0;
     while (used < capacity && ranges[used]) used++;
     if (used >= capacity || (used & 1)) return;
+    /* Symbols used by the HTML reference's contribution category badges. */
+    add_text(ranges, capacity, &used, "〈/〉▤♧文");
     for (size_t i = 0; i < app->models.count; ++i) {
         const BongoCatModelEntry *entry = &app->models.entries[i];
         add_text(ranges, capacity, &used,
@@ -90,6 +92,9 @@ void bongo_cat_preferences_model_glyphs(const BongoCatApp *app,
             app->settings.behavior_shortcuts[i].label);
     if (app->preferences) {
         const BongoCatPreferences *preferences = app->preferences;
+        for (size_t i = 0; i < sizeof(preferences->notices) /
+            sizeof(preferences->notices[0]); ++i)
+            add_text(ranges, capacity, &used, preferences->notices[i].message);
         for (size_t i = 0; i < preferences->pending_import_name_count; ++i)
             add_text(ranges, capacity, &used,
                 preferences->pending_import_names[i]);

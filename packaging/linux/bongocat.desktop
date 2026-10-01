@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=BongoCat
+Comment=An animated desktop cat that reacts to your input
+Exec=BongoCat
+Icon=bongocat
+Terminal=false
+Categories=Utility;

@@ -101,25 +101,12 @@ bool bongo_cat_window_apply_geometry(BongoCatApp *app, int x, int y,
     return true;
 }
 
-bool bongo_cat_window_set_scale(BongoCatApp *app, float scale) {
-    if (!app || !app->window) return false;
-    int x, y, width, height;
-    if (!SDL_GetWindowPosition(app->window, &x, &y) ||
-        !SDL_GetWindowSize(app->window, &width, &height)) return false;
-    float actual;
-    int next_width, next_height;
-    if (!bongo_cat_window_scaled_size(width, height,
-        app->session.window.scale_percent, scale,
-        &actual, &next_width, &next_height)) return false;
-    if (actual == app->session.window.scale_percent &&
-        next_width == width && next_height == height) return false;
-    return bongo_cat_window_apply_geometry(app, x, y,
-        actual, next_width, next_height);
-}
-
 void bongo_cat_window_resize_by_pointer(BongoCatApp *app, const SDL_Event *event) {
-    bool shift = (SDL_GetModState() & SDL_KMOD_SHIFT) != 0 ||
-        bongo_cat_input_shift_down(&app->input);
+    bool shift = bongo_cat_input_shift_down(&app->input);
+#ifndef _WIN32
+    shift = shift || (SDL_GetModState() & SDL_KMOD_SHIFT) != 0;
+#endif
+    /* Match wheel handling: SDL may retain modifiers without keyboard focus. */
     if (!(event->motion.state & SDL_BUTTON_RMASK) || !shift) return;
     bongo_cat_window_cancel_wheel_animation(app);
     if (!app->resize_gesture) {
@@ -176,8 +163,14 @@ bool bongo_cat_window_geometry_self_test(BongoCatApp *app) {
         &app->platform) - 0.5f) < 0.02f;
     app->settings.window.hide_on_hover = true;
     app->settings.window.hide_delay_seconds = 0.0f;
-    app->settings.window.pass_through = false;
+    app->settings.window.hide_fade_seconds = 0.0f;
+    app->settings.window.pass_through = true;
+    app->settings.window.always_on_top = true;
+    app->settings.window.obs_background = true;
+    app->settings.window.rounded_corners = false;
     app->session.window.opacity_percent = 100.0f;
+    bongo_cat_window_sync_click_through(app);
+    bongo_cat_app_render_now(app);
     bongo_cat_app_track_hover(app, x + 10, y + 10);
     bongo_cat_app_update_hover(app, SDL_GetTicksNS() + 1);
     bool hidden = app->hover_hidden &&
@@ -185,6 +178,39 @@ bool bongo_cat_window_geometry_self_test(BongoCatApp *app) {
     bongo_cat_app_track_hover(app, bounds.x - 10, bounds.y - 10);
     bool restored = !app->hover_hidden &&
         SDL_fabsf(bongo_cat_platform_get_opacity(&app->platform) - 1.0f) < 0.02f;
+    bongo_cat_app_track_hover(app, x + 10, y + 10);
+    app->settings.window.always_on_top = false;
+    bongo_cat_app_update_hover(app, SDL_GetTicksNS());
+    restored = restored && !app->hover_hidden;
+    app->settings.window.always_on_top = true;
+    bongo_cat_app_update_hover(app, SDL_GetTicksNS());
+    hidden = hidden && app->hover_hidden;
+    app->settings.window.pass_through = false;
+    bongo_cat_app_update_hover(app, SDL_GetTicksNS());
+    restored = restored && !app->hover_hidden;
+    app->settings.window.pass_through = true;
+    bongo_cat_app_update_hover(app, SDL_GetTicksNS());
+    hidden = hidden && app->hover_hidden;
+    app->settings.window.hide_on_hover = false;
+    bongo_cat_app_update_hover(app, SDL_GetTicksNS());
+    restored = restored && !app->hover_hidden;
+    /* With a fade duration the hide no longer snaps: progress animates from
+       the on-screen opacity toward the target and completes there. */
+    app->settings.window.hide_on_hover = true;
+    app->settings.window.hide_fade_seconds = 0.5f;
+    bongo_cat_app_track_hover(app, x + 10, y + 10);
+    uint64_t fade_started = SDL_GetTicksNS();
+    bongo_cat_app_update_hover_fade(app, fade_started + 125000000ull);
+    float faded = bongo_cat_platform_get_opacity(&app->platform);
+    bongo_cat_app_update_hover_fade(app, fade_started + 600000000ull);
+    bool fade = app->hover_hidden && faded > 0.02f && faded < 0.98f &&
+        bongo_cat_platform_get_opacity(&app->platform) < 0.02f;
+    bongo_cat_app_track_hover(app, bounds.x - 10, bounds.y - 10);
+    bongo_cat_app_update_hover_fade(app, SDL_GetTicksNS() + 700000000ull);
+    fade = fade && !app->hover_hidden &&
+        SDL_fabsf(bongo_cat_platform_get_opacity(&app->platform) - 1.0f) < 0.02f;
+    app->settings.window.hide_fade_seconds = 0.0f;
+    app->settings.window.hide_on_hover = false;
     float safe_scale;
     int safe_width, safe_height;
     bool bounded = bongo_cat_window_scaled_size(8000, 4000, 100.0f, 500.0f,
@@ -226,6 +252,13 @@ bool bongo_cat_window_geometry_self_test(BongoCatApp *app) {
     bongo_cat_input_push(&app->input, &shift);
     bongo_cat_input_pop(&app->input, &discarded);
     app->resize_gesture = false;
+#ifdef _WIN32
+    SDL_SetModState(old_modifiers | SDL_KMOD_SHIFT);
+    float released_scale = app->session.window.scale_percent;
+    bongo_cat_window_resize_by_pointer(app, &motion);
+    gesture = gesture && !app->resize_gesture &&
+        app->session.window.scale_percent == released_scale;
+#endif
     SDL_SetModState(old_modifiers);
     bongo_cat_window_apply_geometry(app, original_x, original_y,
         state_backup.scale_percent, original_width, original_height);
@@ -236,10 +269,10 @@ bool bongo_cat_window_geometry_self_test(BongoCatApp *app) {
     bongo_cat_window_sync_click_through(app);
     SDL_SyncWindow(app->window);
     bool passed = clamped && anchor_reset && scaled && opacity && hidden && restored &&
-        bounded && gesture && display_reset;
+        fade && bounded && gesture && display_reset;
     if (!passed) fprintf(stderr, "geometry self-test: clamped=%d scaled=%d(%dx%d) "
-        "anchor=%d opacity=%d hidden=%d restored=%d bounded=%d gesture=%d(%dx%d) display=%d\n",
+        "anchor=%d opacity=%d hidden=%d restored=%d fade=%d bounded=%d gesture=%d(%dx%d) display=%d\n",
         clamped, scaled, scaled_width, scaled_height, anchor_reset, opacity, hidden, restored,
-        bounded, gesture, gesture_width, gesture_height, display_reset);
+        fade, bounded, gesture, gesture_width, gesture_height, display_reset);
     return passed;
 }

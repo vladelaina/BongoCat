@@ -58,6 +58,11 @@ static void window_size(struct nk_command_buffer *c, struct nk_rect b,
     line(c, b, 10, 3, 15, 3, color); line(c, b, 15, 3, 15, 8, color);
 }
 
+static void window_corners(struct nk_command_buffer *c, struct nk_rect b,
+    struct nk_color color) {
+    nk_stroke_rect(c, nk_rect(b.x + 1, b.y + 1, 16, 16), 5, 1.5f, color);
+}
+
 static void opacity(struct nk_command_buffer *c, struct nk_rect b,
     struct nk_color color) {
     line(c, b, 9, 1, 4, 9, color); line(c, b, 9, 1, 14, 9, color);
@@ -154,15 +159,27 @@ static void shortcut_preferences(struct nk_command_buffer *c, struct nk_rect b,
     line(c, b, 2, 14, 16, 14, color); dot(c, b, 8, 14, 4, color);
 }
 
+static void hide_fade(struct nk_command_buffer *c, struct nk_rect b,
+    struct nk_color color) {
+    nk_stroke_circle(c, nk_rect(b.x + 1, b.y + 3, 12, 12), 1.5f, color);
+    line(c, b, 7, 6, 7, 9, color);
+    line(c, b, 7, 9, 9, 10, color);
+    struct nk_color trail = color;
+    trail.a = (nk_byte)((unsigned int)color.a * 3 / 5);
+    line(c, b, 15, 5, 15, 13, trail);
+    trail.a = (nk_byte)((unsigned int)color.a * 3 / 10);
+    line(c, b, 18, 7, 18, 11, trail);
+}
+
 bool bongo_cat_pref_row_icon_draw(struct nk_command_buffer *canvas,
     struct nk_rect bounds, BongoCatPrefIcon icon, struct nk_color color) {
     typedef void (*Draw)(struct nk_command_buffer *, struct nk_rect,
         struct nk_color);
     static const Draw draws[] = {multiple_models, pass_through, always_on_top,
-        keep_in_screen, solid_background, window_size, opacity,
+        keep_in_screen, solid_background, window_size, window_corners, opacity,
         random_expression, mirror, mouse_mirror, mouse_centered, ignore_mouse,
         max_fps, autostart, language, theme, shortcut_visibility,
-        shortcut_preferences};
+        shortcut_preferences, hide_fade};
     int index = icon - BONGO_CAT_PREF_ICON_MULTIPLE_MODELS;
     int count = (int)(sizeof(draws) / sizeof(draws[0]));
     if (index < 0 || index >= count) return false;

@@ -9,6 +9,7 @@
 #include "ui_paint.h"
 #include "bongo_cat/memory_policy.h"
 #include "bongo_cat/tray.h"
+#include "update_service.h"
 #include <SDL3/SDL_opengl.h>
 #include <math.h>
 #include <stdio.h>
@@ -83,21 +84,21 @@ static bool draw_shell(BongoCatPreferences *value, struct nk_context *context,
     if (title_clicked && !SDL_OpenURL("https://bongocat.pet"))
         SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "Cannot open website: %s", SDL_GetError());
     bongo_cat_ui_set_icons(draw_icon, value);
+    BongoCatUpdateSnapshot update_snapshot;
+    bongo_cat_update_snapshot(value->app->update, &update_snapshot);
+    bool about_badge = update_snapshot.status == BONGO_CAT_UPDATE_AVAILABLE ||
+        (update_snapshot.status == BONGO_CAT_UPDATE_ERROR &&
+            update_snapshot.release.version[0]);
     bongo_cat_ui_tabs(context, menus, menu_icons, 4, &value->page,
-        !modal, dark, interior_height,
+        !modal, dark, interior_height, about_badge,
         draw_icon, value);
     if (!value->page_seen) {
         value->page_seen = true; value->last_page = value->page;
     } else if (value->last_page != value->page) {
-        bool load_model_glyphs = value->page == 1 && !value->model_glyphs_loaded;
         bongo_cat_preferences_page_cache_clear(value,
             value->last_page, value->page);
         value->last_page = value->page;
         value->page_transition_ns = SDL_GetTicksNS();
-        if (load_model_glyphs) {
-            value->model_glyphs_loaded = true; value->font_reload_pending = true;
-            value->font_reload_defer_once = true;
-        }
         value->render_dirty = true;
     }
     nk_group_end(context);
@@ -108,6 +109,12 @@ static bool draw_shell(BongoCatPreferences *value, struct nk_context *context,
     close_requested = bongo_cat_ui_content_header(context,
         menus[value->page], menu_icons[value->page], !modal, dark,
         native_chrome);
+    if (close_requested) {
+        /* Scrolled cards can overlap the header's hit area despite clipping. */
+        nk_group_end(context);
+        nk_layout_row_end(context);
+        return true;
+    }
     float body_height = interior_height - BONGO_CAT_UI_HEADER_HEIGHT;
     nk_layout_row_dynamic(context, NK_MAX(120.0f, body_height), 1);
     struct nk_rect body_bounds = nk_widget_bounds(context);
@@ -200,6 +207,7 @@ static bool draw_shell(BongoCatPreferences *value, struct nk_context *context,
     bongo_cat_preferences_notice_draw(value, context, width, height);
     bongo_cat_preferences_remove_dialog_draw(value->app, context);
     bongo_cat_preferences_behavior_dialog_draw(value, context);
+    bongo_cat_about_overlays(value, context);
     return close_requested;
 }
 bool bongo_cat_preferences_draw_frame(BongoCatPreferences *value,

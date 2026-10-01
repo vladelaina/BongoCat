@@ -2,6 +2,11 @@
 
 #include <math.h>
 
+bool bongo_cat_mouse_sample_fresh(uint64_t now_ns, uint64_t sample_ns) {
+    return sample_ns && now_ns >= sample_ns &&
+        now_ns - sample_ns < 100000000ull;
+}
+
 void bongo_cat_mouse_target(BongoCatMouseTracking *tracking, double x, double y) {
     if (!tracking) return;
     tracking->target_x = x;

@@ -1,4 +1,5 @@
 #include "runtime.h"
+#include "bongo_cat/log.h"
 #include "model_import_lock.h"
 #include "bongo_cat/audio.h"
 #include "bongo_cat/i18n.h"
@@ -11,9 +12,11 @@
 void bongo_cat_app_shutdown(BongoCatApp *app, const char *stage,
     int exit_code) {
     bongo_cat_runtime_stage(app, stage);
-    SDL_Log("[runtime] Shutdown started: stage=%s exit_code=%d",
+    SDL_LogInfo(BONGO_CAT_LOG_LIFECYCLE,
+        "[runtime] Shutdown started: stage=%s exit_code=%d",
         stage, exit_code);
     bongo_cat_app_capture_behavior_state(app);
+    bongo_cat_window_snapshot_discard(app);
     bongo_cat_config_store_flush(app);
     bongo_cat_multi_pet_shutdown(app);
     bongo_cat_model_refresh_shutdown(app);

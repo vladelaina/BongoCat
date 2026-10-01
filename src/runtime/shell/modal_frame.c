@@ -24,8 +24,11 @@ void bongo_cat_modal_frame_tick(void *userdata) {
     float elapsed = modal_elapsed(state, app->last_frame_ns, now);
     app->last_frame_ns = now;
     state->tick_count++;
-    bongo_cat_app_drain_input(app, false);
+    bongo_cat_app_drain_input(app, true);
+    bongo_cat_window_snapshot_update(app, SDL_GetTicksNS());
+    now = SDL_GetTicksNS();
     bongo_cat_app_update_hover(app, now);
+    bongo_cat_app_update_hover_fade(app, now);
     if (!app->smoke_freeze_model && elapsed > 0.0f)
         bongo_cat_app_step_live2d(app, elapsed);
     bongo_cat_app_render_now(app);

@@ -20,6 +20,12 @@ bool bongo_cat_preferences_shortcut_active(const BongoCatPreferences *value,
 }
 
 static void finish(BongoCatPreferences *value) {
+    if (value->shortcut_target && strcmp(value->shortcut_target, value->shortcut_original))
+        for (size_t i = 0; i < value->app->settings.behavior_shortcut_count; ++i) {
+            BongoCatBehaviorShortcut *binding = &value->app->settings.behavior_shortcuts[i];
+            if (binding->shortcut == value->shortcut_target)
+                binding->shortcut_disabled = !binding->shortcut[0];
+        }
     value->shortcut_recording = false;
     value->shortcut_id[0] = '\0';
     value->shortcut_target = NULL;
@@ -27,6 +33,8 @@ static void finish(BongoCatPreferences *value) {
     value->shortcut_key = SDLK_UNKNOWN;
     value->shortcut_suppress_until_ns = SDL_GetTicksNS() + 250000000ULL;
     bongo_cat_shortcut_init(&value->app->shortcut_state);
+    memset(&value->app->sound_shortcut_state, 0, sizeof(value->app->sound_shortcut_state));
+    memset(value->app->sound_shortcut_active, 0, sizeof(value->app->sound_shortcut_active));
     value->render_dirty = true;
 }
 
@@ -50,6 +58,8 @@ void bongo_cat_preferences_shortcut_begin(BongoCatPreferences *value,
     value->shortcut_key = SDLK_UNKNOWN;
     value->shortcut_recording = true;
     bongo_cat_shortcut_init(&value->app->shortcut_state);
+    memset(&value->app->sound_shortcut_state, 0, sizeof(value->app->sound_shortcut_state));
+    memset(value->app->sound_shortcut_active, 0, sizeof(value->app->sound_shortcut_active));
     value->render_dirty = true;
 }
 
@@ -67,8 +77,12 @@ static const char *primary_name(SDL_Keycode key, char output[24]) {
     if (key >= SDLK_0 && key <= SDLK_9) {
         output[0] = (char)('0' + key - SDLK_0); output[1] = '\0'; return output;
     }
-    if (key >= SDLK_F1 && key <= SDLK_F24) {
+    /* SDL places navigation and keypad keys between F12 and F13. */
+    if (key >= SDLK_F1 && key <= SDLK_F12) {
         snprintf(output, 24, "F%d", (int)(key - SDLK_F1 + 1)); return output;
+    }
+    if (key >= SDLK_F13 && key <= SDLK_F24) {
+        snprintf(output, 24, "F%d", (int)(key - SDLK_F13 + 13)); return output;
     }
     switch (key) {
     case SDLK_RETURN: case SDLK_KP_ENTER: return "Enter";

@@ -121,6 +121,7 @@ bool bongo_cat_import_render_options(const char *directory,
         yyjson_get_num(scale) <= 100.0 && width > 0 && height > 0;
     if (valid) {
         options->mver_projection = true;
+        options->auto_frame = yyjson_get_bool(yyjson_obj_get(render, "autoFrame"));
         options->projection_scale = (float)yyjson_get_num(scale);
         options->offset_x = (float)yyjson_get_num(yyjson_obj_get(render, "offsetX"));
         options->offset_y = (float)yyjson_get_num(yyjson_obj_get(render, "offsetY"));

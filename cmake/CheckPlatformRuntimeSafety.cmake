@@ -19,7 +19,10 @@ set(FORBIDDEN_APIS
   Process32Next EnumProcesses EnumProcessModules AdjustTokenPrivileges
   LookupPrivilegeValue OpenSCManager CreateService StartService ControlService
   DeviceIoControl NtLoadDriver AttachThreadInput SendInput keybd_event
-  mouse_event RegisterRawInputDevices GetRawInputData
+  mouse_event SetWindowsHookEx SetWindowsHookExA SetWindowsHookExW DirectInput8Create
+  SetCursorPos SetPhysicalCursorPos ClipCursor BlockInput
+  SDL_SetWindowRelativeMouseMode
+  SDL_SetWindowKeyboardGrab
   CGEventPost CGEventPostToPid CGEventCreateKeyboardEvent
   CGEventCreateMouseEvent CGWarpMouseCursorPosition
   CGAssociateMouseAndMouseCursorPosition IOHIDManagerCreate
@@ -33,7 +36,10 @@ set(FORBIDDEN_TOKENS
   SE_DEBUG_NAME SeDebugPrivilege PROCESS_VM_READ PROCESS_VM_WRITE
   PROCESS_VM_OPERATION PROCESS_ALL_ACCESS THREAD_SET_CONTEXT
   kCGHIDEventTap kCGHeadInsertEventTap IOConnectCall
-  /dev/input /dev/uinput CAP_SYS_PTRACE CAP_SYS_ADMIN)
+  /dev/uinput CAP_SYS_PTRACE CAP_SYS_ADMIN
+  WH_KEYBOARD_LL WH_MOUSE_LL RIDEV_NOLEGACY RIDEV_CAPTUREMOUSE
+  SDL_WINDOW_KEYBOARD_GRABBED SDL_HINT_FORCE_RAISEWINDOW
+  RIDEV_NOHOTKEYS RIDEV_APPKEYS RIDEV_EXCLUDE RIDEV_EXINPUTSINK)
 set(FAILURES "")
 
 foreach(FILE IN LISTS PRODUCTION_FILES)
@@ -57,10 +63,11 @@ endforeach()
 
 # Intentional sensitive capabilities remain confined to reviewed modules.
 set(SENSITIVE_RULES
-  "SetWindowsHookEx|src/platform/windows/windows_input.c"
   "GetAsyncKeyState|src/platform/windows/windows_keys.c"
-  "DirectInput8Create|src/platform/windows/windows_direct_input.c"
-  "OpenProcessToken|src/platform/windows/windows_diagnostics.c"
+  "RegisterRawInputDevices|src/platform/windows/windows_input_registration.c"
+  "GetRegisteredRawInputDevices|src/platform/windows/windows_input_registration.c"
+  "GetRawInputData|src/platform/windows/windows_input_receiver.c"
+  "SDL_HINT_WINDOWS_RAW_KEYBOARD|src/runtime/shell/window.c|src/platform/windows/windows_input.c"
   "BitBlt|src/platform/windows/windows_capture_probe.c"
   "PrintWindow|src/platform/windows/windows_capture_probe.c"
   "UpdateLayeredWindow|src/platform/windows/windows_layered.c"
@@ -68,6 +75,7 @@ set(SENSITIVE_RULES
   "CGEventTapEnable|src/platform/macos/macos_input.m"
   "CGPreflightListenEventAccess|src/platform/macos/macos_input.m"
   "CGRequestListenEventAccess|src/platform/macos/macos_input.m"
+  "/dev/input|src/platform/linux/linux_evdev_devices.c"
   "XISelectEvents|src/platform/linux/linux_x11.c"
   "XFixesSetWindowShapeRegion|src/platform/linux/linux_x11.c"
   "XSendEvent|src/platform/linux/linux.c|src/platform/linux/linux_x11.c"
@@ -98,6 +106,28 @@ foreach(RULE IN LISTS SENSITIVE_RULES)
   endforeach()
 endforeach()
 
+# The reviewed evdev exception permits read-only observation, not device writes
+# or permission changes.
+file(READ "${ROOT}/src/platform/linux/linux_evdev_devices.c" LINUX_EVDEV)
+foreach(TOKEN O_WRONLY O_RDWR O_CREAT O_TRUNC)
+  string(FIND "${LINUX_EVDEV}" "${TOKEN}" POSITION)
+  if(NOT POSITION EQUAL -1)
+    list(APPEND FAILURES "linux_evdev_devices.c: forbidden open flag ${TOKEN}")
+  endif()
+endforeach()
+foreach(TOKEN O_RDONLY O_NONBLOCK O_CLOEXEC O_NOFOLLOW)
+  string(FIND "${LINUX_EVDEV}" "${TOKEN}" POSITION)
+  if(POSITION EQUAL -1)
+    list(APPEND FAILURES "linux_evdev_devices.c: missing open safeguard ${TOKEN}")
+  endif()
+endforeach()
+foreach(API chmod fchmod chown fchown system popen)
+  string(REGEX MATCH "(^|[^A-Za-z0-9_])${API}[ \t\r\n]*\\(" MATCHED "${LINUX_EVDEV}")
+  if(MATCHED)
+    list(APPEND FAILURES "linux_evdev_devices.c: forbidden API ${API}")
+  endif()
+endforeach()
+
 file(READ "${ROOT}/cmake/windows.manifest.in" WINDOWS_MANIFEST)
 string(FIND "${WINDOWS_MANIFEST}"
   "<requestedExecutionLevel level=\"asInvoker\" uiAccess=\"false\"/>"
@@ -107,17 +137,20 @@ if(MANIFEST_POSITION EQUAL -1)
     "cmake/windows.manifest.in: expected asInvoker with uiAccess=false")
 endif()
 
-file(READ "${ROOT}/cmake/Packaging.cmake" WINDOWS_PACKAGING)
-file(READ "${ROOT}/cmake/PackagingPlatform.cmake" WINDOWS_PACKAGE_PLATFORM)
-string(APPEND WINDOWS_PACKAGING "\n${WINDOWS_PACKAGE_PLATFORM}")
-string(FIND "${WINDOWS_PACKAGING}" "RequestExecutionLevel user"
+file(READ "${ROOT}/packaging/windows/BongoCat.iss.in" WINDOWS_PACKAGING)
+file(READ "${ROOT}/packaging/windows/install-lifecycle.iss.in" WINDOWS_INSTALL_LIFECYCLE)
+string(APPEND WINDOWS_PACKAGING "\n${WINDOWS_INSTALL_LIFECYCLE}")
+string(FIND "${WINDOWS_PACKAGING}" "PrivilegesRequired=lowest"
   INSTALLER_LEVEL_POSITION)
 string(FIND "${WINDOWS_PACKAGING}"
-  "set(CPACK_NSIS_INSTALL_ROOT \"$LOCALAPPDATA/Programs\")"
+  "DefaultDirName={code:GetInstallDir}"
   INSTALLER_ROOT_POSITION)
-if(INSTALLER_LEVEL_POSITION EQUAL -1 OR INSTALLER_ROOT_POSITION EQUAL -1)
+string(FIND "${WINDOWS_PACKAGING}"
+  "{localappdata}\\Programs\\BongoCat" INSTALLER_DEFAULT_POSITION)
+if(INSTALLER_LEVEL_POSITION EQUAL -1 OR INSTALLER_ROOT_POSITION EQUAL -1
+    OR INSTALLER_DEFAULT_POSITION EQUAL -1)
   list(APPEND FAILURES
-    "cmake/Packaging.cmake: expected current-user NSIS installation")
+    "packaging/windows/BongoCat.iss.in: expected current-user Inno installation")
 endif()
 
 file(READ "${ROOT}/cmake/Info.plist.in" MACOS_INFO)

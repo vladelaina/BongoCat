@@ -139,7 +139,17 @@ void bongo_cat_ui_destroy(BongoCatUIBackend *ui) { release(ui, true); }
 
 void bongo_cat_ui_abandon(BongoCatUIBackend *ui) { release(ui, false); }
 
-static void convert(BongoCatUIBackend *ui) {
+static bool grow_buffer(void **data, size_t *capacity, size_t limit) {
+    if (*capacity >= limit) return false;
+    size_t next = NK_MIN(*capacity * 2, limit);
+    void *grown = realloc(*data, next);
+    if (!grown) return false;
+    *data = grown;
+    *capacity = next;
+    return true;
+}
+
+static bool convert(BongoCatUIBackend *ui) {
     static const struct nk_draw_vertex_layout_element layout[] = {
         {NK_VERTEX_POSITION, NK_FORMAT_FLOAT, offsetof(UIVertex, position)},
         {NK_VERTEX_TEXCOORD, NK_FORMAT_FLOAT, offsetof(UIVertex, uv)},
@@ -158,10 +168,22 @@ static void convert(BongoCatUIBackend *ui) {
     config.shape_AA = NK_ANTI_ALIASING_ON;
     config.line_AA = NK_ANTI_ALIASING_ON;
     struct nk_buffer vertices, elements;
-    nk_buffer_init_fixed(&vertices, ui->vertices, ui->vertex_capacity);
-    nk_buffer_init_fixed(&elements, ui->elements, ui->element_capacity);
-    ui->last_convert_result = nk_convert(&ui->context,
-        &ui->commands, &vertices, &elements, &config);
+    /* Bound transient storage and stay below the 16-bit vertex index limit.
+       Never upload partially converted geometry when either buffer fills. */
+    for (;;) {
+        nk_buffer_clear(&ui->commands);
+        nk_buffer_init_fixed(&vertices, ui->vertices, ui->vertex_capacity);
+        nk_buffer_init_fixed(&elements, ui->elements, ui->element_capacity);
+        ui->last_convert_result = (int)nk_convert(&ui->context,
+            &ui->commands, &vertices, &elements, &config);
+        if (ui->last_convert_result == NK_CONVERT_SUCCESS) break;
+        int full = NK_CONVERT_VERTEX_BUFFER_FULL | NK_CONVERT_ELEMENT_BUFFER_FULL;
+        if (ui->last_convert_result & ~full) return false;
+        if ((ui->last_convert_result & NK_CONVERT_VERTEX_BUFFER_FULL) &&
+            !grow_buffer(&ui->vertices, &ui->vertex_capacity, 1024u * 1024u)) return false;
+        if ((ui->last_convert_result & NK_CONVERT_ELEMENT_BUFFER_FULL) &&
+            !grow_buffer(&ui->elements, &ui->element_capacity, 512u * 1024u)) return false;
+    }
     ui->last_vertex_bytes = vertices.allocated;
     ui->last_element_bytes = elements.allocated;
     if (vertices.allocated >= sizeof(UIVertex)) {
@@ -173,23 +195,38 @@ static void convert(BongoCatUIBackend *ui) {
             if (sample[i].color[3] > ui->max_alpha) ui->max_alpha = sample[i].color[3];
         }
     }
+    ui->gl.bind_vertex_array(ui->vao);
     ui->gl.bind_buffer(GL_ARRAY_BUFFER, ui->vbo);
     ui->gl.buffer_data(GL_ARRAY_BUFFER, (GLsizeiptr)vertices.allocated,
         ui->vertices, GL_STREAM_DRAW);
     ui->gl.bind_buffer(GL_ELEMENT_ARRAY_BUFFER, ui->ebo);
     ui->gl.buffer_data(GL_ELEMENT_ARRAY_BUFFER, (GLsizeiptr)elements.allocated,
         ui->elements, GL_STREAM_DRAW);
+    return true;
 }
 
-void bongo_cat_ui_render(BongoCatUIBackend *ui) {
+bool bongo_cat_ui_render(BongoCatUIBackend *ui) {
     int pixel_width, pixel_height;
     float width = 0.0f, height = 0.0f;
     bongo_cat_ui_logical_size(ui, &width, &height);
     SDL_GetWindowSizeInPixels(ui->window, &pixel_width, &pixel_height);
+    if (width <= 0 || height <= 0 || pixel_width <= 0 || pixel_height <= 0) {
+        nk_clear(&ui->context);
+        nk_buffer_clear(&ui->commands);
+        return false;
+    }
     float projection[4][4] = {{2.0f / width, 0, 0, 0}, {0, -2.0f / height, 0, 0},
         {0, 0, -1, 0}, {-1, 1, 0, 1}};
     bongo_cat_gl_clear_errors();
-    convert(ui);
+    if (!convert(ui)) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_VIDEO, "UI conversion rejected incomplete geometry (flags %d)",
+            ui->last_convert_result);
+        ui->last_vertex_bytes = ui->last_element_bytes = 0;
+        ui->last_draw_commands = ui->last_draw_elements = 0;
+        nk_clear(&ui->context);
+        nk_buffer_clear(&ui->commands);
+        return false;
+    }
     glViewport(0, 0, pixel_width, pixel_height);
     glEnable(GL_BLEND);
     ui->gl.blend_equation(GL_FUNC_ADD);
@@ -204,7 +241,7 @@ void bongo_cat_ui_render(BongoCatUIBackend *ui) {
     ui->gl.active_texture(GL_TEXTURE0);
     ui->gl.bind_vertex_array(ui->vao);
     const struct nk_draw_command *command;
-    const nk_draw_index *offset = NULL;
+    size_t offset = 0;
     float sx = pixel_width / width, sy = pixel_height / height;
     ui->last_draw_commands = 0;
     ui->last_draw_elements = 0;
@@ -217,8 +254,9 @@ void bongo_cat_ui_render(BongoCatUIBackend *ui) {
             (GLint)((height - command->clip_rect.y - command->clip_rect.h) * sy),
             (GLsizei)(command->clip_rect.w * sx), (GLsizei)(command->clip_rect.h * sy));
         glDrawElements(GL_TRIANGLES, (GLsizei)command->elem_count,
-            sizeof(nk_draw_index) == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, offset);
-        offset += command->elem_count;
+            sizeof(nk_draw_index) == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT,
+            (const void *)(uintptr_t)offset);
+        offset += (size_t)command->elem_count * sizeof(nk_draw_index);
     }
     nk_clear(&ui->context);
     nk_buffer_clear(&ui->commands);
@@ -228,11 +266,12 @@ void bongo_cat_ui_render(BongoCatUIBackend *ui) {
     if (ui->last_draw_commands < 256) trim_commands(ui);
     glDisable(GL_SCISSOR_TEST);
     ui->last_gl_error = glGetError();
+    return ui->last_gl_error == GL_NO_ERROR;
 }
 
 void bongo_cat_ui_trim_idle(BongoCatUIBackend *ui) {
     if (!ui) return;
-    bongo_cat_ui_paint_destroy(ui);
+    bongo_cat_ui_paint_cache_trim_idle(ui);
     trim_commands(ui);
 }
 

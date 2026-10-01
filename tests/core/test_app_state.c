@@ -200,6 +200,18 @@ int main(void) {
     CHECK(!app.right_mouse_down && app.pointer_hit_dirty);
     CHECK(parameter("ParamMouseRightDown") == 0.0f);
 
+    event = input(BONGO_CAT_INPUT_MOUSE_DOWN, "Back", 1.0f);
+    bongo_cat_app_apply_input(&app, &event);
+    event = input(BONGO_CAT_INPUT_MOUSE_DOWN, "Forward", 1.0f);
+    bongo_cat_app_apply_input(&app, &event);
+    CHECK(app.side_mouse_down);
+    event = input(BONGO_CAT_INPUT_MOUSE_UP, "Back", 0.0f);
+    bongo_cat_app_apply_input(&app, &event);
+    CHECK(app.side_mouse_down && app.forward_mouse_down);
+    event = input(BONGO_CAT_INPUT_MOUSE_UP, "Forward", 0.0f);
+    bongo_cat_app_apply_input(&app, &event);
+    CHECK(!app.side_mouse_down);
+
     event = input(BONGO_CAT_INPUT_KEY_DOWN, "KeyA", 1.0f);
     bongo_cat_app_apply_input(&app, &event);
     CHECK(parameter("CatParamLeftHandDown") == 1.0f);

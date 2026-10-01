@@ -1,6 +1,6 @@
 #include "bongo_cat/file.h"
 #include "bongo_cat/model.h"
-#if defined(CSM_TARGET_WIN_GL) || defined(CSM_TARGET_LINUX_GL)
+#if defined(CSM_TARGET_WIN_GL) || defined(CSM_TARGET_LINUX_GL) || defined(CSM_TARGET_MAC_GL)
 #include <GL/glew.h>
 #endif
 #include "cubism_runtime.hpp"
@@ -76,7 +76,7 @@ void release_file(Csm::csmByte *bytes) { std::free(bytes); }
 
 bool start_framework(BongoCatError *error) {
     if (runtime_count++) return true;
-#if defined(CSM_TARGET_WIN_GL) || defined(CSM_TARGET_LINUX_GL)
+#if defined(CSM_TARGET_WIN_GL) || defined(CSM_TARGET_LINUX_GL) || defined(CSM_TARGET_MAC_GL)
     glewExperimental = GL_TRUE;
     GLenum glew_result = glewInit();
     glGetError();
@@ -87,7 +87,10 @@ bool start_framework(BongoCatError *error) {
         return false;
     }
     if (!glCreateShader || !glShaderSource || !glCompileShader ||
-        !glGetShaderiv || !glCreateProgram || !glGenFramebuffers) {
+        !glGetShaderiv || !glCreateProgram || !glGenFramebuffers ||
+        !glGenBuffers || !glBindBuffer || !glBufferData || !glDeleteBuffers ||
+        !glGenVertexArrays || !glBindVertexArray || !glDeleteVertexArrays ||
+        !glEnableVertexAttribArray || !glVertexAttribPointer) {
         runtime_count = 0;
         bongo_cat_error_set(error, BONGO_CAT_ERROR_PLATFORM,
             "Required OpenGL 3.3 functions are unavailable");
@@ -184,7 +187,10 @@ extern "C" void bongo_cat_live2d_reshape(BongoCatLive2D *runtime, int width, int
     if (runtime->model) runtime->model->reshape(width, height);
 }
 extern "C" bool bongo_cat_live2d_update(BongoCatLive2D *runtime, float elapsed) {
-    return runtime && runtime->model && runtime->model->update(elapsed);
+    if (!runtime) return false;
+    bool changed = runtime->model && runtime->model->update(elapsed);
+    // Finish deferred releases even when the replacement model is static.
+    return changed || runtime->retired_count > 0;
 }
 extern "C" void bongo_cat_live2d_draw(BongoCatLive2D *runtime) {
     if (!runtime) return;
