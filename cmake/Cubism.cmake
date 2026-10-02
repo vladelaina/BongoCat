@@ -52,6 +52,8 @@ include(cmake/CubismUserModelSafety.cmake)
 bongo_cat_harden_cubism_user_model(Framework)
 include(cmake/CubismShaderOptimize.cmake)
 bongo_cat_optimize_cubism_shaders(Framework)
+include(cmake/CubismJsonNumbers.cmake)
+bongo_cat_fix_cubism_json_numbers(Framework)
 
 if(WIN32)
   target_compile_definitions(Framework PUBLIC CSM_TARGET_WIN_GL GLEW_NO_GLU)
