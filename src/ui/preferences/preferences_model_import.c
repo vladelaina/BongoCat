@@ -15,6 +15,10 @@ static const char *tr(BongoCatApp *app, const char *key,
 static const char *import_failure_message(BongoCatApp *app,
     BongoCatResult result) {
     switch (result) {
+    case BONGO_CAT_ERROR_UNSUPPORTED_ARCHIVE:
+        return tr(app, "pages.preference.model.hints.importUnsupportedArchive",
+            "Only ZIP archives are supported. Extract the archive and import "
+            "the model folder, or repack it as ZIP before importing");
     case BONGO_CAT_ERROR_ARGUMENT:
         return tr(app, "pages.preference.model.hints.importInvalidSource",
             "The selected source no longer exists or cannot be used");
@@ -42,8 +46,8 @@ void bongo_cat_preferences_import_complete(BongoCatApp *app,
     const char (*failed_names)[BONGO_CAT_ID_CAP], size_t failed_name_count) {
     if (!app || !app->preferences) return;
     bool failed = failed_count > 0 || result != BONGO_CAT_OK;
-    char batch_message[384];
-    char failure_list[220] = "";
+    char batch_message[1024];
+    char failure_list[BONGO_CAT_IMPORT_FAILURE_NAME_CAP * (BONGO_CAT_ID_CAP + 2)] = "";
     char more_failures[64] = "";
     size_t shown_names = failed_names && failed_name_count >
         BONGO_CAT_IMPORT_FAILURE_NAME_CAP ? BONGO_CAT_IMPORT_FAILURE_NAME_CAP
@@ -73,7 +77,7 @@ void bongo_cat_preferences_import_complete(BongoCatApp *app,
             ? error->code : result;
         snprintf(batch_message, sizeof(batch_message), tr(app,
             "pages.preference.model.hints.importBatchResult",
-            "Import succeeded: %zu; failed: %zu. Failed models: %s%s. First failure: %s"),
+            "Import succeeded: %zu; failed: %zu.\nFailed models: %s%s.\nFirst failure: %s"),
             succeeded_count, failed_count, failure_list, more_failures,
             import_failure_message(app, failure));
         message = batch_message;

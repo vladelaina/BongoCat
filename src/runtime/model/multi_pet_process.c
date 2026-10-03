@@ -1,4 +1,6 @@
 #include "runtime.h"
+#include "model_cover_paths.h"
+#include "preferences_model_cover.h"
 #include "preferences_notice.h"
 #include "bongo_cat/file.h"
 #include "bongo_cat/i18n.h"
@@ -15,6 +17,7 @@ typedef struct SecondaryPet {
     char model_id[BONGO_CAT_ID_CAP];
     SDL_Process *process;
     uint64_t retry_ns, stop_ns;
+    uint64_t cover_size, cover_modified;
     unsigned failures;
     bool stopping, control_ready, control_visible, control_pass_through;
 } SecondaryPet;
@@ -92,6 +95,24 @@ static bool desired(const BongoCatApp *app, const char *model_id) {
         if (!strcmp(app->session.additional_model_ids[i], model_id))
             return true;
     return false;
+}
+
+static void refresh_pet_cover(BongoCatApp *app, SecondaryPet *pet) {
+    if (!app->preferences || !SDL_GL_GetCurrentContext()) return;
+    const BongoCatModelEntry *entry = bongo_cat_models_find(&app->models,
+        pet->model_id);
+    char path[BONGO_CAT_PATH_CAP];
+    uint64_t size, modified;
+    if (!entry || !bongo_cat_path_join(path, sizeof(path),
+            entry->adapter_directory, BONGO_CAT_MODEL_COVER_FILE) ||
+        !bongo_cat_path_file_info(path, &size, &modified) ||
+        (pet->cover_size == size && pet->cover_modified == modified)) return;
+    /* The child writes the shared PNG, but only the primary owns the UI
+       texture cache. Retry on the next heartbeat if reloading fails. */
+    if (bongo_cat_preferences_model_cover_reload(app, path)) {
+        pet->cover_size = size;
+        pet->cover_modified = modified;
+    }
 }
 
 static SDL_Process *create_pet_process(const char *const *args) {
@@ -231,12 +252,14 @@ void bongo_cat_multi_pet_primary_update(BongoCatApp *app, uint64_t now) {
         now - runtime->heartbeat_ns >= CONTROL_HEARTBEAT_NS;
     for (size_t i = 0; i < app->session.additional_model_count; ++i) {
         const char *id = app->session.additional_model_ids[i];
+        if (!desired(app, id)) continue;
         SecondaryPet *pet = find_pet(runtime, id);
         if (!pet && runtime->count < BONGO_CAT_ADDITIONAL_MODEL_CAP) {
             pet = &runtime->pets[runtime->count++];
             snprintf(pet->model_id, sizeof(pet->model_id), "%s", id);
         }
         if (!pet || pet->stopping) continue;
+        if (heartbeat) refresh_pet_cover(app, pet);
         if (heartbeat || !pet->control_ready ||
             pet->control_visible != app->session.window.visible ||
             pet->control_pass_through != app->settings.window.pass_through)

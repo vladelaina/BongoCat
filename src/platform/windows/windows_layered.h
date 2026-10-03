@@ -12,6 +12,7 @@ void bongo_cat_windows_layered_set_click_through(
 void bongo_cat_windows_layered_set_always_on_top(
     BongoCatPlatform *platform, bool enabled);
 HWND bongo_cat_windows_layered_proxy(HWND source);
+bool bongo_cat_windows_layered_suppressed(HWND source);
 #endif
 
 #endif

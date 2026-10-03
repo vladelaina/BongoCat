@@ -5,6 +5,8 @@
 #include "model_import.h"
 
 typedef struct BongoCatImportJob {
+    struct BongoCatImportJob *next;
+    SDL_WindowID window_id;
     size_t count;
     char **paths;
     char models_root[BONGO_CAT_PATH_CAP];
@@ -47,6 +49,8 @@ struct BongoCatImportDialog {
     SDL_WindowID window_id;
     SDL_Thread *worker;
     BongoCatImportJob *worker_job;
+    BongoCatImportJob *pending_head;
+    BongoCatImportJob *pending_tail;
     uint64_t started_ns;
     size_t completed;
     size_t total;

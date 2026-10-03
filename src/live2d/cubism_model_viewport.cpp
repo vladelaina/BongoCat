@@ -63,7 +63,7 @@ void NativeModel::apply_viewport_projection(
     matrix[13] = matrix[13] * scale_y + translate_y;
 }
 
-void NativeModel::record_visible_state(Csm::CubismMatrix44 &projection) {
+void NativeModel::record_visible_state(Csm::CubismMatrix44 &projection) const {
     visual_state_.drawable_count = _model->GetDrawableCount();
     for (int i = 0; i < _model->GetDrawableCount(); ++i) {
         if (_model->GetDrawableDynamicFlagIsVisible(i) &&
@@ -80,6 +80,7 @@ void NativeModel::record_visible_state(Csm::CubismMatrix44 &projection) {
     for (int i = 0; i < _model->GetPartCount(); ++i)
         if (_model->GetPartOpacity(i) > 0.001f)
             ++visual_state_.part_positive;
+    if (_model->GetModelOpacity() <= 0.001f) return;
     ModelBounds bounds = capture_visible_bounds();
     if (!bounds.valid) return;
     float x0 = projection.TransformX(bounds.min_x);
@@ -95,6 +96,16 @@ void NativeModel::record_visible_state(Csm::CubismMatrix44 &projection) {
 
 bool NativeModel::visual_state(BongoCatLive2DVisualState *state) const {
     if (!state || !visual_state_ready_) return false;
+    if (!visual_state_cached_) {
+        // Bounds are used by pointer anchoring and visual audits, not drawing.
+        // Avoid traversing every triangle on every animated frame.
+        bool mver_projection = visual_state_.mver_projection;
+        visual_state_ = BongoCatLive2DVisualState{};
+        visual_state_.fit_scale = 1.0f;
+        visual_state_.mver_projection = mver_projection;
+        record_visible_state(visual_projection_);
+        visual_state_cached_ = true;
+    }
     *state = visual_state_;
     return true;
 }

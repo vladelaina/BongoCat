@@ -43,11 +43,8 @@ float bongo_cat_ui_sidebar_width(float window_width) {
 }
 
 bool bongo_cat_ui_native_chrome(void) {
-#ifdef __APPLE__
-    return true;
-#else
+    /* Keep SDL borderless input handling consistent on macOS. */
     return false;
-#endif
 }
 
 void bongo_cat_ui_shell_draw(struct nk_context *context, float width,
@@ -64,20 +61,13 @@ void bongo_cat_ui_shell_draw(struct nk_context *context, float width,
         nk_fill_rect(canvas, surface, 0, p.surface_glass);
         nk_fill_rect(canvas, nk_rect(0, 0, sidebar_right, height), 0,
             p.surface);
-    } else if (fast) {
+    } else {
         nk_fill_rect(canvas, surface, rounding, p.surface_glass);
         nk_push_scissor(canvas, nk_rect(0, 0, sidebar_right, height));
         nk_fill_rect(canvas, surface, rounding, p.surface);
         nk_push_scissor(canvas, surface);
-    } else {
-        bongo_cat_ui_paint_rounded_surface(context, surface, rounding,
-            p.surface_glass);
-        nk_push_scissor(canvas, nk_rect(0, 0, sidebar_right, height));
-        bongo_cat_ui_paint_rounded_surface(context, surface, rounding,
-            p.surface);
-        nk_push_scissor(canvas, surface);
     }
-    if (p.effects && !fast)
+    if (p.effects && !fast && !dark)
         bongo_cat_ui_paint_sidebar_glow(context, surface, sidebar_right,
             rounding,
             nk_rgba(p.accent.r, p.accent.g, p.accent.b, 56));

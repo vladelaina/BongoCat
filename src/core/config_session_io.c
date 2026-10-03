@@ -151,6 +151,9 @@ BongoCatResult bongo_cat_session_load(const char *path,
         bongo_cat_config_read_text("Session", root,
             "lastUpdateCheckVersion", loaded.last_update_check_version,
             sizeof(loaded.last_update_check_version), error) &&
+        bongo_cat_config_read_text("Session", root,
+            "availableUpdateVersion", loaded.available_update_version,
+            sizeof(loaded.available_update_version), error) &&
         read_additional_models(additional_models, &loaded, error) &&
         read_active_behaviors(active_behaviors, &loaded, error);
     yyjson_doc_free(document);
@@ -243,6 +246,8 @@ BongoCatResult bongo_cat_session_save(const char *path,
             canonical.last_update_check_day) &&
         yyjson_mut_obj_add_strcpy(doc, root, "lastUpdateCheckVersion",
             canonical.last_update_check_version) &&
+        yyjson_mut_obj_add_strcpy(doc, root, "availableUpdateVersion",
+            canonical.available_update_version) &&
         write_additional_models(doc, root, &canonical) &&
         write_active_behaviors(doc, root, &canonical);
     if (!built) {

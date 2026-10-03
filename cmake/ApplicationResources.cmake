@@ -1,16 +1,31 @@
 if(APPLE)
+  set(BONGO_CAT_APP_ICON "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/icon.icns")
   set_target_properties(bongo_cat PROPERTIES
     MACOSX_BUNDLE TRUE
     MACOSX_BUNDLE_BUNDLE_NAME "BongoCat"
     MACOSX_BUNDLE_GUI_IDENTIFIER com.bongocat.desktop
+    MACOSX_BUNDLE_ICON_FILE "icon.icns"
     MACOSX_BUNDLE_INFO_PLIST
       "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Info.plist.in")
+  # Stage the icon with other resources before any later POST_BUILD signing.
+  # Relink when it changes so incremental builds also run the resource copy.
+  set_property(TARGET bongo_cat APPEND PROPERTY LINK_DEPENDS
+    "${BONGO_CAT_APP_ICON}")
   add_custom_command(TARGET bongo_cat POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory
+    COMMAND ${CMAKE_COMMAND} -E rm -rf
       "$<TARGET_BUNDLE_CONTENT_DIR:bongo_cat>/MacOS/assets"
+      "$<TARGET_BUNDLE_CONTENT_DIR:bongo_cat>/MacOS/FrameworkShaders"
+      "$<TARGET_BUNDLE_CONTENT_DIR:bongo_cat>/Resources/assets"
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+      "$<TARGET_BUNDLE_CONTENT_DIR:bongo_cat>/Resources/assets"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      "${BONGO_CAT_APP_ICON}"
+      "$<TARGET_BUNDLE_CONTENT_DIR:bongo_cat>/Resources/icon.icns"
     COMMAND ${CMAKE_COMMAND} -E copy_directory
       "${CMAKE_CURRENT_SOURCE_DIR}/resources/assets"
-      "$<TARGET_BUNDLE_CONTENT_DIR:bongo_cat>/MacOS/assets"
+      "$<TARGET_BUNDLE_CONTENT_DIR:bongo_cat>/Resources/assets"
+    COMMAND ${CMAKE_COMMAND} -E rm -f
+      "$<TARGET_BUNDLE_CONTENT_DIR:bongo_cat>/Resources/assets/models/LICENSE"
     VERBATIM)
 endif()
 

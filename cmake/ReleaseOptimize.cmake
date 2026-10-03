@@ -1,5 +1,5 @@
 option(BONGO_CAT_OPTIMIZE_RELEASE_SIZE
-  "Enable conservative size and dead-code optimization for Release builds" ON)
+  "Enable conservative size and dead-code optimization for Release and MinSizeRel builds" ON)
 option(BONGO_CAT_OPTIMIZE_RELEASE_IPO
   "Enable compiler link-time optimization for native project targets" ON)
 
@@ -21,6 +21,8 @@ function(bongo_cat_enable_release_ipo)
         NOT MINGW AND TARGET "${target}")
       set_property(TARGET "${target}" PROPERTY
         INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
+      set_property(TARGET "${target}" PROPERTY
+        INTERPROCEDURAL_OPTIMIZATION_MINSIZEREL TRUE)
     endif()
   endforeach()
 endfunction()
@@ -32,27 +34,32 @@ endif()
 # Keep the Windows loader's control-flow enforcement enabled in release
 # binaries as well as the compiler-side indirect-call instrumentation.
 if(MSVC OR CMAKE_C_SIMULATE_ID STREQUAL "MSVC")
-  add_compile_options($<$<CONFIG:Release>:/guard:cf>)
-  add_link_options($<$<CONFIG:Release>:/guard:cf>)
+  add_compile_options($<$<CONFIG:Release,MinSizeRel>:/guard:cf>)
+  add_link_options($<$<CONFIG:Release,MinSizeRel>:/guard:cf>)
 endif()
 
 # Apply before FetchContent so static dependencies use the same settings. LTO
-# stays disabled because not every supported third-party archive is LTO-safe.
+# is enabled only for the explicitly selected targets above; prebuilt and
+# other third-party archives keep their existing LTO settings.
 if(BONGO_CAT_OPTIMIZE_RELEASE_SIZE)
   if(MSVC OR CMAKE_C_SIMULATE_ID STREQUAL "MSVC")
-    add_compile_options($<$<CONFIG:Release>:/O1>
-      $<$<CONFIG:Release>:/Gy> $<$<CONFIG:Release>:/Gw>)
-    add_link_options($<$<CONFIG:Release>:/OPT:REF>
-      $<$<CONFIG:Release>:/OPT:ICF>)
+    # Omit unused inline COMDATs and incremental-link padding. Keep the
+    # existing runtime, exception handling and floating-point semantics.
+    add_compile_options($<$<CONFIG:Release,MinSizeRel>:/O1>
+      $<$<CONFIG:Release,MinSizeRel>:/Gy> $<$<CONFIG:Release,MinSizeRel>:/Gw>
+      $<$<CONFIG:Release,MinSizeRel>:/Zc:inline>)
+    add_link_options($<$<CONFIG:Release,MinSizeRel>:/OPT:REF>
+      $<$<CONFIG:Release,MinSizeRel>:/OPT:ICF>
+      $<$<CONFIG:Release,MinSizeRel>:/INCREMENTAL:NO>)
   elseif(CMAKE_C_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang)$")
-    add_compile_options($<$<CONFIG:Release>:-Os>
-      $<$<CONFIG:Release>:-ffunction-sections>
-      $<$<CONFIG:Release>:-fdata-sections>)
+    add_compile_options($<$<CONFIG:Release,MinSizeRel>:-Os>
+      $<$<CONFIG:Release,MinSizeRel>:-ffunction-sections>
+      $<$<CONFIG:Release,MinSizeRel>:-fdata-sections>)
     if(APPLE)
-      add_link_options($<$<CONFIG:Release>:-Wl,-dead_strip>)
+      add_link_options($<$<CONFIG:Release,MinSizeRel>:-Wl,-dead_strip>)
     else()
-      add_link_options($<$<CONFIG:Release>:-Wl,--gc-sections>
-        $<$<CONFIG:Release>:-s>)
+      add_link_options($<$<CONFIG:Release,MinSizeRel>:-Wl,--gc-sections>
+        $<$<CONFIG:Release,MinSizeRel>:-s>)
     endif()
   endif()
 endif()

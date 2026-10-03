@@ -39,9 +39,9 @@ BongoCatUIPalette bongo_cat_ui_palette(bool dark) {
 #ifdef _WIN32
     if (high_contrast(&value)) return value;
 #endif
-    value.background = rgb(dark ? 0x16181D : 0xF0F4F9);
-    value.surface = rgb(dark ? 0x21242B : 0xFFFFFF);
-    value.surface_glass = rgb(dark ? 0x20232A : 0xFBFCFE);
+    value.background = rgb(dark ? 0x010409 : 0xF0F4F9);
+    value.surface = rgb(dark ? 0x010409 : 0xFFFFFF);
+    value.surface_glass = rgb(dark ? 0x010409 : 0xFBFCFE);
     value.field = rgb(dark ? 0x2A2E37 : 0xF5F8FC);
     value.border = rgb(dark ? 0x345473 : 0xDAEDFE);
     value.border_subtle = rgb(dark ? 0x343A45 : 0xE8EBF1);

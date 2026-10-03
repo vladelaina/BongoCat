@@ -24,6 +24,7 @@ struct BongoCatUpdateService {
     BongoCatUpdateRelease release;
     char error[256];
     bool manual;
+    bool open_after_check;
     bool installed;
     bool shutting_down;
     bool http_cancelled;
@@ -36,6 +37,7 @@ BongoCatUpdateFetchResult bongo_cat_update_http_fetch(
     BongoCatUpdateService *service, char **response, char *error,
     size_t error_capacity);
 void bongo_cat_update_http_cancel(BongoCatUpdateService *service);
+void bongo_cat_update_show_completion(BongoCatUpdateService *service);
 bool bongo_cat_update_platform_supported(void);
 bool bongo_cat_update_platform_store(void);
 bool bongo_cat_update_platform_installed(void);

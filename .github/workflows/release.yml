@@ -1,4 +1,4 @@
-name: Release BongoCat for Windows
+name: Release BongoCat
 
 on:
   workflow_dispatch:
@@ -11,19 +11,41 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  version-check:
+    name: quality / tag-version
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v5
+
+      - name: Validate tag matches project version
+        shell: pwsh
+        run: ./.github/scripts/check-tag-version.ps1 -Tag $env:GITHUB_REF_NAME
+
   build:
     name: build / ${{ matrix.platform }}
+    needs: version-check
     if: github.repository == 'vladelaina/BongoCat'
-    runs-on: windows-2022
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
-      max-parallel: 1
       matrix:
         include:
-          - platform: windows-x64
+          - os: windows-2022
+            platform: windows-x64
             cmake_arch: x64
-          - platform: windows-x86
+          - os: windows-2022
+            platform: windows-x86
             cmake_arch: Win32
+          - os: ubuntu-22.04
+            platform: linux-x64
+            cmake_arch: ''
+          - os: macos-15-intel
+            platform: macos-x64
+            cmake_arch: x86_64
+          - os: macos-15
+            platform: macos-arm64
+            cmake_arch: arm64
     env:
       CUBISM_SDK_ARCHIVE_URL: ${{ secrets.CUBISM_SDK_ARCHIVE_URL }}
       CUBISM_SDK_ARCHIVE_SHA256: ${{ secrets.CUBISM_SDK_ARCHIVE_SHA256 }}
@@ -50,48 +72,52 @@ jobs:
         shell: pwsh
         run: ./.github/scripts/restore-cubism-sdk.ps1
 
-      - name: Configure release
-        shell: pwsh
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
         run: |
-          cmake -S . -B build-release -G "Visual Studio 17 2022" `
-            -A ${{ matrix.cmake_arch }} -T v143 `
-            -DBONGO_CAT_REQUIRE_CUBISM=ON `
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build libgl1-mesa-dev libegl1-mesa-dev libx11-dev libxi-dev \
+            libxfixes-dev libcurl4-openssl-dev \
+            curl file desktop-file-utils
+
+      - name: Configure Unix release
+        if: runner.os != 'Windows'
+        run: |
+          cmake -S . -B build-release -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTING=OFF \
+            -DBONGO_CAT_OPTIMIZE_RELEASE_SIZE=ON \
+            -DBONGO_CAT_OPTIMIZE_RELEASE_IPO=ON \
+            -DCMAKE_OSX_ARCHITECTURES=${{ matrix.cmake_arch }} \
+            -DBONGO_CAT_REQUIRE_CUBISM=ON \
             -DBONGO_CAT_WARNINGS_AS_ERRORS=ON
 
-      - name: Build release
-        shell: pwsh
-        run: >-
-          & ./.github/scripts/build-windows.ps1
-          cmake --build build-release --config Release --parallel 2
-
-      - name: Test release
-        shell: pwsh
-        run: >-
-          & ./.github/scripts/test-windows.ps1
-          ctest --test-dir build-release -C Release --output-on-failure
-
-      - name: Install NSIS
+      - name: Build Windows release
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          if (-not (Get-Command makensis.exe -ErrorAction SilentlyContinue)) {
-            choco install nsis --no-progress --yes
-          }
-          $nsisCommand = Get-Command makensis.exe -ErrorAction SilentlyContinue
-          $nsisRoots = @(
-            (Join-Path ${env:ProgramFiles(x86)} 'NSIS'),
-            (Join-Path $env:ProgramFiles 'NSIS')
-          )
-          if ($nsisCommand) { $nsisRoots += Split-Path $nsisCommand.Source }
-          $nsisRoot = $nsisRoots | Where-Object {
-            Test-Path -LiteralPath (Join-Path $_ 'makensis.exe')
-          } | Select-Object -First 1
-          if (-not $nsisRoot) {
-            throw 'NSIS was not installed (makensis.exe was not found)'
-          }
-          $nsisRoot | Out-File -FilePath $env:GITHUB_PATH `
-            -Append -Encoding utf8
+          & ./scripts/build-windows.ps1 `
+            -SkipTests `
+            -BuildDir build-release `
+            -Configuration Release `
+            -Architecture '${{ matrix.cmake_arch }}' `
+            -Jobs 2 `
+            -RequireCubism `
+            -Target ALL_BUILD
 
-      - name: Package release
+      - name: Build Unix release
+        if: runner.os != 'Windows'
+        run: bash .github/scripts/build-unix.sh cmake --build build-release --parallel 2
+
+      - name: Install Inno Setup
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: >-
+          & ./.github/scripts/install-inno.ps1
+
+      - name: Package Windows release
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $name = (Get-Content build-release/bongocat-package-name.txt -Raw).Trim()
@@ -126,6 +152,61 @@ jobs:
           Copy-Item -LiteralPath $portable, $portableChecksum, $setup, `
             $setupChecksum -Destination release-output
 
+      - name: Upload Windows installer failure log
+        if: failure() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: installer-log-${{ matrix.platform }}-${{ github.run_attempt }}
+          path: build-release/installer.log
+          if-no-files-found: ignore
+
+      - name: Package Unix release
+        if: runner.os != 'Windows'
+        timeout-minutes: 5
+        shell: pwsh
+        run: |
+          $name = (Get-Content build-release/bongocat-package-name.txt -Raw).Trim()
+          $expected = "BongoCat-${{ steps.version.outputs.version }}-${{ matrix.platform }}"
+          if ($name -ne $expected) {
+            throw "Unexpected release package name: $name"
+          }
+
+          cmake --build build-release --target package
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Unix archive packaging failed'
+          }
+          $archives = @(Get-ChildItem build-release/dist -File | Where-Object {
+            $_.Name -match '\.(zip|tar\.gz)$'
+          })
+          if ($archives.Count -ne 1) {
+            throw "Expected one Unix release archive, found $($archives.Count)"
+          }
+          $archive = $archives[0]
+          $packageCheckArgs = @{
+            Archive = $archive.FullName
+            Platform = '${{ matrix.platform }}'
+            SkipSmoke = '${{ matrix.platform }}'.StartsWith('macos-')
+          }
+          & ./.github/scripts/check-unix-package.ps1 @packageCheckArgs
+          $checksum = "$($archive.FullName).sha256"
+          if (-not (Test-Path -LiteralPath $checksum -PathType Leaf)) {
+            throw "Release checksum is missing: $checksum"
+          }
+
+          New-Item -ItemType Directory -Path release-output -Force | Out-Null
+          Copy-Item -LiteralPath $archive.FullName, $checksum `
+            -Destination release-output
+
+          if ('${{ matrix.platform }}' -eq 'linux-x64') {
+            cmake --build build-release --target package-appimage
+            if ($LASTEXITCODE -ne 0) { throw 'AppImage packaging failed' }
+            $appimage = Get-Item build-release/dist/*.AppImage
+            bash ./.github/scripts/check-appimage.sh $appimage.FullName
+            $appimageHash = (Get-FileHash $appimage -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$appimageHash  $($appimage.Name)" | Set-Content "$($appimage.FullName).sha256" -Encoding ascii
+            Copy-Item -LiteralPath $appimage.FullName, "$($appimage.FullName).sha256" -Destination release-output
+          }
+
       - name: Upload packaged release
         uses: actions/upload-artifact@v7
         with:
@@ -136,42 +217,32 @@ jobs:
 
   virus-total:
     name: security / virustotal
-    needs: build
+    needs: version-check
     if: github.repository == 'vladelaina/BongoCat'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 310
+    # CI and releases share the same VirusTotal API quota.
+    concurrency:
+      group: bongocat-virustotal
+      cancel-in-progress: false
     permissions:
       contents: read
-      actions: write
+      actions: read
 
     steps:
       - name: Checkout source
         uses: actions/checkout@v5
 
-      - name: Download packaged releases
-        uses: actions/download-artifact@v8
-        with:
-          pattern: bongocat-release-windows-*
-          path: vt-input
-          merge-multiple: true
-
-      - name: Scan all Windows release artifacts with VirusTotal
+      # Discover artifacts while matrix jobs are still building. A single
+      # worker owns the rolling request window for every platform.
+      - name: Scan artifacts as they become available
         env:
           VIRUSTOTAL_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
-        run: |
-          set -euo pipefail
-          mapfile -d '' files < <(find vt-input -type f \( \
-            -iname '*-setup.exe' -o -iname '*-portable.exe' \) \
-            -print0 | sort -z)
-          if [ "${#files[@]}" -ne 4 ]; then
-            echo "::error::Expected 4 VirusTotal inputs, found ${#files[@]}"
-            printf 'Found: %s\n' "${files[@]}"
-            exit 1
-          fi
-          for file in "${files[@]}"; do
-            report=$(basename "$file" | tr -c 'A-Za-z0-9._-' '_')
-            VT_REPORT_PATH="virustotal-report-$report.json" \
-              python3 .github/scripts/scan-virustotal.py --file "$file"
-          done
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          python3 -u .github/scripts/watch-virustotal.py
+          --artifact-prefix 'bongocat-release-'
+          --producer-prefix 'build / '
 
       - name: Add VirusTotal note when scanning is skipped
         if: always() && hashFiles('virustotal-report-*.json') == ''
@@ -179,7 +250,7 @@ jobs:
           {
             echo "## VirusTotal scans"
             echo
-            echo "No report was produced. Check that VIRUSTOTAL_API_KEY is configured."
+            echo "No report was produced. Check the scan logs and VIRUSTOTAL_API_KEY configuration."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload VirusTotal reports
@@ -192,10 +263,10 @@ jobs:
           retention-days: 90
 
   publish:
-    name: publish / windows
+    name: publish / all platforms
     needs: build
     if: github.repository == 'vladelaina/BongoCat'
-    runs-on: windows-2022
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
 
@@ -206,7 +277,7 @@ jobs:
       - name: Download packaged releases
         uses: actions/download-artifact@v8
         with:
-          pattern: bongocat-release-windows-*
+          pattern: bongocat-release-*
           path: release-output
           merge-multiple: true
 
@@ -219,13 +290,26 @@ jobs:
           if ($env:GITHUB_REF_NAME -ne "v$version") {
             throw "Tag $env:GITHUB_REF_NAME does not match project version $version"
           }
-          $files = foreach ($platform in 'windows-x64', 'windows-x86') {
+          $files = @()
+          foreach ($platform in 'windows-x64', 'windows-x86') {
             $base = "BongoCat-$version-$platform"
-            "release-output/$base-portable.exe"
-            "release-output/$base-portable.exe.sha256"
-            "release-output/$base-setup.exe"
-            "release-output/$base-setup.exe.sha256"
+            $files += "release-output/$base-portable.exe"
+            $files += "release-output/$base-portable.exe.sha256"
+            $files += "release-output/$base-setup.exe"
+            $files += "release-output/$base-setup.exe.sha256"
           }
+          $unixArchives = @{
+            'linux-x64' = 'tar.gz'
+            'macos-x64' = 'zip'
+            'macos-arm64' = 'zip'
+          }
+          foreach ($platform in $unixArchives.Keys) {
+            $archive = "release-output/BongoCat-$version-$platform.$($unixArchives[$platform])"
+            $files += $archive
+            $files += "$archive.sha256"
+          }
+          $files += "release-output/BongoCat-$version-linux-x64.AppImage"
+          $files += "release-output/BongoCat-$version-linux-x64.AppImage.sha256"
           foreach ($file in $files) {
             if (-not (Test-Path -LiteralPath $file -PathType Leaf)) {
               throw "Release is incomplete: $file"
@@ -268,6 +352,10 @@ jobs:
             - [Windows x64 portable](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/BongoCat-${{ steps.version.outputs.version }}-windows-x64-portable.exe)
             - [Windows x86 installer](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/BongoCat-${{ steps.version.outputs.version }}-windows-x86-setup.exe)
             - [Windows x86 portable](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/BongoCat-${{ steps.version.outputs.version }}-windows-x86-portable.exe)
+            - [macOS Apple Silicon](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/BongoCat-${{ steps.version.outputs.version }}-macos-arm64.zip)
+            - [macOS Intel](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/BongoCat-${{ steps.version.outputs.version }}-macos-x64.zip)
+            - [Linux x64](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/BongoCat-${{ steps.version.outputs.version }}-linux-x64.tar.gz)
+            - [Linux x64 AppImage](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/BongoCat-${{ steps.version.outputs.version }}-linux-x64.AppImage)
 
           generate_release_notes: true
           fail_on_unmatched_files: true
@@ -275,3 +363,6 @@ jobs:
           files: |
             release-output/*-portable.exe
             release-output/*-setup.exe
+            release-output/*.zip
+            release-output/*.tar.gz
+            release-output/*.AppImage

@@ -1,6 +1,52 @@
 #include "model_geometry.h"
 
 #include <SDL3/SDL.h>
+#include <limits.h>
+#include <math.h>
+
+/* Share the aspect policy between texture planning and the window commit.
+   The incoming width must never come from the outgoing model's window. */
+static bool content_size(const BongoCatLive2DRenderOptions *options,
+    int canvas_width, int canvas_height, int requested_height,
+    int *width, int *height) {
+    int reference_width = canvas_width > 0 ? canvas_width : 612;
+    int reference_height = canvas_height > 0 ? canvas_height : 354;
+    if (options && options->mver_projection) {
+        reference_width = options->reference_width;
+        reference_height = options->reference_height;
+    }
+    if (reference_width <= 0 || reference_height <= 0 || requested_height <= 0)
+        return false;
+    double scaled_width = (double)requested_height * reference_width / reference_height;
+    *width = (int)SDL_clamp(scaled_width + 0.5, 64.0, 8192.0);
+    *height = SDL_clamp(requested_height, 64, 8192);
+    return true;
+}
+
+bool bongo_cat_model_texture_display_size(void *userdata,
+    const BongoCatLive2DRenderOptions *options, int canvas_width,
+    int canvas_height, int *display_width, int *display_height) {
+    BongoCatApp *app = userdata;
+    int width = 0, height = 0, pixels_w = 0, pixels_h = 0;
+    if (!app || !app->window || !display_width || !display_height ||
+        !SDL_GetWindowSize(app->window, &width, &height) ||
+        !SDL_GetWindowSizeInPixels(app->window, &pixels_w, &pixels_h) ||
+        width <= 0 || height <= 0 || pixels_w <= 0 || pixels_h <= 0) return false;
+    int content_width = 0, content_height = 0;
+    int requested_height = app->session.window.content_height > 0
+        ? app->session.window.content_height : height;
+    if (!content_size(options, canvas_width, canvas_height, requested_height,
+        &content_width, &content_height)) return false;
+    /* Account for high-DPI windows. Later monitor changes use the ordinary
+       background resolution refresh once the new pixel size is known. */
+    double target_width = ceil((double)content_width * pixels_w / width);
+    double target_height = ceil((double)content_height * pixels_h / height);
+    if (target_width < 1.0 || target_height < 1.0 ||
+        target_width > INT_MAX || target_height > INT_MAX) return false;
+    *display_width = (int)target_width;
+    *display_height = (int)target_height;
+    return true;
+}
 
 BongoCatModelContentAnchor bongo_cat_model_content_anchor(BongoCatApp *app) {
     BongoCatModelContentAnchor anchor = {0};
@@ -24,31 +70,16 @@ bool bongo_cat_model_apply_aspect(BongoCatApp *app,
     const BongoCatLive2DRenderOptions *options,
     const BongoCatModelContentAnchor *anchor, bool replacing_model) {
     if (!app || !app->window) return false;
-    int reference_width = 612;
-    int reference_height = 354;
-    if (options && options->mver_projection) {
-        reference_width = options->reference_width;
-        reference_height = options->reference_height;
-    } else {
-        int canvas_width = 0, canvas_height = 0;
-        if (bongo_cat_live2d_canvas_size(app->live2d,
-            &canvas_width, &canvas_height)) {
-            reference_width = canvas_width;
-            reference_height = canvas_height;
-        }
-    }
+    int canvas_width = 0, canvas_height = 0;
+    bongo_cat_live2d_canvas_size(app->live2d, &canvas_width, &canvas_height);
     int x, y, width, height;
-    if (reference_width <= 0 || reference_height <= 0 ||
-        !SDL_GetWindowPosition(app->window, &x, &y) ||
+    if (!SDL_GetWindowPosition(app->window, &x, &y) ||
         !SDL_GetWindowSize(app->window, &width, &height)) return false;
-    int content_height = app->session.window.content_height > 0
+    int requested_height = app->session.window.content_height > 0
         ? app->session.window.content_height : height;
-    int content_width = (int)((double)content_height * reference_width /
-        reference_height + 0.5);
-    if (content_width < 64) content_width = 64;
-    if (content_width > 8192) content_width = 8192;
-    if (content_height < 64) content_height = 64;
-    if (content_height > 8192) content_height = 8192;
+    int content_width = 0, content_height = 0;
+    if (!content_size(options, canvas_width, canvas_height, requested_height,
+        &content_width, &content_height)) return false;
     int next_width = 0, next_height = 0, left = 0, top = 0;
     if (!bongo_cat_window_frame_size(app, content_width, content_height,
             &next_width, &next_height, &left, &top)) return false;

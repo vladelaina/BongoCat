@@ -2,7 +2,12 @@
 #define BONGO_CAT_PLATFORM_H
 
 #include "bongo_cat/config.h"
+#ifdef __cplusplus
+/* C++ platform helpers only need a pointer to the C11 atomic input state. */
+typedef struct BongoCatInputState BongoCatInputState;
+#else
 #include "bongo_cat/input.h"
+#endif
 
 #include <stdint.h>
 
@@ -13,9 +18,9 @@ typedef struct BongoCatPlatform {
     BongoCatInputState *input;
     void *native;
     void *presenter;
-    void *relative_pointer;
     uint32_t wake_event_type;
     float window_opacity;
+    bool hover_hide_unavailable;
 } BongoCatPlatform;
 
 typedef enum BongoCatMenuAction {
@@ -55,7 +60,8 @@ typedef enum BongoCatMenuAction {
     BONGO_CAT_MENU_REMOVE_PET,
     BONGO_CAT_MENU_MODEL_FIRST = 1000,
     BONGO_CAT_MENU_MOTION_FIRST = 2000,
-    BONGO_CAT_MENU_EXPRESSION_FIRST = 3000
+    BONGO_CAT_MENU_EXPRESSION_FIRST = BONGO_CAT_MENU_MOTION_FIRST + BONGO_CAT_BEHAVIOR_LIMIT,
+    BONGO_CAT_MENU_AUDIO_FIRST = BONGO_CAT_MENU_EXPRESSION_FIRST + BONGO_CAT_BEHAVIOR_LIMIT
 } BongoCatMenuAction;
 typedef void (*BongoCatMenuPreview)(void *userdata, BongoCatMenuAction action);
 
@@ -77,6 +83,13 @@ typedef struct BongoCatMenuLabels {
     void *preview_userdata;
     const char *remove_pet;
     bool remove_pet_visible;
+    const char *audio;
+    const char (*audio_names)[BONGO_CAT_MENU_LABEL_CAP];
+    const bool *audio_checked;
+    size_t audio_count;
+    const char *const *model_cover_directories;
+    /* Optional cancellation flag, read after the modal input tick. */
+    const bool *close_requested;
 } BongoCatMenuLabels;
 
 typedef void (*BongoCatTrayClick)(void *userdata);
@@ -96,9 +109,12 @@ bool bongo_cat_platform_frame_alpha(const BongoCatPlatform *platform,
 void bongo_cat_platform_set_visible(BongoCatPlatform *platform, bool visible);
 bool bongo_cat_platform_pointer_local(BongoCatPlatform *platform, double screen_x,
     double screen_y, float *local_x, float *local_y);
+/* Reports a foreground application's fixed/locked system cursor state. */
+bool bongo_cat_platform_pointer_locked(BongoCatPlatform *platform);
 bool bongo_cat_platform_relative_pointer(BongoCatPlatform *platform,
     double *x, double *y);
 void bongo_cat_platform_relative_pointer_reset(BongoCatPlatform *platform);
+void bongo_cat_platform_relative_pointer_release(BongoCatPlatform *platform);
 void bongo_cat_platform_set_always_on_top(BongoCatPlatform *platform, bool enabled);
 void bongo_cat_platform_raise_window(SDL_Window *window);
 /* Configure platform-native chrome for the preferences window when available. */
@@ -117,9 +133,18 @@ bool bongo_cat_platform_single_instance_take_wake(void);
 bool bongo_cat_platform_update_shutdown_argument(int argc, char **argv);
 bool bongo_cat_platform_single_instance_take_update_shutdown(void);
 void bongo_cat_platform_single_instance_end(void);
-BongoCatResult bongo_cat_platform_set_autostart(bool enabled, BongoCatError *error);
+BongoCatResult bongo_cat_platform_set_autostart(bool enabled, bool administrator,
+    BongoCatError *error);
 BongoCatMenuAction bongo_cat_platform_context_menu(BongoCatPlatform *platform,
     const BongoCatMenuLabels *labels);
 BongoCatResult bongo_cat_platform_embedded_assets(const char *target, BongoCatError *error);
+
+#ifdef __APPLE__
+/* Read the permission macOS grants the app right now, without prompting.
+   Callers refresh on a user action or a focus change, never per frame. */
+bool bongo_cat_platform_input_monitoring_authorized(void);
+/* Ask macOS for Input Monitoring; only an explicit user action may call it. */
+bool bongo_cat_platform_input_monitoring_request(void);
+#endif
 
 #endif

@@ -5,6 +5,9 @@
 #include <SDL3/SDL.h>
 #include <stdio.h>
 #include <string.h>
+#ifndef _WIN32
+#include <strings.h>
+#endif
 
 typedef struct MverDirectoryCopy {
     const char *target_root;

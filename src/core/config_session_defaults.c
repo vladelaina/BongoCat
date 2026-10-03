@@ -111,15 +111,17 @@ void bongo_cat_session_validate(BongoCatSessionState *session) {
         session->window.content_width = 8192;
     if (session->window.content_height > 8192)
         session->window.content_height = 8192;
+    /* An empty selection is valid when every installed model was deleted. */
     if (!normalize_text(session->active_model_id,
-            sizeof(session->active_model_id)) ||
-        !session->active_model_id[0])
+            sizeof(session->active_model_id)))
         memcpy(session->active_model_id, "standard", sizeof("standard"));
     if (session->last_update_check_day < 0 ||
         session->last_update_check_day > 99991231)
         session->last_update_check_day = 0;
     normalize_text(session->last_update_check_version,
         sizeof(session->last_update_check_version));
+    normalize_text(session->available_update_version,
+        sizeof(session->available_update_version));
     compact_additional_models(session);
     compact_active_behaviors(session);
 }

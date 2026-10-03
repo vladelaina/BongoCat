@@ -6,57 +6,36 @@
 #ifdef _WIN32
 #include "windows_keys.h"
 
-typedef struct KeyEvents {
-    unsigned count;
-    bool down;
-    char name[BONGO_CAT_ID_CAP];
-} KeyEvents;
-
-static void collect_key(bool down, const char *name, void *userdata) {
-    KeyEvents *events = userdata;
-    events->count++;
-    events->down = down;
-    snprintf(events->name, sizeof(events->name), "%s", name);
-}
 #endif
 
 void test_input(void) {
 #ifdef _WIN32
     char key_name[16];
-    KBDLLHOOKSTRUCT key = {.vkCode = VK_NUMPAD1};
+    RAWKEYBOARD key = {.VKey = VK_NUMPAD1};
     CHECK(strcmp(bongo_cat_windows_key_name(&key, key_name), "Kp1") == 0);
-    key.vkCode = VK_END;
+    key.VKey = VK_END;
     CHECK(strcmp(bongo_cat_windows_key_name(&key, key_name), "Kp1") == 0);
-    key.flags = LLKHF_EXTENDED;
+    key.Flags = RI_KEY_E0;
     CHECK(strcmp(bongo_cat_windows_key_name(&key, key_name), "End") == 0);
-    key.vkCode = VK_SNAPSHOT;
+    key.VKey = VK_SNAPSHOT;
     CHECK(strcmp(bongo_cat_windows_key_name(&key, key_name), "PrintScreen") == 0);
-    key.vkCode = VK_APPS;
+    key.VKey = VK_APPS;
     CHECK(strcmp(bongo_cat_windows_key_name(&key, key_name), "Apps") == 0);
 
-    BongoCatWindowsKeyboard keyboard = {0};
-    KeyEvents key_events = {0};
-    UINT drop_key_up = 0;
-    key.vkCode = 'A';
-    key.flags = 0;
-    CHECK(bongo_cat_windows_keyboard_event(&keyboard, &key, WM_KEYDOWN,
-        &drop_key_up, collect_key, &key_events));
-    uint64_t pressed_ms = keyboard.changed_ms['A'];
-    CHECK(key_events.count == 1 && key_events.down &&
-        strcmp(key_events.name, "KeyA") == 0);
-    CHECK(!bongo_cat_windows_keyboard_reconcile_key(&keyboard, 'A',
-        pressed_ms + 49, false, collect_key, &key_events));
-    CHECK(!bongo_cat_windows_keyboard_reconcile_key(&keyboard, 'A',
-        pressed_ms + 10000, true, collect_key, &key_events));
-    CHECK(key_events.count == 1 && keyboard.down['A']);
-    drop_key_up = 'A';
-    CHECK(bongo_cat_windows_keyboard_event(&keyboard, &key, WM_KEYUP,
-        &drop_key_up, collect_key, &key_events));
-    CHECK(drop_key_up == 0 && key_events.count == 1 && keyboard.down['A']);
-    CHECK(bongo_cat_windows_keyboard_reconcile_key(&keyboard, 'A',
-        pressed_ms + 10000, false, collect_key, &key_events));
-    CHECK(key_events.count == 2 && !key_events.down &&
-        strcmp(key_events.name, "KeyA") == 0 && !keyboard.down['A']);
+    key = (RAWKEYBOARD){.VKey = VK_SHIFT, .MakeCode = 0x36};
+    CHECK(strcmp(bongo_cat_windows_key_name(&key, key_name), "ShiftRight") == 0);
+    key = (RAWKEYBOARD){.VKey = VK_CONTROL, .MakeCode = 0x1d};
+    unsigned left_control = bongo_cat_windows_key_index(&key);
+    CHECK(strcmp(bongo_cat_windows_key_name(&key, key_name), "ControlLeft") == 0);
+    key.Flags = RI_KEY_E0;
+    CHECK(strcmp(bongo_cat_windows_key_name(&key, key_name), "ControlRight") == 0);
+    CHECK(left_control != bongo_cat_windows_key_index(&key));
+    key = (RAWKEYBOARD){.VKey = VK_MENU, .Flags = RI_KEY_E0};
+    CHECK(strcmp(bongo_cat_windows_key_name(&key, key_name), "AltGr") == 0);
+    key.VKey = 255;
+    CHECK(bongo_cat_windows_key_name(&key, key_name) == NULL);
+    key = (RAWKEYBOARD){.VKey = 'A', .MakeCode = 0xff};
+    CHECK(bongo_cat_windows_key_name(&key, key_name) == NULL);
 #endif
     BongoCatInputState state;
     bongo_cat_input_init(&state);
@@ -106,6 +85,13 @@ void test_input(void) {
     CHECK(bongo_cat_input_mouse(&state, 10.0, 11.0));
     CHECK(bongo_cat_input_take_mouse(&state, &x, &y));
     CHECK(x == 10.0 && y == 11.0);
+
+    CHECK(!bongo_cat_mouse_sample_fresh(1000000000ull, 0));
+    CHECK(bongo_cat_mouse_sample_fresh(1000000000ull, 1000000000ull));
+    CHECK(bongo_cat_mouse_sample_fresh(1099999999ull, 1000000000ull));
+    CHECK(!bongo_cat_mouse_sample_fresh(1100000000ull, 1000000000ull));
+    CHECK(!bongo_cat_mouse_sample_fresh(31000000000ull, 1000000000ull));
+    CHECK(!bongo_cat_mouse_sample_fresh(999999999ull, 1000000000ull));
 
     BongoCatMouseTracking tracking = {0};
     bongo_cat_mouse_target(&tracking, 0.0, 0.0);

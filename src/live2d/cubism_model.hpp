@@ -1,8 +1,14 @@
 #ifndef BONGO_CAT_CUBISM_MODEL_HPP
 #define BONGO_CAT_CUBISM_MODEL_HPP
 
+#ifdef CSM_TARGET_MAC_GL
+#include "cubism_core_profile.hpp"
+#endif
+
 #include "bongo_cat/model.h"
 #include "bongo_cat/image.h"
+#include "cubism_mask_policy.hpp"
+#include "cubism_texture_refresh_memory.hpp"
 
 #include <Model/CubismUserModel.hpp>
 #include <CubismModelSettingJson.hpp>
@@ -11,6 +17,7 @@
 #include <Rendering/OpenGL/CubismRenderer_OpenGLES2.hpp>
 #include <SDL3/SDL_opengl.h>
 #include <map>
+#include <memory>
 #include <set>
 #include <string>
 #include <vector>
@@ -21,23 +28,40 @@ bool validate_model_setting_json(const std::vector<unsigned char> &json,
     const char *setting_file, BongoCatError *error);
 class ViewerLookUpdater;
 class ParameterOverrideUpdater;
+struct ModelTexture;
+struct TextureRefresh;
+struct TextureResolution;
 
 class NativeModel final : public Csm::CubismUserModel {
 public:
     NativeModel();
     ~NativeModel() override;
     bool load(const char *directory, const char *setting_file, bool direct_textures,
+        bool dynamic_texture_resolution,
         BongoCatLive2DLoadProgress progress, void *userdata,
         BongoCatError *error);
+    /* Keep the internal test and tooling call shape source-compatible. */
+    bool load(const char *directory, const char *setting_file, bool direct_textures,
+        BongoCatLive2DLoadProgress progress, void *userdata,
+        BongoCatError *error) {
+        return load(directory, setting_file, direct_textures, false,
+            progress, userdata, error);
+    }
     bool load_textures(BongoCatError *error,
-        BongoCatLive2DLoadProgress progress, void *userdata);
+        BongoCatLive2DLoadProgress progress, void *userdata,
+        int display_width = 0, int display_height = 0);
     size_t texture_count() const { return textures_.size(); }
+    double texture_storage_mib() const;
     void release_render_resources();
     bool canvas_size(int *width, int *height) const;
     bool frame(BongoCatLive2DFrame *frame) const;
     bool viewport(int *x, int *y, int *width, int *height) const;
     void resize(int width, int height);
     void reshape(int width, int height);
+    bool texture_refresh_pending(bool active) const;
+    bool texture_refresh_busy() const;
+    void cancel_texture_refresh_async();
+    bool refresh_texture_resolution(bool active);
     bool update(float delta_seconds);
     void draw();
     void set_mirror(bool mirror);
@@ -95,18 +119,20 @@ private:
         float max_y = 0.0f;
         bool valid = false;
     };
+    struct DrawableBounds { ModelBounds bounds; float area; };
     bool load_model(BongoCatError *error);
     void load_expressions();
     void load_effects();
     void load_motions(BongoCatLive2DLoadProgress progress, void *userdata);
     void start_idle_motion();
+    void update_geometry();
     ModelBounds capture_visible_bounds() const;
     void prepare_expression_frame();
     void build_projection(Csm::CubismMatrix44 &projection,
         int width, int height);
     void apply_viewport_projection(Csm::CubismMatrix44 &projection) const;
     void update_viewport();
-    void record_visible_state(Csm::CubismMatrix44 &projection);
+    void record_visible_state(Csm::CubismMatrix44 &projection) const;
     void capture_motion_preview();
     void restore_motion_preview_state();
     void load_motion_state(const std::string &key, const char *group, int index,
@@ -129,8 +155,14 @@ private:
     bool restore_motion_defaults(const std::string &key);
     void select_motion(const std::string &key, bool selected);
     void release_textures();
+    void schedule_texture_refresh();
+    void cancel_texture_refresh();
+    TextureResolution texture_refresh_bound(const ModelTexture &texture, int limit) const;
+    const BongoCatImageAlphaMask *texture_alpha(int index) const;
     void release_renderer();
     bool create_renderer(BongoCatError *error);
+    int prepare_mask_layout();
+    bool update_mask_buffers();
     void bind_textures();
     std::vector<unsigned char> read(const std::string &path,
         size_t maximum = (size_t)-1) const;
@@ -145,22 +177,33 @@ private:
     std::set<std::string> selected_motion_keys_;
     MotionMap expressions_;
     std::vector<std::string> expression_names_;
-    std::vector<GLuint> textures_;
-    std::vector<BongoCatImageAlphaMask> texture_alpha_;
+    std::vector<std::shared_ptr<ModelTexture>> textures_;
+    mutable std::vector<std::vector<unsigned char>> triangle_alpha_;
+    mutable std::vector<DrawableBounds> bounds_scratch_;
     std::vector<float> parameter_snapshot_;
     std::vector<float> part_snapshot_;
     std::vector<float> parameter_override_values_;
     std::vector<float> parameter_baseline_values_;
+    std::vector<float> parameter_save_scratch_;
     std::vector<unsigned char> parameter_overrides_;
     std::vector<float> motion_preview_parameters_;
     std::vector<float> motion_preview_parts_;
     Csm::csmVector<Csm::CubismIdHandle> eye_blink_ids_;
     Csm::csmVector<Csm::CubismIdHandle> lip_sync_ids_;
     std::string directory_;
+#ifdef CSM_TARGET_MAC_GL
+    CoreProfileBuffers core_buffers_;
+#endif
     int width_ = 612;
     int height_ = 354;
     int renderer_width_ = 0;
     int renderer_height_ = 0;
+    int mask_texture_limit_ = 0;
+    struct MaskBuffers { MaskSize layout; MaskSize size; };
+    MaskBuffers drawable_masks_, offscreen_masks_;
+    bool mask_update_failed_ = false;
+    int mask_last_width_ = 0;
+    int mask_last_height_ = 0;
     int viewport_x_ = 0;
     int viewport_y_ = 0;
     int viewport_width_ = 612;
@@ -169,7 +212,9 @@ private:
     bool expression_clearing_ = false;
     bool expression_frame_pending_ = false;
     BongoCatLive2DFrame frame_{};
-    BongoCatLive2DVisualState visual_state_{};
+    mutable BongoCatLive2DVisualState visual_state_{};
+    mutable Csm::CubismMatrix44 visual_projection_;
+    mutable bool visual_state_cached_ = false;
     bool visual_state_ready_ = false;
     bool motion_updated_ = false;
     bool suppress_eye_blink_ = false;
@@ -177,9 +222,17 @@ private:
     bool mirror_ = false;
     BongoCatLive2DRenderOptions render_options_{};
     bool direct_textures_ = false;
+    bool dynamic_texture_resolution_ = false;
+    TextureRefresh *texture_refresh_ = nullptr;
+    TextureRefreshMemory texture_refresh_memory_;
+    bool texture_refresh_pending_ = false;
+    uint64_t texture_resize_ns_ = 0;
+    size_t texture_refresh_index_ = 0;
+    bool trim_offscreen_pool_ = true;
     bool parameter_overrides_applied_ = false;
     std::vector<std::string> idle_motion_keys_;
     std::vector<MotionRun> motion_runs_;
+    std::vector<unsigned char> motion_finished_scratch_;
     ViewerLookUpdater *viewer_look_ = nullptr;
     int last_idle_motion_ = -1;
     float opacity_snapshot_ = -1.0f;

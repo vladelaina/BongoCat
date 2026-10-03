@@ -8,6 +8,7 @@
 #include "bongo_cat/mouse.h"
 #include "bongo_cat/platform.h"
 #include "bongo_cat/shortcut.h"
+#include "bongo_cat/sound_shortcut.h"
 
 typedef struct BongoCatAudio BongoCatAudio;
 typedef struct BongoCatTray BongoCatTray;
@@ -20,11 +21,39 @@ typedef struct BongoCatUpdateService BongoCatUpdateService;
 
 #define BONGO_CAT_MODEL_COVER_PENDING_CAP 8
 
+/* File-backed bindings are runtime data, independent of user override limits.
+   Nodes keep editor pointers stable while a sibling model is refreshed. */
+typedef struct BongoCatModelShortcutNode {
+    BongoCatBehaviorShortcut binding;
+    struct BongoCatModelShortcutNode *next;
+} BongoCatModelShortcutNode;
+typedef struct BongoCatModelShortcutCache {
+    char model_id[BONGO_CAT_ID_CAP];
+    BongoCatModelShortcutNode *bindings;
+    struct BongoCatModelShortcutCache *next;
+} BongoCatModelShortcutCache;
+
 typedef struct BongoCatApp {
     BongoCatSettings settings;
+    BongoCatModelShortcutCache *model_shortcuts;
     BongoCatSessionState session;
     BongoCatInputState input;
+    /* Main-thread-only cumulative input diagnostics. */
+    struct {
+        uint64_t log_ms, drained_keys, ignored_keys, mapped_keys;
+        uint64_t unmapped_keys, no_model_keys, presented_frames;
+        uint64_t received_keys, mouse_buttons, gamepad_buttons, gamepad_axes;
+        uint64_t stick_deadzone_events;
+        uint64_t mode_blocked_keys, ignored_gamepad, keyboard_overlays, gamepad_overlays;
+        uint64_t replays, replay_blocked_keys, visual_actions;
+        unsigned hands_seen; /* Left/right bits observed since the last report. */
+        bool pending;
+        char last_gamepad[BONGO_CAT_ID_CAP];
+        float last_gamepad_value;
+        char last_visual_action[BONGO_CAT_BEHAVIOR_ID_CAP];
+    } input_diagnostics;
     BongoCatShortcutState shortcut_state;
+    BongoCatSoundShortcutState sound_shortcut_state;
     BongoCatModelCatalog models;
     BongoCatBehaviorCatalog behaviors;
     /* One immutable installed package's behavior catalog can be reused when
@@ -77,6 +106,7 @@ typedef struct BongoCatApp {
     char loaded_model[BONGO_CAT_ID_CAP];
     char loading_model[BONGO_CAT_ID_CAP];
     BongoCatModelMode loaded_mode;
+    bool loaded_gamepad_keyboard; /* Mver gamepad.input_mode == 0. */
     bool running;
     bool settings_store_valid;
     bool session_store_valid;
@@ -88,6 +118,9 @@ typedef struct BongoCatApp {
     bool secondary_control_known;
     bool secondary_control_visible;
     bool secondary_control_pass_through;
+    /* Keep the initial transparent window hidden until its first complete
+       model frame is ready. This prevents a platform-dependent black flash. */
+    bool startup_visibility_pending;
     int secondary_origin_x, secondary_origin_y;
     uint64_t secondary_control_check_ns;
     uint64_t secondary_control_failure_ns;
@@ -101,7 +134,6 @@ typedef struct BongoCatApp {
     bool smoke_remove_imported;
     bool smoke_shortcuts;
     bool smoke_menu;
-    bool smoke_input_audit;
     bool smoke_ignore_global_input;
     bool smoke_pass_through;
     bool smoke_context_menu;
@@ -119,6 +151,7 @@ typedef struct BongoCatApp {
     int exit_code;
     bool dirty;
     uint64_t last_frame_ns;
+    int startup_display_fps;
     uint64_t render_retry_ns;
     uint64_t smoke_deadline_ns;
     uint64_t hover_deadline_ns;
@@ -128,7 +161,9 @@ typedef struct BongoCatApp {
     uint64_t frame_audit_bmp_ns;
     uint64_t random_expression_due_ns;
     float random_expression_interval_seconds;
-    uint32_t random_expression_state;
+    uint64_t random_motion_due_ns;
+    float random_motion_interval_seconds;
+    uint32_t random_behavior_state;
     uint64_t settings_saved_hash, settings_observed_hash;
     uint64_t session_saved_hash, session_observed_hash;
     uint64_t settings_save_due_ns, session_save_due_ns;
@@ -136,6 +171,9 @@ typedef struct BongoCatApp {
     BongoCatMverPointerState mver_pointer;
     bool hover_inside;
     bool hover_hidden;
+    bool hover_fade_active;
+    float hover_fade_phase, hover_fade_target, hover_fade_opacity;
+    uint64_t hover_fade_tick_ns, hover_fade_next_ns;
     bool pointer_known;
     bool pointer_hit_dirty;
     bool pointer_transparent;
@@ -145,14 +183,32 @@ typedef struct BongoCatApp {
     bool left_mouse_down;
     bool right_mouse_down;
     bool side_mouse_down;
+    bool back_mouse_down, forward_mouse_down;
+    bool mouse_button_event_pending;
     bool model_pointer_anchor_ready;
     float model_pointer_anchor_x, model_pointer_anchor_y;
+    bool pointer_relative_active;
+    bool pointer_cursor_locked;
     bool window_minimized;
+    bool context_menu_requested;
+    bool context_menu_active;
+    bool context_menu_close_requested;
     double pointer_x, pointer_y;
     bool resize_gesture;
+    bool resize_candidate;
+    bool resize_menu_pending;
+    bool resize_target_pending;
+    uint64_t resize_next_ns;
+    float resize_pointer_delta;
     float resize_scale_start, resize_scale_target;
     int resize_base_width, resize_base_height;
     bool resize_pending;
+    bool resize_render_target_pending;
+    /* Native preview ownership and gesture lifetime belong to window_snapshot.c. */
+    void *window_snapshot;
+    bool snapshot_blocked;
+    uint64_t snapshot_deadline_ns;
+    float snapshot_pointer_x, snapshot_pointer_y;
     bool wheel_animation_active;
     bool wheel_gesture_active;
     int resize_pixel_width, resize_pixel_height;
@@ -179,12 +235,16 @@ typedef struct BongoCatApp {
 int bongo_cat_app_run(int argc, char **argv);
 void bongo_cat_app_apply_input(BongoCatApp *app, const BongoCatInputEvent *event);
 void bongo_cat_app_reapply_input(BongoCatApp *app);
+/* Refresh visual hand policy without replaying held inputs or shortcuts. */
+void bongo_cat_app_refresh_hands(BongoCatApp *app);
 void bongo_cat_app_reset_gamepad(BongoCatApp *app);
 void bongo_cat_gamepad_event(BongoCatApp *app, const void *sdl_event);
 void bongo_cat_app_shortcuts(BongoCatApp *app, const BongoCatInputEvent *event);
 bool bongo_cat_app_select_model(BongoCatApp *app, const char *id);
 bool bongo_cat_app_select_model_with_error(BongoCatApp *app,
     const char *id, BongoCatError *error);
+bool bongo_cat_app_reload_model_with_error(BongoCatApp *app,
+    BongoCatError *error);
 bool bongo_cat_app_model_active(const BongoCatApp *app, const char *id);
 size_t bongo_cat_app_active_model_count(const BongoCatApp *app);
 bool bongo_cat_app_set_model_active(BongoCatApp *app, const char *id,
@@ -212,4 +272,16 @@ void bongo_cat_app_request_model_package_refresh(BongoCatApp *app,
 void bongo_cat_app_request_nearby_model_refresh(BongoCatApp *app);
 void bongo_cat_config_store_flush(BongoCatApp *app);
 
+const BongoCatBehaviorShortcut *bongo_cat_app_behavior_binding(
+    const BongoCatApp *app, const char *id);
+BongoCatBehaviorShortcut *bongo_cat_app_behavior_binding_mut(
+    BongoCatApp *app, const char *id);
+BongoCatBehaviorShortcut *bongo_cat_app_behavior_binding_target(
+    BongoCatApp *app, const char *target);
+const char *bongo_cat_app_behavior_label(const BongoCatApp *app, const char *id);
+void bongo_cat_app_reset_sound_bindings(BongoCatApp *app);
+void bongo_cat_app_model_shortcuts_clear(BongoCatApp *app);
+void bongo_cat_app_model_shortcuts_prune(BongoCatApp *app);
+bool bongo_cat_app_shortcut_conflicts(BongoCatApp *app,
+    const char *shortcut, const char *exclude);
 #endif

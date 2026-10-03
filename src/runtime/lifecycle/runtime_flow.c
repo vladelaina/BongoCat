@@ -20,6 +20,7 @@ static void scale(BongoCatApp *app, float value) {
 
 static void opacity(BongoCatApp *app, float value) {
     app->session.window.opacity_percent = value;
+    bongo_cat_app_cancel_hover_fade(app);
     bongo_cat_platform_set_opacity(&app->platform, value / 100.0f);
 }
 

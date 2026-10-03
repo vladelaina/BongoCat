@@ -1,4 +1,8 @@
 #include "runtime.h"
+#include "bongo_cat/audio.h"
+#include "bongo_cat/log.h"
+#include "bongo_cat/model_memory.h"
+#include "bongo_cat/resource_trace.h"
 #include "model_cover.h"
 #include "bongo_cat/overlay.h"
 #include "bongo_cat/preferences.h"
@@ -12,8 +16,10 @@ static void handle_event(BongoCatApp *app, const SDL_Event *event) {
     if (bongo_cat_preferences_event(app->preferences, event)) return;
     if (!bongo_cat_window_event(app, event)) app->running = false;
     if (event->type >= SDL_EVENT_GAMEPAD_AXIS_MOTION &&
-        event->type <= SDL_EVENT_GAMEPAD_TOUCHPAD_UP)
+        event->type <= SDL_EVENT_GAMEPAD_TOUCHPAD_UP) {
+        bongo_cat_window_snapshot_end(app);
         bongo_cat_gamepad_event(app, event);
+    }
 }
 
 static void update_model(BongoCatApp *app, uint64_t now) {
@@ -24,6 +30,10 @@ static void update_model(BongoCatApp *app, uint64_t now) {
 }
 
 static bool render(BongoCatApp *app, bool present) {
+    if (present && app->window_snapshot) {
+        bongo_cat_window_snapshot_present(app);
+        return app->window_snapshot != NULL;
+    }
     uint64_t now = SDL_GetTicksNS();
     if (app->render_retry_ns > now) return false;
     if (!SDL_GL_MakeCurrent(app->window, app->gl_context)) {
@@ -34,6 +44,7 @@ static bool render(BongoCatApp *app, bool present) {
         return false;
     }
     app->render_retry_ns = 0;
+    bongo_cat_window_apply_pending_resize(app);
     int width, height;
     SDL_GetWindowSizeInPixels(app->window, &width, &height);
     glViewport(0, 0, width, height);
@@ -55,7 +66,9 @@ static bool render(BongoCatApp *app, bool present) {
         bongo_cat_live2d_prepare_cover_capture(app->live2d);
     glViewport(0, 0, width, height);
     bongo_cat_live2d_set_mirror(app->live2d, app->settings.model.mirror);
-    bongo_cat_live2d_draw(app->live2d);
+    bongo_cat_diagnostics_phase("model-draw");
+    if (app->loaded_model[0]) bongo_cat_live2d_draw(app->live2d);
+    bongo_cat_diagnostics_phase("overlay-draw");
     if (content_viewport)
         glViewport(content_x, content_y, content_width, content_height);
     bongo_cat_overlay_draw_pointer_before_keys(app->overlay);
@@ -82,16 +95,32 @@ static bool render(BongoCatApp *app, bool present) {
         app->dirty = true;
         return cover_handled;
     }
+    bool reveal_startup = app->startup_visibility_pending &&
+        app->session.window.visible;
+    bongo_cat_window_mask_corners(app, width, height);
+    bongo_cat_diagnostics_phase("frame-readback-and-hit-test");
     bongo_cat_frame_audit(app, width, height);
     bongo_cat_window_capture_pointer_hit(app);
-    if (!bongo_cat_platform_present(&app->platform, width, height)) {
+    /* Keep the native window hidden while diagnostics/readback finish. The
+       reveal is intentionally adjacent to the swap so an uninitialised front
+       buffer cannot be displayed as a black startup frame. */
+    bool pre_presented = reveal_startup &&
+        bongo_cat_platform_present(&app->platform, width, height);
+    if (reveal_startup)
+        bongo_cat_platform_set_visible(&app->platform, true);
+    bool presented = pre_presented ||
+        bongo_cat_platform_present(&app->platform, width, height);
+    if (!presented) {
+        if (reveal_startup) bongo_cat_platform_set_visible(&app->platform, false);
         app->dirty = true;
         app->render_retry_ns = now + 1000000000ull;
         SDL_LogError(SDL_LOG_CATEGORY_VIDEO,
             "Main frame presentation failed: %s", SDL_GetError());
         return false;
     }
+    if (reveal_startup) app->startup_visibility_pending = false;
     bongo_cat_frame_presented_audit(app);
+    app->input_diagnostics.presented_frames++;
     bongo_cat_startup_ready(app);
     bongo_cat_memory_policy_frame_presented();
     app->dirty = false;
@@ -101,13 +130,14 @@ static bool render(BongoCatApp *app, bool present) {
 }
 
 void bongo_cat_app_render_now(BongoCatApp *app) {
-    if (app && app->window && app->session.window.visible &&
+    if (app && !app->loading_model[0] && app->window && app->session.window.visible &&
         !app->window_minimized)
         render(app, true);
 }
 
 bool bongo_cat_app_capture_pending_model_cover(BongoCatApp *app) {
     if (!app || !app->window || !bongo_cat_model_cover_pending(app)) return false;
+    if (app->window_snapshot) return false;
     uint64_t now = SDL_GetTicksNS();
     if (!bongo_cat_model_cover_capture_due(app, now)) return false;
     if (app->window_minimized) {
@@ -140,7 +170,8 @@ bool bongo_cat_app_capture_pending_model_cover(BongoCatApp *app) {
 static void take_instance_wake(BongoCatApp *app) {
     if (!bongo_cat_platform_single_instance_take_wake()) return;
     bongo_cat_window_set_visible(app, true);
-    bongo_cat_platform_raise_window(app->window);
+    if (!app->startup_visibility_pending)
+        bongo_cat_platform_raise_window(app->window);
     SDL_Log("Existing instance requested window reveal");
 }
 
@@ -148,27 +179,35 @@ static bool take_update_shutdown(BongoCatApp *app) {
     if (!bongo_cat_platform_single_instance_take_update_shutdown())
         return false;
     app->running = false;
-    SDL_Log("Installed update requested application shutdown");
+    SDL_LogInfo(BONGO_CAT_LOG_UPDATE,
+        "Installed update requested application shutdown");
     return true;
 }
 
 void bongo_cat_app_loop(BongoCatApp *app) {
-    uint64_t iterations = 0, wakes = 0, zero_waits = 0;
     while (app->running) {
-        iterations++;
+        bongo_cat_diagnostics_phase("loop-prepare");
         int wait_ms = bongo_cat_window_wait_timeout(app, SDL_GetTicksNS());
         if (app->secondary_pet && wait_ms > 100) wait_ms = 100;
-        if (!wait_ms) zero_waits++;
         bongo_cat_preferences_input_begin(app->preferences);
         SDL_Event event;
+        /* An unbounded idle wait is normal; a bounded frame wait should return. */
+        bongo_cat_diagnostics_phase(wait_ms >= 0 && wait_ms < 5000 ? "event-wait" : NULL);
         if (bongo_cat_wait_event(&event, wait_ms)) {
-            wakes++;
+            bongo_cat_diagnostics_phase("event-dispatch");
             handle_event(app, &event);
             unsigned queued = 0;
             while (queued++ < 256 && SDL_PollEvent(&event))
                 handle_event(app, &event);
         }
         bongo_cat_preferences_input_end(app->preferences);
+        bongo_cat_window_resize_update(app, SDL_GetTicksNS());
+        /* Recover if capture/focus changes swallowed the release event. */
+        if ((app->resize_candidate || app->resize_gesture) &&
+            !SDL_HasEvents(SDL_EVENT_MOUSE_MOTION, SDL_EVENT_MOUSE_BUTTON_UP) &&
+            !(SDL_GetGlobalMouseState(NULL, NULL) & SDL_BUTTON_RMASK))
+            bongo_cat_window_resize_end(app);
+        bongo_cat_diagnostics_phase("model-watch-and-refresh");
         uint64_t now = SDL_GetTicksNS();
         bongo_cat_preferences_model_watch(app->preferences, now);
         bongo_cat_model_refresh_update(app);
@@ -176,33 +215,53 @@ void bongo_cat_app_loop(BongoCatApp *app) {
         if (take_update_shutdown(app)) continue;
         now = SDL_GetTicksNS();
         bongo_cat_window_update_wheel_animation(app, now);
+        bongo_cat_diagnostics_phase("snapshot-and-multi-pet");
+        bongo_cat_window_snapshot_update(app, now);
         bongo_cat_multi_pet_update(app, now);
-        bongo_cat_random_expression_update(app, now);
+        bongo_cat_memory_policy_poll();
+        bongo_cat_model_memory_poll();
+        bongo_cat_diagnostics_phase("random-behavior");
+        bongo_cat_random_behavior_update(app, now);
+        bongo_cat_diagnostics_phase("audio-and-display-recovery");
+        bongo_cat_audio_update(app->audio);
         bongo_cat_window_update_display_recovery(app, now);
         bongo_cat_runtime_flow_update(app, now);
         bongo_cat_window_apply_pending_resize(app);
-        bongo_cat_app_update_hover(app, now);
+        bongo_cat_app_refresh_texture_resolution(app);
+        bongo_cat_resource_trace_poll();
         bongo_cat_app_drain_input(app, true);
+        if (app->context_menu_requested) {
+            app->context_menu_requested = false;
+            bongo_cat_diagnostics_phase(NULL); /* Modal menu owns its own loop. */
+            bongo_cat_window_show_context_menu(app);
+        }
+        bongo_cat_diagnostics_phase("hover-and-pointer-hit-test");
+        now = SDL_GetTicksNS();
+        bongo_cat_app_update_hover(app, now);
+        bongo_cat_app_update_hover_fade(app, now);
+        bongo_cat_diagnostics_phase("model-update");
         if (bongo_cat_model_frame_due(app, now)) update_model(app, now);
         else if (!app->session.window.visible || app->window_minimized) {
             app->last_frame_ns = now;
             bongo_cat_memory_policy_idle();
         }
+        bongo_cat_diagnostics_phase("model-cover-capture");
         bongo_cat_app_capture_pending_model_cover(app);
+        bongo_cat_diagnostics_phase("pet-render");
         if (app->session.window.visible && !app->window_minimized && app->dirty)
             render(app, true);
+        bongo_cat_diagnostics_phase("preferences-render");
         bongo_cat_preferences_render(app->preferences);
+        bongo_cat_diagnostics_phase("model-selection");
         bongo_cat_preferences_process_model_selection(app->preferences);
         if (app->session.window.visible && !app->window_minimized && app->dirty)
             render(app, true);
+        bongo_cat_diagnostics_phase("tray-and-config-save");
         bongo_cat_tray_sync(app->tray);
         bongo_cat_window_raise_when_due(app, now);
         bongo_cat_config_store_update(app, now);
         if (app->smoke_deadline_ns && now >= app->smoke_deadline_ns)
             app->running = false;
     }
-    if (app->smoke)
-        SDL_Log("Smoke loop: iterations=%llu wakes=%llu zero_waits=%llu",
-            (unsigned long long)iterations, (unsigned long long)wakes,
-            (unsigned long long)zero_waits);
+    bongo_cat_diagnostics_phase("loop-exit");
 }

@@ -13,6 +13,8 @@ static void draw(BongoCatOverlay *value, GLuint texture,
     value->gl.use_program(value->program);
     value->gl.uniform_1i(value->mirror_location, mirror);
     value->gl.uniform_1i(value->image_location, 0);
+    value->gl.uniform_1i(value->reference_width_location, value->reference_width);
+    value->gl.uniform_1i(value->reference_height_location, value->reference_height);
     value->gl.uniform_1i(value->erase_left_location,
         !blend && value->composed_cover && !value->composite &&
             value->left != 0);

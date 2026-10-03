@@ -1,4 +1,5 @@
 #include "preferences_theme.h"
+#include "bongo_cat/config.h"
 #include "preferences_widgets_internal.h"
 #include "ui_animation.h"
 #include "ui_backend.h"
@@ -96,20 +97,29 @@ static void draw_icon(struct nk_command_buffer *canvas, int icon,
 }
 
 static int capsule(struct nk_context *context, const char *id,
-    const char *const *labels, int selected) {
-    (void)labels;
+    const char *const *labels, int count, bool icons, int selected,
+    bool *clicked) {
     struct nk_rect widget;
     if (nk_widget(&widget, context) == NK_WIDGET_INVALID) return selected;
-    selected = NK_CLAMP(0, selected, 2);
-    const float width = 156.0f;
+    selected = NK_CLAMP(0, selected, count - 1);
+    float width = count == 1 ? widget.w : 156.0f;
+    if (!icons && count > 1) {
+        const struct nk_user_font *font = context->style.font;
+        for (int i = 0; i < count; ++i)
+            width = NK_MAX(width, count * (24.0f + font->width(
+                font->userdata, font->height, labels[i], nk_strlen(labels[i]))));
+    }
     struct nk_rect bounds = nk_rect(widget.x + NK_MAX(0.0f,
         widget.w - width - 6.0f), widget.y - 1, NK_MIN(width, widget.w), 38);
-    float segment = bounds.w / 3.0f;
+    float segment = bounds.w / count;
     bool hover = nk_input_is_mouse_hovering_rect(&context->input, bounds);
     int hovered = hover ? NK_CLAMP(0, (int)((context->input.mouse.pos.x -
-        bounds.x) / segment), 2) : -1;
+        bounds.x) / segment), count - 1) : -1;
     if (hover && nk_input_is_mouse_click_in_rect(&context->input,
-        NK_BUTTON_LEFT, bounds)) selected = hovered;
+        NK_BUTTON_LEFT, bounds)) {
+        selected = hovered;
+        if (clicked) *clicked = true;
+    }
 
     char animation_id[96];
     snprintf(animation_id, sizeof(animation_id), "theme-selection-%s", id);
@@ -121,7 +131,7 @@ static int capsule(struct nk_context *context, const char *id,
     BongoCatUIPalette p = bongo_cat_ui_palette(bongo_cat_ui_dark(context));
     struct nk_command_buffer *canvas = nk_window_get_canvas(context);
     nk_fill_rect(canvas, bounds, 14, p.field);
-    for (int i = 0; i < 3; ++i) {
+    for (int i = 0; i < count; ++i) {
         snprintf(animation_id, sizeof(animation_id), "theme-hover-%s-%d", id, i);
         float amount = bongo_cat_ui_animate_eased(context, animation_id,
             hovered == i ? 1.0f : 0.0f, 160, BONGO_CAT_UI_EASE_STANDARD);
@@ -137,7 +147,7 @@ static int capsule(struct nk_context *context, const char *id,
     nk_fill_rect(canvas, active, 11, p.accent);
     nk_stroke_rect(canvas, bounds, 14, 1,
         bongo_cat_ui_color_mix(p.border_subtle, p.accent, outer_hover));
-    for (int i = 0; i < 3; ++i) {
+    for (int i = 0; i < count; ++i) {
         snprintf(animation_id, sizeof(animation_id), "theme-hover-%s-%d", id, i);
         float amount = bongo_cat_ui_animate_eased(context, animation_id,
             hovered == i ? 1.0f : 0.0f, 160, BONGO_CAT_UI_EASE_STANDARD);
@@ -154,7 +164,17 @@ static int capsule(struct nk_context *context, const char *id,
         float size = 20.0f + amount;
         struct nk_rect icon = nk_rect(bounds.x + segment * (i + .5f) - size * .5f,
             bounds.y + (bounds.h - size) * .5f, size, size);
-        draw_icon(canvas, i, icon, color, segment_background);
+        if (icons) draw_icon(canvas, i, icon, color, segment_background);
+        else {
+            const struct nk_user_font *font = context->style.font;
+            int length = nk_strlen(labels[i]);
+            float text_width = font->width(font->userdata, font->height,
+                labels[i], length);
+            nk_draw_text(canvas, nk_rect(bounds.x + segment * (i + .5f) -
+                text_width * .5f, bounds.y + (bounds.h - font->height) * .5f,
+                text_width, font->height), labels[i], length, font,
+                nk_rgba(0, 0, 0, 0), color);
+        }
     }
     if (hover) {
         bongo_cat_ui_cursor_hover_rect(context, bounds,
@@ -163,18 +183,55 @@ static int capsule(struct nk_context *context, const char *id,
     return selected;
 }
 
-int bongo_cat_pref_theme(struct nk_context *context, const char *id,
-    const char *title, const char *const *labels, int selected) {
+static int choice_row(struct nk_context *context, const char *id,
+    const char *title, const char *const *labels, int count, bool icons,
+    int selected, bool *clicked) {
     ThemeFormStyle saved;
     if (!form_begin(context, id, &saved)) return selected;
     float available = nk_window_get_content_region(context).w;
-    float left = NK_MAX(220.0f, available - 184.0f);
+    float choice_width = 176.0f;
+    if (!icons && count > 1) {
+        const struct nk_user_font *font = context->style.font;
+        for (int i = 0; i < count; ++i)
+            choice_width = NK_MAX(choice_width, 12.0f + count * (24.0f +
+                font->width(font->userdata, font->height, labels[i], nk_strlen(labels[i]))));
+    }
+    float left = NK_MAX(0.0f, available - choice_width - 8.0f);
     nk_layout_row_begin(context, NK_STATIC, 36, 2);
     nk_layout_row_push(context, left);
     bongo_cat_pref_form_label(context, title);
-    nk_layout_row_push(context, NK_MAX(176.0f, available - left - 8.0f));
-    selected = capsule(context, id, labels, selected);
+    nk_layout_row_push(context, NK_MAX(choice_width, available - left - 8.0f));
+    selected = capsule(context, id, labels, count, icons, selected, clicked);
     nk_layout_row_end(context);
     form_end(context, &saved);
     return selected;
+}
+
+int bongo_cat_pref_theme(struct nk_context *context, const char *id,
+    const char *title, const char *const *labels, int selected) {
+    return choice_row(context, id, title, labels, 3, true, selected, NULL);
+}
+
+int bongo_cat_pref_fps(struct nk_context *context, const char *id,
+    const char *title, int fps, int display_fps) {
+    char display_label[32];
+    snprintf(display_label, sizeof(display_label), "%d FPS", display_fps);
+    const char *labels[] = {"30 FPS", "60 FPS", display_label};
+    bool high_refresh = display_fps > BONGO_CAT_DEFAULT_MAX_FPS;
+    int selected = fps == 30 ? 0 :
+        (fps == BONGO_CAT_DISPLAY_MAX_FPS && high_refresh ? 2 : 1);
+    bool clicked = false;
+    int next = choice_row(context, id, title, labels, high_refresh ? 3 : 2,
+        false, selected, &clicked);
+    /* Keep the saved display choice when temporarily falling back to 60 FPS. */
+    if (!clicked) return fps;
+    return next == 0 ? 30 : next == 1 ? 60 : BONGO_CAT_DISPLAY_MAX_FPS;
+}
+
+bool bongo_cat_pref_capsule_button(struct nk_context *context,
+    const char *id, const char *label) {
+    const char *labels[] = {label};
+    bool clicked = false;
+    capsule(context, id, labels, 1, false, 0, &clicked);
+    return clicked;
 }

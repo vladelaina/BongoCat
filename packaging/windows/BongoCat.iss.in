@@ -1,0 +1,48 @@
+#ifndef PayloadDir
+  #error PayloadDir must point to the staged CMake Runtime component
+#endif
+
+[Setup]
+AppId=BongoCat
+AppName=@BONGO_CAT_PACKAGE_PRODUCT@
+AppVersion=@PROJECT_VERSION@
+VersionInfoVersion=@PROJECT_VERSION@
+VersionInfoTextVersion=@PROJECT_VERSION@
+AppPublisher=vladelaina
+AppPublisherURL=@PROJECT_HOMEPAGE_URL@
+AppSupportURL=@PROJECT_HOMEPAGE_URL@
+DefaultDirName={code:GetInstallDir}
+DefaultGroupName=BongoCat
+PrivilegesRequired=lowest
+DisableProgramGroupPage=yes
+DisableWelcomePage=yes
+DisableDirPage=auto
+UsePreviousAppDir=yes
+OutputDir=@CMAKE_BINARY_DIR@/dist
+OutputBaseFilename=@BONGO_CAT_PACKAGE_NAME@-setup
+SetupIconFile=@CMAKE_CURRENT_SOURCE_DIR@/resources/icons/icon.ico
+UninstallDisplayIcon={app}\BongoCat.exe
+Compression=zip
+WizardStyle=modern
+CloseApplications=yes
+CloseApplicationsFilter=BongoCat.exe
+RestartApplications=no
+SetupLogging=yes
+#if "@BONGO_CAT_PACKAGE_ARCH@" == "x64"
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
+#endif
+
+[Files]
+Source: "{#PayloadDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+[Icons]
+Name: "{userdesktop}\BongoCat"; Filename: "{app}\BongoCat.exe"; Parameters: "--nearby-root=""{userdesktop}"""; WorkingDir: "{userdesktop}"
+Name: "{userprograms}\BongoCat\BongoCat"; Filename: "{app}\BongoCat.exe"; Parameters: "--nearby-root=""{userprograms}\BongoCat"""; WorkingDir: "{userprograms}\BongoCat"
+Name: "{userprograms}\BongoCat\Uninstall"; Filename: "{uninstallexe}"
+
+[Run]
+Filename: "{app}\BongoCat.exe"; Description: "Launch BongoCat"; Flags: nowait postinstall skipifsilent
+
+[Code]
+#include "install-lifecycle.iss"

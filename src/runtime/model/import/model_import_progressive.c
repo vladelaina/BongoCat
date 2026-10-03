@@ -1,4 +1,5 @@
 #include "model_import.h"
+#include "model_import_archive.h"
 #include "model_import_probe.h"
 #include "bongo_cat/path.h"
 
@@ -91,8 +92,8 @@ static void record_failure_name(BongoCatImportBatchStats *stats,
         BONGO_CAT_IMPORT_FAILURE_NAME_CAP) return;
     const char *name = bongo_cat_path_name(source);
     if (!name || !name[0]) return;
-    snprintf(stats->failure_names[stats->failure_name_count++],
-        BONGO_CAT_ID_CAP, "%s", name);
+    SDL_utf8strlcpy(stats->failure_names[stats->failure_name_count++], name,
+        BONGO_CAT_ID_CAP);
 }
 
 static BongoCatResult install_one(BongoCatImportSession *session,
@@ -125,7 +126,7 @@ static BongoCatResult fail_source(BongoCatImportBatchStats *stats,
     return result;
 }
 
-BongoCatResult bongo_cat_import_session_install_progressive(
+static BongoCatResult install_progressive_directory(
     BongoCatImportSession *session, const char *source,
     BongoCatImportReceiptCallback callback, void *userdata,
     BongoCatImportBatchStats *stats, BongoCatError *error) {
@@ -200,4 +201,23 @@ BongoCatResult bongo_cat_import_session_install_progressive(
     free(scan);
     if (first_failure != BONGO_CAT_OK && error) *error = first_error;
     return first_failure;
+}
+
+BongoCatResult bongo_cat_import_session_install_progressive(
+    BongoCatImportSession *session, const char *source,
+    BongoCatImportReceiptCallback callback, void *userdata,
+    BongoCatImportBatchStats *stats, BongoCatError *error) {
+    if (!stats) return BONGO_CAT_ERROR_ARGUMENT;
+    if (!session || !source || !bongo_cat_import_is_archive(source))
+        return install_progressive_directory(session, source, callback,
+            userdata, stats, error);
+    *stats = (BongoCatImportBatchStats){0};
+    char directory[BONGO_CAT_PATH_CAP], temporary[BONGO_CAT_PATH_CAP];
+    BongoCatResult result = bongo_cat_import_archive_extract(source,
+        directory, temporary, error);
+    if (result != BONGO_CAT_OK) return fail_source(stats, source, result);
+    result = install_progressive_directory(session, directory, callback,
+        userdata, stats, error);
+    bongo_cat_import_archive_cleanup(temporary);
+    return result;
 }

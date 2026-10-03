@@ -187,9 +187,11 @@ bool bongo_cat_live2d_visual_audit_run(BongoCatApp *app) {
             close_scale(baseline.fit_scale, current.fit_scale) &&
             !current.fitted && passed;
     }
-    int expression_indexes[BONGO_CAT_BEHAVIOR_CAP];
+    size_t index_capacity = app->behaviors.count > 3 ? app->behaviors.count : 3;
+    int *expression_indexes = calloc(index_capacity, sizeof(*expression_indexes));
+    if (!expression_indexes) { fclose(file); return false; }
     size_t expression_count = behavior_indexes(app, BONGO_CAT_BEHAVIOR_EXPRESSION,
-        expression_indexes, BONGO_CAT_BEHAVIOR_CAP);
+        expression_indexes, index_capacity);
     if (!expression_count) {
         expression_indexes[0] = 0;
         expression_indexes[1] = 1;
@@ -218,6 +220,7 @@ bool bongo_cat_live2d_visual_audit_run(BongoCatApp *app) {
     bongo_cat_live2d_reshape(app->live2d, width, height);
     fprintf(file, "result,1,0,0,0,0,0,0,0,0,%d,0,%d\n",
         baseline.mver_projection, passed);
+    free(expression_indexes);
     fclose(file);
     app->dirty = true;
     return passed;

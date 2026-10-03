@@ -12,6 +12,8 @@
         "title": "設定",
         "labels": {
           "modelSettings": "モデル",
+          "gamepadFourHands": "ゲームパッド4本の手モード",
+          "dynamicTextureResolution": "Dynamic Texture Resolution",
           "mirrorMode": "ミラーモード",
           "mouseMirror": "マウスを反転",
           "mouseCentered": "マウスをデスクトップペット中心にする",
@@ -21,20 +23,33 @@
           "alwaysOnTop": "常に手前に表示",
           "keepInScreen": "画面内に保持",
           "windowSize": "ウィンドウサイズ",
+          "resetPosition": "リセット",
+          "windowCorners": "ウィンドウの角丸",
           "opacity": "不透明度",
           "randomExpression": "ランダム表情",
+          "randomMotion": "ランダムモーション",
+          "secondsUnit": "秒",
           "obsBackground": "単色背景",
           "hideOnHover": "ホバー時に非表示",
+          "hideFadeSeconds": "フェード時間 (秒)",
           "maxFPS": "最大フレームレート"
         },
         "hints": {
-          "passThrough": "有効にすると、クリックはウィンドウに影響せず背後へ通過します。",
+          "hoverRequires": "上にある[クリック透過]と[最前面表示]を両方有効にしてください。",
+          "hoverUnavailable": "現在のデスクトップ環境では、マウスを重ねて非表示にする機能は利用できません。",
+          "gamepadFourHands": "ゲームパッドモードで追加の2本の手を常に表示します。見た目はモデルによって異なります",
+          "gameCompatibility": "ゲーム中にデスクトップペットが反応しない場合に有効化",
+          "gameCompatibilityHelp": "有効にすると、BongoCat は再起動して管理者権限で実行されます。以降も起動するたびに管理者権限で実行され、このオプションを無効にすると通常の権限に戻ります。\n\nなぜデスクトップペットに管理者権限が必要なのですか？\n\n一部のゲームは管理者権限で実行されます。Windows は異なる権限レベルを分離するため、通常の権限で動作する BongoCat はゲーム中のキーボードやマウスの入力を取得できず、ペットが反応しないことがあります。\n\n簡単に言うと、ゲームと BongoCat が別の階にいるようなものです。一部のゲームはより高い権限レベルで動作するため、通常の権限の BongoCat はその入力を取得できません。あなたが上の階で操作していて、BongoCat は下の階にいると、音が届かず、操作に合わせて動けないのと同じです。\n\nこのようなゲームを遊ばない場合は、無効のままでかまいません。必要のないときに管理者権限を要求することはありません。",
+          "gameCompatibilityFailed": "ゲーム互換モードを変更できませんでした。",
+          "passThrough": "トレイアイコンの右クリックからもオフにできます",
           "alwaysOnTop": "有効にすると、ウィンドウがほかのすべてのウィンドウより手前に表示されます。",
           "keepInScreen": "有効にすると、ウィンドウが自動的に画面の範囲内に収まります。",
           "obsBackground": "ウィンドウキャプチャが黒い？",
           "obsBackgroundHelp": "OBS：「Windows 7互換」方式でキャプチャする場合はこの項目を有効にし、カラーキーフィルターで背景を除去してください。",
-          "windowSize": "マウスをウィンドウ端へ移動するか、Shiftキーを押しながら右ドラッグしてサイズを変更します。",
-          "hideOnHover": "有効にすると、マウスを重ねたときにウィンドウが自動的に隠れます。遅延を設定でき、0ではすぐに隠れます。"
+          "windowSize": "[ホイール]でサイズ調整、または[右ボタンを押したまま]右にドラッグで拡大、左で縮小",
+          "dynamicTextureResolution": "Downsample large model textures to match the current display size. The model reloads after changing this option.",
+          "dynamicTextureResolutionFailed": "Unable to reload the model with the selected texture mode.",
+          "hideOnHover": "クリック透過と最前面表示が有効な場合、ペットにマウスを重ねるとすぐに非表示になり、離すと再表示されます。"
         }
       },
       "general": {
@@ -42,6 +57,7 @@
         "labels": {
           "appSettings": "アプリ",
           "launchOnStartup": "起動時に実行",
+          "gameCompatibility": "ゲーム互換モード",
           "showTrayIcon": "トレイアイコンを表示",
           "appearanceSettings": "外観",
           "themeMode": "テーマ",
@@ -58,8 +74,8 @@
         "hints": {
           "showTrayIcon": "有効にすると、システムトレイにアプリアイコンを表示します。",
           "autostartFailed": "起動時に実行する設定を更新できません",
-          "inputMonitoringPermission": "システムからキーボードとマウスのイベントを受け取るには、入力監視を有効にしてください。",
-          "inputMonitoringPermissionGuide": "システムからキーボードとマウスのイベントを受け取るには、入力監視の権限が必要です。\n\n手順：\n1. システム設定 > プライバシーとセキュリティ > 入力監視を開きます。\n2. BongoCatがすでに一覧にある場合は選択し、\"-\"ボタンで削除します。\n3. \"+\"ボタンをクリックしてBongoCatを探し、追加します。\n4. 権限を反映するため、アプリを再起動します。",
+          "inputMonitoringPermission": "許可したら再起動してください。",
+          "inputMonitoringPermissionGuide": "入力監視の権限があると、BongoCat は他のアプリでのキー入力を取得できます。マウスは権限なしでも動作します。BongoCat は起動時に監視を構築するため、権限を変更した場合は再起動が必要です。\n\n手順：\n1. 「システム設定」→「プライバシーとセキュリティ」→「入力監視」を開きます。\n2. 一覧にすでにある BongoCat の項目をオンにします。既存の項目は削除しないでください。\n3. 一覧に BongoCat がない場合は「+」をクリックし、現在実行しているアプリを追加します（アプリの場所を確認してください）。\n4. BongoCat を完全に終了してから再起動し、監視を再構築させます。\n\nキーボードが反応しないままの場合は、ご自身で BongoCat の項目を削除して再追加して確認できます。",
           "administratorPermission": "管理者として実行すると、一部のシステムキーや入力イベントをより確実に取得できます。",
           "administratorPermissionGuide": "一部のシステムキーや入力イベントをより確実に取得するため、アプリを管理者として実行することを推奨します。\n\n手順：\n1. まずアプリを終了します。\n2. エクスプローラーでアプリのexeファイルまたはショートカットを探します。\n3. 起動方法を選びます：\n   - 今回のみ：右クリックして\"管理者として実行\"を選びます。\n   - 常に：右クリック > プロパティ > 互換性 > \"管理者としてこのプログラムを実行する\"にチェック > OK。"
         },
@@ -67,7 +83,8 @@
           "authorized": "許可済み",
           "adminEnabled": "有効",
           "authorize": "有効にする",
-          "viewGuide": "手順を表示"
+          "viewGuide": "手順を表示",
+          "openSettingsFailed": "手動で：システム設定 → プライバシーとセキュリティ → 入力監視。"
         },
         "buttons": {
           "openNow": "今すぐ開く",
@@ -88,15 +105,20 @@
           "deleteFailed": "このモデルを削除できません",
           "importSuccess": "インポートしました",
           "importExists": "モデルは既に存在します",
-          "importBatchResult": "インポート成功: %zu件、失敗: %zu件。失敗したモデル: %s%s。最初の失敗理由: %s",
+          "importBatchResult": "インポート成功: %zu件、失敗: %zu件。\n失敗したモデル: %s%s。\n最初の失敗理由: %s",
           "importMoreFailures": "、他%zu件",
           "importUnknownSource": "不明なソース",
           "importInvalidSource": "選択したインポート元は存在しないか、使用できません",
           "importInvalidFormat": "対応するモデルが見つからないか、モデルパッケージが不完全です",
+          "importUnsupportedArchive": "圧縮ファイルは ZIP のみ対応しています。解凍してモデルフォルダーをインポートするか、ZIP に圧縮し直してからインポートしてください",
           "importFileAccess": "モデルファイルを読み込みまたは保存できません。ファイルの権限とディスクの空き容量を確認してください",
           "importOutOfMemory": "メモリが不足しているため、このモデルをインポートできません",
           "importLoadFailed": "モデルはインポートされましたが、表示できませんでした",
           "importFailed": "モデルのインポートに失敗しました。選択したファイルを確認して、もう一度お試しください",
+          "shortcutLoadFailed": "モデルのショートカットを読み込めません。モデルの設定ファイルを確認してください",
+          "behaviorLoadFailed": "モデルのアクション一覧を読み込めません。モデルファイルが揃っていて、読み取り可能か確認してください",
+          "shortcutSaveFailed": "モデルのショートカットを保存できません。ファイルの権限とディスクの空き容量を確認してください",
+          "behaviorRenameLimit": "カスタム設定数の上限に達したため、これ以上アクションのカスタム名を保存できません",
           "clickOrDragToImport": "モデルフォルダーをクリックまたはドラッグ",
           "supportedImportFormats": "Mver・Tauri形式に対応",
           "openDirectoryFailed": "モデルフォルダーを開けません"
@@ -107,10 +129,12 @@
           "moreModels": "その他のモデル"
         },
         "behaviorModal": {
-          "title": "モーションと表情",
+          "title": "モーション・表情・音声",
           "labels": {
             "motion": "モーション",
             "expression": "表情",
+            "audio": "音声",
+            "stopAllAudio": "すべての音声を停止",
             "motionIndex": "モーション {index}",
             "motionGroupIndex": "モーショングループ {index}",
             "expressionIndex": "表情 {index}"
@@ -187,6 +211,24 @@
     }
   },
   "native": {
+    "about": {
+      "wechat": "WeChat",
+      "wechatHint": "Hover to scan and chat",
+      "loading": "Loading...",
+      "contributorsFailed": "Cannot load contributors. Click to retry.",
+      "qrUnavailable": "QR code unavailable",
+      "reload": "Reload",
+      "qrFailed": "QR code unavailable. Click to retry.",
+      "contributorsTitle": "Open source & community contributions",
+      "contributorsText": "Every step of BongoCat comes from the power of open source. Thank you to all community contributors for making desktop companionship freer and simpler.",
+      "joinTitle": "Want to appear in the contributors list?",
+      "joinText": "Whether you contribute code, improve documentation, report bugs or translate, every contribution makes BongoCat better.",
+      "code": "Code",
+      "docs": "Documentation",
+      "bugs": "Bug reports",
+      "translations": "Translations",
+      "joinGithub": "Contribute on GitHub"
+    },
     "multiplePets": "複数を同時に表示",
     "multiplePetsLimit": "\u4e00\u5ea6\u306b\u8868\u793a\u3067\u304d\u308b\u30c7\u30b9\u30af\u30c8\u30c3\u30d7\u30da\u30c3\u30c8\u306f 8 \u4f53\u307e\u3067\u3067\u3059",
     "removeDesktopPet": "\u3053\u306e\u30c7\u30b9\u30af\u30c8\u30c3\u30d7\u30da\u30c3\u30c8\u3092\u9589\u3058\u308b",
@@ -211,7 +253,8 @@
       "checkingUpdate": "確認中...",
       "updateAvailable": "新しいバージョンがあります：",
       "updateFailed": "更新を確認できませんでした",
-      "downloadUpdate": "v%s をダウンロード",
+      "updateHttpFailed": "GitHub が HTTP ステータス %s を返しました",
+      "downloadUpdate": "v%s に更新",
       "openStore": "Microsoft Store を開く",
       "viewReleases": "リリースを表示",
       "openUpdateFailed": "更新ページを開けませんでした",
@@ -227,6 +270,7 @@
     "shortcut": {
       "toggleCat": "表示/非表示",
       "preferences": "設定",
+      "openMenu": "円形メニューの表示/非表示",
       "mirror": "ミラー",
       "passThrough": "クリックを透過",
       "alwaysOnTop": "常に手前に表示"

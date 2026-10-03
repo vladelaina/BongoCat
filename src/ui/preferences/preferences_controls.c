@@ -1,4 +1,5 @@
 #include "preferences_controls.h"
+#include "preferences_number_edit.h"
 #include "ui_animation.h"
 #include "ui_backend.h"
 #include "ui_catime.h"
@@ -100,6 +101,7 @@ bool bongo_cat_pref_controls_animating(struct nk_context *context) {
 }
 
 void bongo_cat_pref_controls_reset(struct nk_context *context) {
+    bongo_cat_pref_number_edit_reset(context);
     if (repeat_state.context == context)
         memset(&repeat_state, 0, sizeof(repeat_state));
     slider_drag_stop(context);
@@ -155,25 +157,34 @@ static double stepper(struct nk_context *context, const char *id,
     nk_stroke_line(canvas, plus.x + 13, cy, plus.x + 27, cy, 2, plus_color);
     nk_stroke_line(canvas, plus.x + 20, cy - 7,
         plus.x + 20, cy + 7, 2, plus_color);
+    if (minus_hover || plus_hover) bongo_cat_ui_cursor_hover_rect(context, interaction,
+        BONGO_CAT_UI_CURSOR_POINTER);
+    double before = value;
+    bool reset_default = nk_input_is_mouse_click_in_rect(&context->input,
+        NK_BUTTON_DOUBLE, number_box) != 0;
+    if (reset_default) {
+        value = NK_CLAMP(minimum, default_value, maximum);
+        bongo_cat_pref_number_edit_reset(context);
+        nk_edit_unfocus(context);
+    }
     char number[32];
     if (integer) snprintf(number, sizeof(number), "%.0f", value);
     else if (step < .1) snprintf(number, sizeof(number), "%.2f", value);
     else if (step < 1.0) snprintf(number, sizeof(number), "%.1f", value);
     else snprintf(number, sizeof(number), "%.0f", value);
-    centered(canvas, number_box, number, bongo_cat_ui_body_font(context), p.text);
-    if (hover) bongo_cat_ui_cursor_hover_rect(context, interaction,
-        BONGO_CAT_UI_CURSOR_POINTER);
+    bool editing = !reset_default && bongo_cat_pref_number_edit(context, id,
+        number_box, number, integer, minimum, maximum, &value);
+    if (!editing) centered(canvas, number_box, number,
+        bongo_cat_ui_body_font(context), p.text);
     int direction = repeat_direction(context, id, minus, plus_hit);
     float wheel = context->input.mouse.scroll_delta.y;
-    if (nk_input_is_mouse_hovering_rect(&context->input, number_box) && wheel != 0) {
+    if (!editing && nk_input_is_mouse_hovering_rect(&context->input, number_box) && wheel != 0) {
         direction = wheel > 0 ? 1 : -1;
         context->input.mouse.scroll_delta.y = 0;
     }
-    bool reset = nk_input_is_mouse_click_in_rect(&context->input,
-        NK_BUTTON_DOUBLE, number_box) != 0;
-    double next = reset ? NK_CLAMP(minimum, default_value, maximum) :
-        NK_CLAMP(minimum, value + direction * step, maximum);
-    if (next != value) { value = next; *changed = true; }
+    if (!reset_default)
+        value = NK_CLAMP(minimum, value + direction * step, maximum);
+    *changed = value != before;
     return value;
 }
 
@@ -183,6 +194,7 @@ bool bongo_cat_pref_control_float(struct nk_context *context, const char *id,
     bool changed;
     double result = stepper(context, id, minimum, *value, maximum, step,
         default_value, false, &changed);
+    changed = changed && *value != (float)result;
     if (changed) *value = (float)result;
     return changed;
 }

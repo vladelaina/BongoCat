@@ -2,6 +2,7 @@
 #include "cubism_viewer_look.hpp"
 #include "bongo_cat/file.h"
 #include "bongo_cat/image.h"
+#include "bongo_cat/json.h"
 
 #include <Effect/CubismBreath.hpp>
 #include <Effect/CubismEyeBlink.hpp>
@@ -22,20 +23,6 @@
 #include <new>
 
 namespace bongo_cat {
-
-struct TextureProgressContext {
-    BongoCatLive2DLoadProgress callback;
-    void *userdata;
-    float start;
-    float span;
-};
-
-static void texture_progress(void *userdata, float progress) {
-    auto *context = static_cast<TextureProgressContext *>(userdata);
-    if (context && context->callback)
-        context->callback(context->userdata,
-            context->start + context->span * progress);
-}
 
 NativeModel::NativeModel() {
     _mocConsistency = true;
@@ -74,12 +61,13 @@ std::string NativeModel::path(const char *relative) const {
 }
 
 bool NativeModel::load(const char *directory, const char *setting_file,
-    bool direct_textures, BongoCatLive2DLoadProgress progress, void *userdata,
-    BongoCatError *error) {
+    bool direct_textures, bool dynamic_texture_resolution,
+    BongoCatLive2DLoadProgress progress, void *userdata, BongoCatError *error) {
     if (!directory || !setting_file) return false;
     visual_state_ready_ = false;
     visual_state_ = BongoCatLive2DVisualState{};
     direct_textures_ = direct_textures;
+    dynamic_texture_resolution_ = dynamic_texture_resolution;
     directory_ = directory;
     if (!directory_.empty() && directory_.back() != '/' && directory_.back() != '\\')
         directory_ += '/';
@@ -88,6 +76,22 @@ bool NativeModel::load(const char *directory, const char *setting_file,
         bongo_cat_error_set(error, BONGO_CAT_ERROR_IO, "Cannot read model setting: %s", setting_file);
         return false;
     }
+    bool normalized = false;
+    yyjson_doc *document = bongo_cat_model_json_parse(
+        reinterpret_cast<const char *>(json.data()), json.size(), &normalized);
+    if (document && normalized) {
+        size_t size = 0;
+        char *canonical = yyjson_write(document, 0, &size);
+        if (!canonical) {
+            yyjson_doc_free(document);
+            bongo_cat_error_set(error, BONGO_CAT_ERROR_MEMORY,
+                "Cannot prepare model setting: %s", setting_file);
+            return false;
+        }
+        json.assign(canonical, canonical + size);
+        std::free(canonical);
+    }
+    yyjson_doc_free(document);
     if (!validate_model_setting_json(json, setting_file, error)) return false;
     if (progress) progress(userdata, .10f);
     setting_ = new(std::nothrow)
@@ -140,8 +144,9 @@ void NativeModel::load_expressions() {
         Csm::ACubismMotion *motion = LoadExpression(bytes.data(),
             (Csm::csmSizeInt)bytes.size(), name);
         if (!motion) continue;
-        expressions_[name] = motion;
-        expression_names_[(size_t)i] = name;
+        std::string key = std::to_string(i);
+        expressions_[key] = motion;
+        expression_names_[(size_t)i] = key;
     }
     if (!expressions_.empty())
         _updateScheduler.AddUpdatableList(
@@ -228,40 +233,7 @@ void NativeModel::load_motions(BongoCatLive2DLoadProgress progress,
             if (std::strcmp(group, "Idle") == 0) idle_motion_keys_.push_back(key);
         }
     }
-    pair_motion_states();
     _motionManager->StopAllMotions();
 }
 
-bool NativeModel::load_textures(BongoCatError *error,
-    BongoCatLive2DLoadProgress progress, void *userdata) {
-    release_textures();
-    int count = setting_->GetTextureCount();
-    textures_.assign((size_t)count, 0);
-    texture_alpha_.assign((size_t)count, {});
-    TextureProgressContext texture_context = {progress, userdata, .50f,
-        .45f / (float)(count > 0 ? count : 1)};
-    for (int i = 0; i < count; ++i) {
-        texture_context.start = .50f + .45f * (float)i /
-            (float)(count > 0 ? count : 1);
-        textures_[(size_t)i] = bongo_cat_image_texture_model(
-            path(setting_->GetTextureFileName(i)).c_str(), direct_textures_,
-            nullptr, nullptr, &texture_alpha_[(size_t)i],
-            progress ? texture_progress : nullptr, &texture_context, error);
-        if (!textures_[(size_t)i]) {
-            release_textures();
-            return false;
-        }
-        if (progress) progress(userdata, .50f + .45f * (float)(i + 1) /
-            (float)(count > 0 ? count : 1));
-    }
-    prepare_expression_frame();
-    release_renderer();
-    if (!create_renderer(error)) {
-        release_textures();
-        return false;
-    }
-    renderer_width_ = width_;
-    renderer_height_ = height_;
-    return true;
-}
 } // namespace bongo_cat

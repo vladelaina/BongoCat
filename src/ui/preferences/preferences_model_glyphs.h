@@ -15,5 +15,7 @@ bool bongo_cat_preferences_model_glyphs_ready(
     const BongoCatPreferences *preferences, const char *name);
 void bongo_cat_preferences_model_glyphs_clear_pending(
     BongoCatPreferences *preferences);
+bool bongo_cat_preferences_behavior_glyphs_ready(
+    const BongoCatPreferences *preferences);
 
 #endif

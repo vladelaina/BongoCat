@@ -14,6 +14,12 @@ bool bongo_cat_preferences_behavior_dialog_active(
     const BongoCatPreferences *value);
 void bongo_cat_preferences_behavior_dialog_open(
     BongoCatPreferences *value);
+void bongo_cat_preferences_behavior_dialog_open_model(
+    BongoCatPreferences *value, const BongoCatModelEntry *model);
+const BongoCatBehaviorCatalog *bongo_cat_preferences_behavior_catalog(
+    const BongoCatPreferences *value);
+bool bongo_cat_preferences_behavior_model_loaded(
+    const BongoCatPreferences *value);
 void bongo_cat_preferences_behavior_dialog_draw(
     BongoCatPreferences *value, struct nk_context *context);
 void bongo_cat_preferences_behavior_dialog_close(
@@ -37,7 +43,7 @@ bool bongo_cat_preferences_model_name_draw(BongoCatPreferences *value,
     BongoCatUIPalette palette);
 void bongo_cat_preferences_behavior_row_draw(BongoCatPreferences *value,
     struct nk_context *context, struct nk_command_buffer *canvas,
-    struct nk_rect row, BongoCatBehaviorEntry *entry, BongoCatUIPalette palette,
+    struct nk_rect row, const BongoCatBehaviorEntry *entry, BongoCatUIPalette palette,
     float opacity, bool enabled);
 void bongo_cat_preferences_page_shortcuts(BongoCatPreferences *value,
     struct nk_context *context);

@@ -4,9 +4,15 @@
 #include "bongo_cat/common.h"
 
 #define BONGO_CAT_DEFAULT_MAX_FPS 60
+/* Resolve this saved choice using the display refresh rate cached at startup. */
+#define BONGO_CAT_DISPLAY_MAX_FPS (-1)
 #define BONGO_CAT_DEFAULT_WINDOW_SCALE_PERCENT 100.0f
 #define BONGO_CAT_DEFAULT_WINDOW_OPACITY_PERCENT 100.0f
 #define BONGO_CAT_DEFAULT_RANDOM_EXPRESSION_SECONDS 5.0f
+#define BONGO_CAT_DEFAULT_RANDOM_MOTION_SECONDS 5.0f
+#define BONGO_CAT_DEFAULT_WINDOW_CORNER_PERCENT 6.0f
+#define BONGO_CAT_DEFAULT_HIDE_FADE_SECONDS 0.3f
+#define BONGO_CAT_MAX_HIDE_FADE_SECONDS 3.0f
 
 typedef enum BongoCatTheme { BONGO_CAT_THEME_AUTO, BONGO_CAT_THEME_LIGHT, BONGO_CAT_THEME_DARK } BongoCatTheme;
 typedef enum BongoCatLanguage {
@@ -41,6 +47,8 @@ typedef struct BongoCatModelPreferences {
     bool mouse_mirror;
     bool mouse_centered;
     bool ignore_mouse;
+    bool gamepad_four_hands;
+    bool dynamic_texture_resolution;
     int max_fps;
 } BongoCatModelPreferences;
 
@@ -51,9 +59,14 @@ typedef struct BongoCatWindowPreferences {
     bool keep_in_screen;
     bool obs_background;
     bool random_expression;
+    bool random_motion;
+    bool rounded_corners;
     BongoCatObsBackgroundColor obs_background_color;
     float hide_delay_seconds;
+    float hide_fade_seconds;
     float random_expression_interval_seconds;
+    float random_motion_interval_seconds;
+    float corner_radius_percent;
 } BongoCatWindowPreferences;
 
 typedef struct BongoCatWindowState {
@@ -73,6 +86,8 @@ typedef struct BongoCatWindowState {
 
 typedef struct BongoCatApplicationPreferences {
     bool autostart;
+    bool autostart_admin;
+    bool game_compatibility;
     bool tray_visible;
     BongoCatTheme theme;
     BongoCatLanguage language;
@@ -81,6 +96,7 @@ typedef struct BongoCatApplicationPreferences {
 typedef struct BongoCatShortcutPreferences {
     char toggle_pet_visibility[BONGO_CAT_SHORTCUT_CAP];
     char visible_preferences[BONGO_CAT_SHORTCUT_CAP];
+    char open_menu[BONGO_CAT_SHORTCUT_CAP];
     char mirror[BONGO_CAT_SHORTCUT_CAP];
     char pass_through[BONGO_CAT_SHORTCUT_CAP];
     char always_on_top[BONGO_CAT_SHORTCUT_CAP];
@@ -90,6 +106,9 @@ typedef struct BongoCatBehaviorShortcut {
     char id[BONGO_CAT_BEHAVIOR_ID_CAP];
     char shortcut[BONGO_CAT_SHORTCUT_CAP];
     char label[BONGO_CAT_ID_CAP];
+    bool shortcut_disabled;
+    /* Runtime only: the shortcut is owned by the model's Mver config. */
+    bool shortcut_external;
 } BongoCatBehaviorShortcut;
 
 typedef struct BongoCatModelLabel {
@@ -127,6 +146,7 @@ typedef struct BongoCatSessionState {
     char active_model_id[BONGO_CAT_ID_CAP];
     int last_update_check_day;
     char last_update_check_version[BONGO_CAT_UPDATE_VERSION_CAP];
+    char available_update_version[BONGO_CAT_UPDATE_VERSION_CAP];
     char additional_model_ids[BONGO_CAT_ADDITIONAL_MODEL_CAP][BONGO_CAT_ID_CAP];
     size_t additional_model_count;
     BongoCatActiveBehavior active_behaviors[BONGO_CAT_BEHAVIOR_BINDING_CAP];

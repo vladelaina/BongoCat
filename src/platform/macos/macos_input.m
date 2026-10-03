@@ -19,9 +19,16 @@ typedef struct MacInputState {
     bool key_down[BONGO_CAT_INPUT_KEY_STATE_CAP];
     atomic_bool supported;
     atomic_bool stop_requested;
+    atomic_uint references;
 } MacInputState;
 
 static atomic_bool global_supported = ATOMIC_VAR_INIT(false);
+
+static void release_state(MacInputState *state) {
+    if (atomic_fetch_sub(&state->references, 1) != 1) return;
+    SDL_DestroySemaphore(state->ready);
+    free(state);
+}
 
 static void push(MacInputState *state, BongoCatInputKind kind,
     const char *name, float value) {
@@ -49,6 +56,13 @@ static CGEventRef event_tap(CGEventTapProxy proxy, CGEventType type,
     (void)proxy;
     MacInputState *state = userdata;
     if (type == kCGEventTapDisabledByTimeout || type == kCGEventTapDisabledByUserInput) {
+        /* Release tracked keys before restarting the tap; their key-up may be lost. */
+        for (unsigned code = 0; code < BONGO_CAT_INPUT_KEY_STATE_CAP; ++code) {
+            if (!state->key_down[code]) continue;
+            char buffer[16];
+            const char *name = bongo_cat_macos_key_name((CGKeyCode)code, buffer);
+            if (name) push(state, BONGO_CAT_INPUT_KEY_UP, name, 0.0f);
+        }
         memset(state->key_down, 0, sizeof(state->key_down));
         if (state->tap) CGEventTapEnable(state->tap, true);
         return event;
@@ -70,9 +84,14 @@ static CGEventRef event_tap(CGEventTapProxy proxy, CGEventType type,
         bool down = type == kCGEventKeyDown;
         if (type == kCGEventFlagsChanged) {
             CGEventFlags flag = modifier_flag(code);
-            down = flag && (CGEventGetFlags(event) & flag) != 0;
+            /* Aggregate flags stay set when only the other side is held. */
+            down = code == 57 ? (CGEventGetFlags(event) & flag) != 0 :
+                flag && CGEventSourceKeyState(kCGEventSourceStateCombinedSessionState, code);
         }
-        if (name && bongo_cat_input_edge(state->key_down, code, down))
+        bool shared_meta = code == 54 || code == 55;
+        bool meta_was_down = state->key_down[54] || state->key_down[55];
+        if (name && bongo_cat_input_edge(state->key_down, code, down) &&
+            (!shared_meta || meta_was_down != (state->key_down[54] || state->key_down[55])))
             push(state, down ? BONGO_CAT_INPUT_KEY_DOWN :
                 BONGO_CAT_INPUT_KEY_UP, name, down ? 1.0f : 0.0f);
         return event;
@@ -97,10 +116,16 @@ static int SDLCALL input_thread(void *userdata) {
             CGEventMaskBit(kCGEventOtherMouseDown) | CGEventMaskBit(kCGEventOtherMouseUp) |
             CGEventMaskBit(kCGEventMouseMoved) | CGEventMaskBit(kCGEventLeftMouseDragged) |
             CGEventMaskBit(kCGEventRightMouseDragged) | CGEventMaskBit(kCGEventOtherMouseDragged);
+        /* The permission this listener is built with, kept only to word the
+           warning below; the page reads the current permission itself. */
+        bool permitted = false;
+        if (@available(macOS 10.15, *)) permitted = CGPreflightListenEventAccess();
         state->tap = CGEventTapCreate(kCGSessionEventTap, kCGTailAppendEventTap,
             kCGEventTapOptionListenOnly, mask, event_tap, state);
         if (state->tap) {
             state->source = CFMachPortCreateRunLoopSource(NULL, state->tap, 0);
+        }
+        if (state->source && !atomic_load(&state->stop_requested)) {
             state->loop = CFRunLoopGetCurrent(); CFRetain(state->loop);
             CFRunLoopAddSource(state->loop, state->source, kCFRunLoopCommonModes);
             CGEventTapEnable(state->tap, true);
@@ -108,24 +133,32 @@ static int SDLCALL input_thread(void *userdata) {
             atomic_store(&global_supported, true);
         }
         SDL_SignalSemaphore(state->ready);
-        if (!atomic_load(&state->supported)) SDL_LogWarn(
-            SDL_LOG_CATEGORY_APPLICATION,
-            "macOS input monitoring permission is required for global input");
+        if (!atomic_load(&state->supported)) {
+            /* Not a permission verdict: a listener can also fail to build with
+               the permission already granted. */
+            if (permitted)
+                SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
+                    "macOS input listener failed to initialize");
+            else
+                SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "macOS input "
+                    "monitoring permission is required for global keyboard input");
+        }
         while (atomic_load(&state->supported) &&
             !atomic_load(&state->stop_requested))
             CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.1, true);
+        if (state->loop && state->source)
+            CFRunLoopRemoveSource(state->loop, state->source, kCFRunLoopCommonModes);
+        if (state->tap) CFMachPortInvalidate(state->tap);
         if (state->source) CFRelease(state->source);
         if (state->tap) CFRelease(state->tap);
         if (state->loop) CFRelease(state->loop);
         atomic_store(&global_supported, false);
     }
+    release_state(state);
     return 0;
 }
 
 bool bongo_cat_macos_input_start(BongoCatPlatform *platform, BongoCatError *error) {
-    if (@available(macOS 10.15, *)) {
-        if (!CGPreflightListenEventAccess()) CGRequestListenEventAccess();
-    }
     MacInputState *state = calloc(1, sizeof(*state));
     if (!state) {
         bongo_cat_error_set(error, BONGO_CAT_ERROR_MEMORY,
@@ -135,6 +168,8 @@ bool bongo_cat_macos_input_start(BongoCatPlatform *platform, BongoCatError *erro
     state->platform = platform;
     atomic_init(&state->supported, false);
     atomic_init(&state->stop_requested, false);
+    /* Caller and worker each release one reference, including after timeout. */
+    atomic_init(&state->references, 2);
     state->ready = SDL_CreateSemaphore(0);
     state->thread = state->ready ? SDL_CreateThread(input_thread,
         BONGO_CAT_SLUG "-macos-input", state) : NULL;
@@ -158,14 +193,25 @@ void bongo_cat_macos_input_stop(BongoCatPlatform *platform) {
         !SDL_WaitSemaphoreTimeout(state->ready, 3000)) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
             "macOS input thread did not initialize before shutdown");
+        SDL_DetachThread(state->thread);
         platform->native = NULL;
+        release_state(state);
         return;
     }
     if (state->thread) SDL_WaitThread(state->thread, NULL);
-    if (state->ready) SDL_DestroySemaphore(state->ready);
-    free(state);
     platform->native = NULL;
+    release_state(state);
 }
 
 bool bongo_cat_macos_input_supported(void) { return atomic_load(&global_supported); }
+
+bool bongo_cat_macos_input_monitoring_authorized(void) {
+    if (@available(macOS 10.15, *)) return CGPreflightListenEventAccess();
+    return false;
+}
+
+bool bongo_cat_macos_input_monitoring_request(void) {
+    if (@available(macOS 10.15, *)) return CGRequestListenEventAccess();
+    return false;
+}
 #endif

@@ -5,6 +5,7 @@
 #include "preferences_notice.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 static const char *tr(BongoCatApp *app, const char *key,
@@ -27,23 +28,31 @@ static bool select_model(BongoCatApp *app, const char *id) {
 }
 
 void bongo_cat_window_show_context_menu(BongoCatApp *app) {
-    if (!app) return;
+    if (!app || app->context_menu_active) return;
+    app->context_menu_requested = false;
+    app->context_menu_close_requested = false;
+    size_t capacity = app->behaviors.count ? app->behaviors.count : 1;
+    char (*names)[BONGO_CAT_MENU_LABEL_CAP] = calloc(capacity * 3, sizeof(*names));
+    bool *checked = calloc(capacity * 2, sizeof(*checked));
+    if (!names || !checked) { free(names); free(checked); return; }
     bool dark_theme = app->settings.app.theme == BONGO_CAT_THEME_DARK ||
         (app->settings.app.theme == BONGO_CAT_THEME_AUTO &&
             SDL_GetSystemTheme() == SDL_SYSTEM_THEME_DARK);
     BongoCatWindowMenuPreview preview;
     bongo_cat_window_menu_preview_init(&preview, app);
     const char *model_names[BONGO_CAT_MODEL_CAP];
+    const char *model_cover_directories[BONGO_CAT_MODEL_CAP];
     size_t current_model = app->models.count;
     for (size_t i = 0; i < app->models.count; ++i) {
+        model_cover_directories[i] = app->models.entries[i].adapter_directory;
         model_names[i] = bongo_cat_model_name(&app->settings,
             &app->models.entries[i]);
         if (!strcmp(app->models.entries[i].id, app->session.active_model_id))
             current_model = i;
     }
-    char motion_names[BONGO_CAT_BEHAVIOR_CAP][BONGO_CAT_MENU_LABEL_CAP];
-    char expression_names[BONGO_CAT_BEHAVIOR_CAP][BONGO_CAT_MENU_LABEL_CAP];
-    bool motion_checked[BONGO_CAT_BEHAVIOR_CAP] = {false};
+    char (*motion_names)[BONGO_CAT_MENU_LABEL_CAP] = names;
+    char (*expression_names)[BONGO_CAT_MENU_LABEL_CAP] = names + capacity;
+    bool *motion_checked = checked;
     size_t motion_count, expression_count, current_expression;
     bongo_cat_window_behavior_labels(app, motion_names, motion_checked,
         &motion_count, expression_names, &expression_count,
@@ -72,9 +81,21 @@ void bongo_cat_window_show_context_menu(BongoCatApp *app) {
         bongo_cat_window_menu_restore, &preview,
         tr(app, "native.removeDesktopPet", "Close this desktop pet"),
         app->secondary_pet || (app->settings.model.multiple_pets &&
-            app->session.additional_model_count > 0)};
+            app->session.additional_model_count > 0), NULL, NULL, NULL, 0,
+        model_cover_directories, &app->context_menu_close_requested};
+    char (*audio_names)[BONGO_CAT_MENU_LABEL_CAP] = names + capacity * 2;
+    bool *audio_checked = checked + capacity;
+    labels.audio = tr(app, "pages.preference.model.behaviorModal.labels.audio", "Audio");
+    labels.audio_names = audio_names;
+    labels.audio_checked = audio_checked;
+    bongo_cat_window_audio_labels(app, audio_names, audio_checked, &labels.audio_count);
+    app->context_menu_active = true;
     BongoCatMenuAction action = bongo_cat_platform_context_menu(
         &app->platform, &labels);
+    app->context_menu_active = false;
+    app->context_menu_close_requested = false;
+    free(checked);
+    free(names);
     if (bongo_cat_window_menu_preview_applied(&preview, action))
         bongo_cat_preferences_invalidate(app->preferences);
     else bongo_cat_window_menu_action(app, action);
@@ -82,6 +103,8 @@ void bongo_cat_window_show_context_menu(BongoCatApp *app) {
 
 void bongo_cat_window_menu_action(BongoCatApp *app,
     BongoCatMenuAction action) {
+    if (action < BONGO_CAT_MENU_SCALE_50 || action > BONGO_CAT_MENU_SCALE_200)
+        bongo_cat_window_snapshot_end(app);
     if (action == BONGO_CAT_MENU_PREFERENCES) {
         if (app->secondary_pet)
             bongo_cat_multi_pet_request_preferences(app);
@@ -117,8 +140,11 @@ void bongo_cat_window_menu_action(BongoCatApp *app,
         bongo_cat_window_cancel_wheel_animation(app);
         app->session.window.opacity_percent =
             (float)(10 * (action - BONGO_CAT_MENU_OPACITY_10 + 1));
-        bongo_cat_platform_set_opacity(&app->platform,
-            app->session.window.opacity_percent / 100.0f);
+        if (!app->hover_hidden) {
+            bongo_cat_app_cancel_hover_fade(app);
+            bongo_cat_platform_set_opacity(&app->platform,
+                app->session.window.opacity_percent / 100.0f);
+        }
     } else if (bongo_cat_window_behavior_action(app, action)) {
         bongo_cat_app_render_now(app);
     } else if (action >= BONGO_CAT_MENU_MODEL_FIRST &&

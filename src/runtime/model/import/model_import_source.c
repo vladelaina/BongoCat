@@ -1,10 +1,14 @@
 #include "model_import.h"
 #include "model_import_path.h"
+#include "model_import_probe.h"
 #include "bongo_cat/path.h"
 
 #include <SDL3/SDL.h>
 #include <stdio.h>
 #include <string.h>
+#ifndef _WIN32
+#include <strings.h>
+#endif
 
 static bool image_package_root(const char *source, char *directory,
     size_t capacity) {
@@ -42,6 +46,22 @@ BongoCatResult bongo_cat_import_source_directory(const char *source,
         return BONGO_CAT_ERROR_ARGUMENT;
     }
     const char *name = bongo_cat_path_name(source);
+    static const char *unsupported_archives[] = {
+        ".rar", ".7z", ".tar", ".gz", ".tgz", ".bz2", ".tbz2",
+        ".xz", ".txz", ".zst", ".cab"
+    };
+    for (size_t i = 0; i < SDL_arraysize(unsupported_archives); ++i) {
+        if (name && bongo_cat_import_has_suffix_ci(name,
+            unsupported_archives[i])) {
+            bongo_cat_error_set(error, BONGO_CAT_ERROR_UNSUPPORTED_ARCHIVE,
+                "Only ZIP archives are supported. Extract the archive and "
+                "import the model folder, or repack it as ZIP before importing");
+            return BONGO_CAT_ERROR_UNSUPPORTED_ARCHIVE;
+        }
+    }
+    if (name && bongo_cat_import_has_suffix_ci(name, ".moc3"))
+        return bongo_cat_import_probe_live2d_owner(source, directory,
+            capacity, error);
     if (name && bongo_cat_import_has_suffix_ci(name, ".png") &&
         image_package_root(source, directory, capacity)) return BONGO_CAT_OK;
     if (!name || (SDL_strcasecmp(name, "config.json") != 0 &&
@@ -49,7 +69,7 @@ BongoCatResult bongo_cat_import_source_directory(const char *source,
         !bongo_cat_import_has_suffix_ci(name, ".model3.json"))) {
         bongo_cat_error_set(error, BONGO_CAT_ERROR_FORMAT,
             "Select a BongoCat skin file, Mver config.json, image-patch PNG, "
-            "or Live2D .model3.json file");
+            "or Live2D .model3.json/.moc3 file");
         return BONGO_CAT_ERROR_FORMAT;
     }
     if (bongo_cat_import_parent_path(source, directory, capacity))

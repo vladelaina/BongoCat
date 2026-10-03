@@ -1,4 +1,3 @@
-#include "bongo_cat/gl_api.h"
 #include "bongo_cat/image.h"
 #include "image_internal.h"
 
@@ -8,7 +7,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define BONGO_CAT_LIVE2D_EFFICIENT_TEXTURE_LIMIT 2048
 BongoCatResult bongo_cat_image_load(const char *path, BongoCatImage *image, BongoCatError *error) {
     BongoCatResult result = bongo_cat_image_decode_pixels(path, image, error);
     if (result != BONGO_CAT_OK) return result;
@@ -30,49 +28,10 @@ void bongo_cat_image_free(BongoCatImage *image) {
     }
     memset(image, 0, sizeof(*image));
 }
-static unsigned int upload(const BongoCatImage *image, GLuint texture,
-    bool model_texture) {
-    bool created = texture == 0;
-    if (created) glGenTextures(1, &texture);
-    glBindTexture(GL_TEXTURE_2D, texture);
-    if (created) {
-        /* Keep direct image/UI textures on the inexpensive linear path. Model
-         * textures switch to alpha-safe trilinear filtering after upload. */
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        if (model_texture && SDL_GL_ExtensionSupported(
-            "GL_EXT_texture_filter_anisotropic")) {
-            GLfloat maximum = 1.0f;
-            glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &maximum);
-            if (maximum > 1.0f)
-                glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT,
-                    SDL_min(maximum, 8.0f));
-        }
-    }
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-    if (created && model_texture) {
-        if (!bongo_cat_image_upload_mipmaps(image)) {
-            bongo_cat_gl_clear_errors();
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, image->width,
-                image->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image->pixels);
-        }
-    } else if (created) {
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, image->width,
-            image->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image->pixels);
-    } else {
-        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, image->width, image->height,
-            GL_RGBA, GL_UNSIGNED_BYTE, image->pixels);
-    }
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-    return texture;
-}
 unsigned int bongo_cat_image_texture(const char *path, int *width, int *height, BongoCatError *error) {
     BongoCatImage image;
     if (bongo_cat_image_load(path, &image, error) != BONGO_CAT_OK) return 0;
-    GLuint texture = upload(&image, 0, false);
+    GLuint texture = bongo_cat_image_upload_texture(&image, 0, false, error);
     if (width) *width = image.width;
     if (height) *height = image.height;
     bongo_cat_image_free(&image);
@@ -86,7 +45,7 @@ unsigned int bongo_cat_image_texture_thumbnail(const char *path, int max_width,
     if (max_width > 0 && max_height > 0 &&
         bongo_cat_image_decode_wic_responsive(path, &image,
             max_width, max_height, NULL, NULL)) {
-        GLuint texture = upload(&image, 0, false);
+        GLuint texture = bongo_cat_image_upload_texture(&image, 0, false, error);
         if (width) *width = image.width;
         if (height) *height = image.height;
         bongo_cat_image_free(&image);
@@ -106,7 +65,7 @@ unsigned int bongo_cat_image_texture_thumbnail(const char *path, int max_width,
         if (scaled) {
             BongoCatImage thumbnail = {
                 .pixels = scaled->pixels, .width = scaled->w, .height = scaled->h};
-            GLuint texture = upload(&thumbnail, 0, false);
+            GLuint texture = bongo_cat_image_upload_texture(&thumbnail, 0, false, error);
             if (width) *width = thumbnail.width;
             if (height) *height = thumbnail.height;
             SDL_DestroySurface(scaled);
@@ -116,114 +75,12 @@ unsigned int bongo_cat_image_texture_thumbnail(const char *path, int max_width,
         target_width = image.width;
         target_height = image.height;
     }
-    GLuint texture = upload(&image, 0, false);
+    GLuint texture = bongo_cat_image_upload_texture(&image, 0, false, error);
     if (width) *width = target_width;
     if (height) *height = target_height;
     bongo_cat_image_free(&image);
     return texture;
 }
-typedef struct ImageProgressStage {
-    BongoCatImageProgress progress;
-    void *userdata;
-    float start;
-    float span;
-} ImageProgressStage;
-
-static void report_stage_progress(void *userdata, float progress) {
-    ImageProgressStage *stage = userdata;
-    if (stage && stage->progress)
-        stage->progress(stage->userdata, stage->start + stage->span * progress);
-}
-
-unsigned int bongo_cat_image_texture_model(const char *path, bool direct_decode,
-    int *width, int *height, BongoCatImageAlphaMask *alpha,
-    BongoCatImageProgress progress, void *userdata, BongoCatError *error) {
-    BongoCatImage image = {0};
-    ImageProgressStage stage = {progress, userdata, 0.0f, .30f};
-    BongoCatImageProgress staged = progress ? report_stage_progress : NULL;
-    GLint hardware_limit = 0;
-    glGetIntegerv(GL_MAX_TEXTURE_SIZE, &hardware_limit);
-    if (hardware_limit < 1) hardware_limit = BONGO_CAT_LIVE2D_EFFICIENT_TEXTURE_LIMIT;
-#ifdef _WIN32
-    /*
-     * A model atlas can advertise 8192px even when the pet is rendered in a
-     * few hundred pixels. Decoding that atlas at full size costs hundreds of
-     * MB of temporary RAM and makes alpha-mask generation and glTexImage2D
-     * dominate model switching. Keep a bounded working size for normal loads;
-     * this is still well above the largest bundled 1024px atlas. The hardware
-     * limit remains authoritative on low-end GPUs.
-     */
-    int decode_limit = SDL_min(hardware_limit,
-        BONGO_CAT_LIVE2D_EFFICIENT_TEXTURE_LIMIT);
-    /* Preset atlases are verified byte-identical in WIC and stb. Keep WIC for
-       custom PNG color metadata and for memory-bounded oversized decoding. */
-    bool scaled = bongo_cat_image_needs_wic_scaling(path, decode_limit);
-    if (!direct_decode || scaled) {
-        stage.span = .20f;
-        if (!bongo_cat_image_decode_wic_responsive(path, &image,
-            decode_limit, decode_limit, staged, &stage)) {
-            stage = (ImageProgressStage){progress, userdata, .20f, .10f};
-            if (bongo_cat_image_decode_pixels_responsive(path, &image,
-                staged, &stage, error) != BONGO_CAT_OK) return 0;
-        }
-    } else if (bongo_cat_image_decode_pixels_responsive(path, &image,
-        staged, &stage, error) != BONGO_CAT_OK) return 0;
-    if (scaled) SDL_Log("Live2D texture constrained to %dx%d by a %d pixel "
-        "texture limit: %s", image.width, image.height, decode_limit, path);
-    else if (image.width > BONGO_CAT_LIVE2D_EFFICIENT_TEXTURE_LIMIT ||
-        image.height > BONGO_CAT_LIVE2D_EFFICIENT_TEXTURE_LIMIT)
-        SDL_Log("High-resolution Live2D texture preserved at %dx%d: %s",
-            image.width, image.height, path);
-#else
-    (void)direct_decode;
-    if (bongo_cat_image_decode_pixels_responsive(path, &image,
-        staged, &stage, error) != BONGO_CAT_OK) return 0;
-#endif
-    if (progress) progress(userdata, .30f);
-    stage = (ImageProgressStage){progress, userdata, .30f, .30f};
-    bongo_cat_image_make_alpha_mask_progress(&image, alpha, staged, &stage);
-    bongo_cat_gl_clear_errors();
-    GLuint texture = upload(&image, 0, true);
-    GLenum upload_error = glGetError();
-#ifdef _WIN32
-    if (upload_error == GL_OUT_OF_MEMORY &&
-        (image.width > BONGO_CAT_LIVE2D_EFFICIENT_TEXTURE_LIMIT ||
-            image.height > BONGO_CAT_LIVE2D_EFFICIENT_TEXTURE_LIMIT)) {
-        if (texture) glDeleteTextures(1, &texture);
-        texture = 0;
-        bongo_cat_image_free(&image);
-        int fallback_limit = SDL_min(hardware_limit,
-            BONGO_CAT_LIVE2D_EFFICIENT_TEXTURE_LIMIT);
-        stage = (ImageProgressStage){progress, userdata, .90f, .04f};
-        if (bongo_cat_image_decode_wic_responsive(path, &image,
-            fallback_limit, fallback_limit, staged, &stage)) {
-            stage = (ImageProgressStage){progress, userdata, .94f, .03f};
-            bongo_cat_image_make_alpha_mask_progress(
-                &image, alpha, staged, &stage);
-            bongo_cat_gl_clear_errors();
-            texture = upload(&image, 0, true);
-            upload_error = glGetError();
-            if (upload_error == GL_NO_ERROR) SDL_LogWarn(
-                SDL_LOG_CATEGORY_RENDER,
-                "Live2D texture fell back to %dx%d after full-resolution "
-                "GPU upload exhausted memory: %s", image.width, image.height, path);
-        }
-    }
-#endif
-    if (!texture || upload_error != GL_NO_ERROR) {
-        if (texture) glDeleteTextures(1, &texture);
-        texture = 0;
-        bongo_cat_error_set(error, upload_error == GL_OUT_OF_MEMORY
-            ? BONGO_CAT_ERROR_MEMORY : BONGO_CAT_ERROR_PLATFORM,
-            "OpenGL texture upload failed (0x%x): %s", (unsigned)upload_error, path);
-    }
-    if (width) *width = image.width;
-    if (height) *height = image.height;
-    bongo_cat_image_free(&image);
-    if (progress) progress(userdata, 1.0f);
-    return texture;
-}
-
 static void erase_paw(BongoCatImage *image, bool left) {
     float cx = left ? .700f : .275f, cy = left ? .515f : .397f;
     float rx = left ? .080f : .070f, ry = left ? .170f : .160f;
@@ -265,7 +122,10 @@ unsigned int bongo_cat_image_composite_texture(const char *base, const char *lef
     if (erase_left) erase_paw(&image, true);
     if (erase_right) erase_paw(&image, false);
     bool valid = blend_file(&image, left, error) && blend_file(&image, right, error);
-    if (valid) texture = upload(&image, texture, false);
+    if (valid) {
+        GLuint updated = bongo_cat_image_upload_texture(&image, texture, false, error);
+        if (updated) texture = updated;
+    }
     bongo_cat_image_free(&image);
     return texture;
 }

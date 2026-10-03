@@ -50,7 +50,7 @@ bool bongo_cat_ui_close_button(struct nk_context *context,
     struct nk_color normal, struct nk_color hover, bool interactive);
 void bongo_cat_ui_tabs(struct nk_context *context, const char *const *labels,
     const int *icons, int count, int *active, bool interactive, bool dark,
-    float available_height,
+    float available_height, bool about_badge,
     BongoCatUIIconDraw draw_icon, void *icon_userdata);
 void bongo_cat_ui_set_icons(BongoCatUIIconDraw draw_icon,
     void *icon_userdata);

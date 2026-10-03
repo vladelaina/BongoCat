@@ -32,6 +32,7 @@ bool bongo_cat_update_event(BongoCatUpdateService *service,
 void bongo_cat_update_snapshot(BongoCatUpdateService *service,
     BongoCatUpdateSnapshot *snapshot);
 bool bongo_cat_update_open(BongoCatUpdateService *service);
+bool bongo_cat_update_refresh_and_open(BongoCatUpdateService *service);
 void bongo_cat_update_destroy(BongoCatUpdateService *service);
 
 #endif

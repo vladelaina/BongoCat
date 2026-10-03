@@ -1,16 +1,28 @@
 #ifndef BONGO_CAT_OVERLAY_H
 #define BONGO_CAT_OVERLAY_H
 
-#include "bongo_cat/common.h"
+#include "bongo_cat/model.h"
 
 typedef struct BongoCatOverlay BongoCatOverlay;
+
+/* Borrowed strings remain valid until the overlay is changed or destroyed. */
+typedef struct BongoCatOverlayInputDiagnostics {
+    const char *directory;
+    const char *last_path;
+    const char *effect_path;
+    unsigned active_hands;
+    uint64_t texture_failures;
+} BongoCatOverlayInputDiagnostics;
+
+BongoCatOverlayInputDiagnostics bongo_cat_overlay_input_diagnostics(
+    const BongoCatOverlay *overlay);
 
 BongoCatOverlay *bongo_cat_overlay_create(BongoCatError *error);
 void bongo_cat_overlay_destroy(BongoCatOverlay *overlay);
 void bongo_cat_overlay_clear(BongoCatOverlay *overlay);
 BongoCatResult bongo_cat_overlay_load(BongoCatOverlay *overlay,
     const char *model_directory, bool model_pointer_preferred,
-    BongoCatError *error);
+    const BongoCatLive2DRenderOptions *render_options, BongoCatError *error);
 int bongo_cat_overlay_key(BongoCatOverlay *overlay, const char *name, bool pressed);
 bool bongo_cat_overlay_effect(BongoCatOverlay *overlay, const char *path);
 bool bongo_cat_overlay_hand_active(const BongoCatOverlay *overlay, bool right);

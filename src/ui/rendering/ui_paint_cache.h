@@ -35,6 +35,7 @@ void bongo_cat_ui_paint_cache_draw(struct nk_context *context,
     struct nk_rect bounds, const BongoCatUIPaintTexture *item,
     struct nk_color tint);
 void bongo_cat_ui_paint_cache_begin_frame(BongoCatUIBackend *backend);
+void bongo_cat_ui_paint_cache_trim_idle(BongoCatUIBackend *backend);
 size_t bongo_cat_ui_paint_cache_usage(BongoCatUIBackend *backend,
     size_t *texture_count);
 void bongo_cat_ui_paint_cache_destroy(BongoCatUIBackend *backend);
