@@ -75,6 +75,11 @@ if(BUILD_TESTING)
   add_test(NAME model-import-unit COMMAND bongo_cat_mver_import_tests)
 
   if(BONGO_CAT_CUBISM_ENABLED)
+    add_executable(bongo_cat_cubism_json_tests tests/live2d/test_json_numbers.cpp)
+    target_include_directories(bongo_cat_cubism_json_tests PRIVATE tests/support)
+    target_link_libraries(bongo_cat_cubism_json_tests PRIVATE Framework bongo_cat_warnings)
+    add_test(NAME live2d-json-numbers COMMAND bongo_cat_cubism_json_tests)
+
     add_executable(bongo_cat_motion_state_tests
       tests/live2d/test_motion_state.cpp)
     target_include_directories(bongo_cat_motion_state_tests PRIVATE
