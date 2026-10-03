@@ -1,4 +1,5 @@
 #include "runtime.h"
+#include "window_wheel_internal.h"
 #include "bongo_cat/preferences.h"
 #include <stdlib.h>
 
@@ -6,6 +7,9 @@ static uint64_t frame_interval_ns(const BongoCatApp *app) {
 #ifdef BONGO_CAT_HAS_CUBISM
     int fps = app && app->settings.model.max_fps > 0 ?
         app->settings.model.max_fps : 60;
+    if (app && app->settings.model.max_fps == BONGO_CAT_DISPLAY_MAX_FPS &&
+        app->startup_display_fps > 60)
+        fps = app->startup_display_fps;
     return 1000000000ull / (uint64_t)fps;
 #else
     (void)app;
@@ -31,11 +35,31 @@ int bongo_cat_window_wait_timeout(const BongoCatApp *app, uint64_t now) {
     uint64_t frame_deadline = app->last_frame_ns + frame_interval_ns(app);
     int wait_ms = app->session.window.visible && !app->window_minimized ? remaining_ms(
         frame_deadline, now) : 250;
+    /* Service bounded upload/retirement work independently of animation FPS.
+       A ready CPU batch otherwise waits for a full 16 ms frame interval before
+       the GL thread can consume it. Keep the shorter wakeup only while a job
+       can make progress; paused/no-job states retain their idle cadence. */
+    if (wait_ms > 8 && bongo_cat_live2d_texture_refresh_busy(app->live2d))
+        wait_ms = 8;
     if (bongo_cat_preferences_needs_frame(app->preferences) && wait_ms > 4)
         wait_ms = 4;
-    if (app->wheel_animation_active && wait_ms > 8) wait_ms = 8;
+    if (app->wheel_animation_active) {
+        int wheel_wait = remaining_ms(app->wheel_animation_ns +
+            BONGO_CAT_WHEEL_FRAME_INTERVAL_NS, now);
+        if (wait_ms > wheel_wait) wait_ms = wheel_wait;
+    }
+    if (app->hover_fade_active && wait_ms > 8) wait_ms = 8;
+    if (app->resize_target_pending) {
+        int resize_wait = remaining_ms(app->resize_next_ns, now);
+        if (wait_ms > resize_wait) wait_ms = resize_wait;
+    }
+    if ((app->resize_candidate || app->resize_gesture) && wait_ms > 16)
+        wait_ms = 16;
+    if (app->window_snapshot && wait_ms > 16) wait_ms = 16;
     if (app->session.window.visible && !app->window_minimized &&
-        app->click_through_applied && wait_ms > 16) wait_ms = 16;
+        (app->click_through_applied || (app->settings.window.pass_through &&
+            app->settings.window.always_on_top && app->settings.window.hide_on_hover)) &&
+        wait_ms > 16) wait_ms = 16;
     bool pending_hit = app->session.window.visible && !app->window_minimized &&
         app->pointer_hit_dirty &&
         app->pointer_hit_deadline_ns && !app->settings.window.pass_through &&
@@ -77,7 +101,20 @@ bool bongo_cat_window_wait_timeout_self_test(void) {
     if (!(interval_30 > interval_60 && interval_60 > interval_120) ||
         bongo_cat_model_frame_due(app, now + interval_120 - 1) ||
         !bongo_cat_model_frame_due(app, now + interval_120)) goto done;
+    app->settings.model.max_fps = BONGO_CAT_DISPLAY_MAX_FPS;
+    app->startup_display_fps = 144;
+    uint64_t interval_display = frame_interval_ns(app);
+    if (interval_display != 1000000000ull / 144 ||
+        bongo_cat_model_frame_due(app, now + interval_display - 1) ||
+        !bongo_cat_model_frame_due(app, now + interval_display)) goto done;
+    const int fallback_fps[] = {0, 50, 60};
+    for (size_t i = 0; i < sizeof(fallback_fps) / sizeof(fallback_fps[0]); ++i) {
+        app->startup_display_fps = fallback_fps[i];
+        if (frame_interval_ns(app) != interval_60) goto done;
+    }
+    app->startup_display_fps = 144;
     app->settings.model.max_fps = 60;
+    if (frame_interval_ns(app) != interval_60) goto done;
 #endif
     int frame_wait = remaining_ms(now + frame_interval_ns(app), now);
     if (bongo_cat_window_wait_timeout(app, now) != frame_wait ||
@@ -88,12 +125,27 @@ bool bongo_cat_window_wait_timeout_self_test(void) {
     app->pointer_hit_deadline_ns = now;
     if (bongo_cat_window_wait_timeout(app, now) != 0) goto done;
     app->pointer_hit_dirty = false;
+    app->resize_gesture = app->resize_target_pending = true;
+    app->resize_next_ns = now + 8000000ull;
+    if (bongo_cat_window_wait_timeout(app, now) != 8 ||
+        bongo_cat_window_wait_timeout(app, now + 3000000ull) != 5 ||
+        bongo_cat_window_wait_timeout(app, now + 8000000ull) != 0) goto done;
+    app->resize_gesture = app->resize_target_pending = false;
 #ifdef BONGO_CAT_HAS_CUBISM
     app->settings.model.max_fps = 1;
 #endif
     app->click_through_applied = true;
     if (bongo_cat_window_wait_timeout(app, now) != 16) goto done;
     app->click_through_applied = false;
+    app->settings.window.pass_through = true;
+    app->settings.window.always_on_top = true;
+    app->settings.window.hide_on_hover = true;
+    if (bongo_cat_window_wait_timeout(app, now) != 16) goto done;
+    app->settings.window.always_on_top = false;
+    if (bongo_cat_window_wait_timeout(app, now) !=
+        remaining_ms(now + frame_interval_ns(app), now)) goto done;
+    app->settings.window.pass_through = false;
+    app->settings.window.hide_on_hover = false;
 #ifdef BONGO_CAT_HAS_CUBISM
     app->settings.model.max_fps = 60;
 #endif
@@ -106,7 +158,11 @@ bool bongo_cat_window_wait_timeout_self_test(void) {
     app->session.window.visible = false;
     if (bongo_cat_window_wait_timeout(app, now) != 250) goto done;
     app->wheel_animation_active = true;
-    passed = bongo_cat_window_wait_timeout(app, now) == 8;
+    app->wheel_animation_ns = now;
+    if (bongo_cat_window_wait_timeout(app, now) != 8 ||
+        bongo_cat_window_wait_timeout(app, now + 3000000ull) != 5 ||
+        bongo_cat_window_wait_timeout(app, now + 8000000ull) != 0) goto done;
+    passed = true;
 done:
     free(app);
     return passed;

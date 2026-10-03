@@ -143,7 +143,7 @@ static bool assertions(BongoCatApp *app, const char *scenario, bool operation) {
             signed_value(app, "ParamAngleY", true) && z_valid;
     }
     if (strcmp(scenario, "mouse-move-mirror") == 0)
-        return signed_value(app, "ParamAngleX", false) &&
+        return signed_value(app, "ParamAngleX", true) &&
             signed_value(app, "ParamAngleY", true);
     if (strcmp(scenario, "mouse-reverse") == 0) {
         bool horizontal =

@@ -34,6 +34,10 @@ static NearbyMarker read_marker(const char *target) {
         BONGO_CAT_NEARBY_CACHE_MARKER)) return marker;
     yyjson_doc *document = bongo_cat_json_read_file(path, 0, NULL);
     yyjson_val *root = document ? yyjson_doc_get_root(document) : NULL;
+    if (!root || !yyjson_is_obj(root)) {
+        yyjson_doc_free(document);
+        return marker;
+    }
     const char *kind = yyjson_get_str(yyjson_obj_get(root, "kind"));
     const char *source = yyjson_get_str(yyjson_obj_get(root, "source"));
     const char *signature = yyjson_get_str(yyjson_obj_get(root, "signature"));

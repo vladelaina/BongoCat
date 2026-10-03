@@ -13,15 +13,26 @@ void bongo_cat_pref_row_icon(struct nk_context *context,
     BongoCatPrefIcon icon);
 bool bongo_cat_pref_toggle(struct nk_context *context, const char *id,
     const char *title, const char *description, bool *value);
+bool bongo_cat_pref_toggle_help(struct nk_context *context, const char *id,
+    const char *title, const char *description, const char *help, bool *value);
 bool bongo_cat_pref_toggle_float(struct nk_context *context, const char *id,
-    const char *title, bool *enabled, float minimum, float *value,
+    const char *title, const char *unit, bool *enabled, float minimum, float *value,
     float maximum, float step, float default_value);
+/* Square brackets in detail mark highlighted option names. */
+bool bongo_cat_pref_toggle_float_detail(struct nk_context *context, const char *id,
+    const char *title, const char *unit, bool *enabled, float minimum, float *value,
+    float maximum, float step, float default_value, const char *detail,
+    bool available);
 bool bongo_cat_pref_obs_background(struct nk_context *context, const char *id,
     const char *title, const char *question, const char *reply, bool *enabled,
     BongoCatObsBackgroundColor *color);
 bool bongo_cat_pref_float(struct nk_context *context, const char *id,
     const char *title, const char *description, float minimum, float *value,
     float maximum, float step, float default_value);
+/* Returns whether the trailing action button was clicked. */
+bool bongo_cat_pref_float_action(struct nk_context *context, const char *id,
+    const char *title, const char *detail, float minimum, float *value,
+    float maximum, float step, float default_value, const char *button);
 bool bongo_cat_pref_int(struct nk_context *context, const char *id,
     const char *title, const char *description, int minimum, int *value,
     int maximum, int step, int default_value);

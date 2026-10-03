@@ -33,8 +33,12 @@ static uint32_t pack(struct nk_color color) {
 }
 
 static void pixel(unsigned char *target, struct nk_color color, float alpha) {
-    target[0] = color.r; target[1] = color.g; target[2] = color.b;
-    target[3] = (unsigned char)(color.a * clamp01(alpha) + .5f);
+    unsigned char coverage = (unsigned char)(color.a * clamp01(alpha) + .5f);
+    /* GL_LINEAR interpolates RGB and alpha independently. Keeping a colored
+       RGB value in a fully transparent texel can therefore create a visible
+       fringe on DWM-composited windows when a neighbouring sample is mixed. */
+    target[0] = coverage ? color.r : 0; target[1] = coverage ? color.g : 0; target[2] = coverage ? color.b : 0;
+    target[3] = coverage;
 }
 
 static float rounded_distance(float x, float y, float width, float height,
@@ -50,6 +54,11 @@ static float rounded_distance(float x, float y, float width, float height,
 static bool texture_dimensions(struct nk_context *context,
     struct nk_rect bounds, int *width, int *height, float *scale_x,
     float *scale_y, BongoCatUIBackend **backend) {
+    /* Nuklear clips the eventual image, but rasterization/upload happens here.
+       Skip effects whose complete padded target is outside the visible clip. */
+    struct nk_rect clip = nk_window_get_canvas(context)->clip;
+    if (bounds.x + bounds.w <= clip.x || bounds.y + bounds.h <= clip.y ||
+        bounds.x >= clip.x + clip.w || bounds.y >= clip.y + clip.h) return false;
     *backend = bongo_cat_ui_backend_for_context(context);
     if (!*backend || !(*backend)->window) return false;
     float logical_width = 0.0f, logical_height = 0.0f;
@@ -161,7 +170,7 @@ void bongo_cat_ui_paint_sidebar_glow(struct nk_context *context,
     int width, height; float sx, sy; BongoCatUIBackend *backend;
     if (!texture_dimensions(context, surface, &width, &height, &sx, &sy,
         &backend)) return;
-    float scale = (sx + sy) * .5f;
+    float scale = NK_MIN(sx, sy);
     BongoCatUIPaintKey key = {BONGO_CAT_UI_PAINT_SIDEBAR_GLOW,
         width, height, (int)lroundf(rounding * scale),
         (int)lroundf(sidebar * sx), 0, pack(color), 0};
@@ -220,14 +229,15 @@ void bongo_cat_ui_paint_shadow(struct nk_context *context,
         float center_x = pad_x + bounds.w * sx * .5f;
         float center_y = pad_y + bounds.h * sy * .5f;
         float sigma = NK_MAX(1.0f, (float)key.first_parameter * .5f);
+        float inverse_sigma_squared = 1.0f / (sigma * sigma);
+        float radius = NK_CLAMP(0.0f, (float)(key.radius + key.second_parameter),
+            NK_MIN(shape_w, shape_h) * .5f);
         for (int y = 0; y < height; ++y) for (int x = 0; x < width; ++x) {
             float local_x = x + .5f - center_x + shape_w * .5f;
             float local_y = y + .5f - center_y + shape_h * .5f;
-            float distance = rounded_distance(local_x, local_y,
-                shape_w, shape_h,
-                (float)(key.radius + key.second_parameter));
+            float distance = rounded_distance(local_x, local_y, shape_w, shape_h, radius);
             float alpha = .55f *
-                expf(-.5f * distance * distance / (sigma * sigma));
+                expf(-.5f * distance * distance * inverse_sigma_squared);
             pixels[(size_t)y * width + x] =
                 (unsigned char)(255.0f * clamp01(alpha) + .5f);
         }

@@ -27,12 +27,15 @@ void bongo_cat_model_behavior_cache_store(BongoCatApp *app,
         return;
     }
     if (!app->behavior_cache)
-        app->behavior_cache = malloc(sizeof(*app->behavior_cache));
+        app->behavior_cache = calloc(1, sizeof(*app->behavior_cache));
     if (!app->behavior_cache) {
         app->behavior_cache_valid = false;
         return;
     }
-    *app->behavior_cache = app->behaviors;
+    if (!bongo_cat_behaviors_copy(app->behavior_cache, &app->behaviors, NULL)) {
+        app->behavior_cache_valid = false;
+        return;
+    }
     snprintf(app->behavior_cache_model_id,
         sizeof(app->behavior_cache_model_id), "%s", entry->id);
     snprintf(app->behavior_cache_digest, sizeof(app->behavior_cache_digest),

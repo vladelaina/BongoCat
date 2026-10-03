@@ -38,10 +38,9 @@ BongoCatResult bongo_cat_app_remove_model(BongoCatApp *app, const char *id,
             "Model is not installed: %s", id);
         return BONGO_CAT_ERROR_ARGUMENT;
     }
-    if (entry->preset || entry->managed) {
-        bongo_cat_error_set(error, BONGO_CAT_ERROR_ARGUMENT, entry->managed
-            ? "Nearby models are managed by their source directory: %s"
-            : "Built-in models cannot be removed: %s", id);
+    if (entry->managed) {
+        bongo_cat_error_set(error, BONGO_CAT_ERROR_ARGUMENT,
+            "Nearby models are managed by their source directory: %s", id);
         return BONGO_CAT_ERROR_ARGUMENT;
     }
     bool primary = !strcmp(id, app->session.active_model_id) ||
@@ -86,7 +85,7 @@ BongoCatResult bongo_cat_app_remove_model(BongoCatApp *app, const char *id,
                 replacement = true;
                 break;
             }
-        if (!replacement) {
+        if (!replacement && app->models.count > 1) {
             bongo_cat_error_set(error, BONGO_CAT_ERROR_CUBISM,
                 "Cannot delete the active model because no replacement could be displayed: %s",
                 load_error.message[0] ? load_error.message :
@@ -138,6 +137,15 @@ BongoCatResult bongo_cat_app_remove_model(BongoCatApp *app, const char *id,
         bongo_cat_settings_restore_model_package(&app->settings, package_id);
     bongo_cat_app_forget_behavior_state(app, id);
     bongo_cat_settings_set_model_label(&app->settings, id, "");
+    size_t output = 0;
+    size_t id_length = strlen(id);
+    for (size_t i = 0; i < app->settings.behavior_shortcut_count; ++i) {
+        BongoCatBehaviorShortcut *shortcut = &app->settings.behavior_shortcuts[i];
+        if (!strncmp(shortcut->id, id, id_length) &&
+            shortcut->id[id_length] == ':') continue;
+        app->settings.behavior_shortcuts[output++] = *shortcut;
+    }
+    app->settings.behavior_shortcut_count = output;
     bongo_cat_app_rescan_models(app);
     return BONGO_CAT_OK;
 }

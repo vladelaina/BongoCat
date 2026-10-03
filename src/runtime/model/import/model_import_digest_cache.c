@@ -82,6 +82,8 @@ static void cache_store(BongoCatImportDigestCache *cache, const char *path,
 BongoCatImportDigestCache *bongo_cat_import_digest_cache_create(void) {
     BongoCatImportDigestCache *cache = calloc(1, sizeof(*cache));
     if (cache) cache->buckets = calloc(DIGEST_CACHE_BUCKET_CAP,
+        /* Each bucket holds an entry pointer, not an entry. */
+        // NOLINTNEXTLINE(bugprone-sizeof-expression)
         sizeof(*cache->buckets));
     if (cache && cache->buckets) return cache;
     if (cache) free(cache->buckets);

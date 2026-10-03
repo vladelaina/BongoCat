@@ -33,13 +33,18 @@ void bongo_cat_preferences_fonts_resolve(BongoCatPreferences *value,
     if (!fonts->heading_fallback) fonts->heading_fallback =
         fonts->body_fallback;
     if (!value->app->i18n) return;
-    bongo_cat_i18n_glyph_ranges(value->app->i18n, value->glyph_ranges,
+    size_t range_capacity = sizeof(value->glyph_ranges) / sizeof(value->glyph_ranges[0]);
+    size_t range_count = bongo_cat_i18n_glyph_ranges(value->app->i18n,
+        value->glyph_ranges, range_capacity - 2);
+    /* Shortcut arrows must be available even before a binding is recorded. */
+    if (range_count && range_count + 2 <= range_capacity) {
+        value->glyph_ranges[range_count - 1] = 0x2190;
+        value->glyph_ranges[range_count] = 0x2193;
+        value->glyph_ranges[range_count + 1] = 0;
+    }
+    /* Include label glyphs in the initial atlas so page switches need no bake. */
+    bongo_cat_preferences_model_glyphs(value->app, value->glyph_ranges,
         sizeof(value->glyph_ranges) / sizeof(value->glyph_ranges[0]));
-    /* Model and behavior labels can contain hundreds of otherwise unused
-       glyphs. Bake them only for the pages that can display those labels. */
-    if (value->model_glyphs_loaded)
-        bongo_cat_preferences_model_glyphs(value->app, value->glyph_ranges,
-            sizeof(value->glyph_ranges) / sizeof(value->glyph_ranges[0]));
     fonts->ranges = value->glyph_ranges;
 }
 

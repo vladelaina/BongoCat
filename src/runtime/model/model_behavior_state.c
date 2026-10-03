@@ -81,8 +81,8 @@ void bongo_cat_app_capture_behavior_state(BongoCatApp *app) {
         memset(saved, 0, sizeof(*saved));
         snprintf(saved->model_id, sizeof(saved->model_id), "%s",
             app->loaded_model);
-        snprintf(saved->behavior_id, sizeof(saved->behavior_id), "%s",
-            entry->id);
+        snprintf(saved->behavior_id, sizeof(saved->behavior_id), "%.*s",
+            (int)sizeof(saved->behavior_id) - 1, entry->id);
     }
 }
 

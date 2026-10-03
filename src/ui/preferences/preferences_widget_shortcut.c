@@ -1,4 +1,5 @@
 #include "preferences_widgets.h"
+#include "bongo_cat/shortcut.h"
 #include "preferences_widgets_internal.h"
 #include "preferences_shortcut_clear.h"
 #include "ui_animation.h"
@@ -16,8 +17,10 @@ int bongo_cat_pref_edit(struct nk_context *context, const char *id,
     bool recording, const char *idle_hint, const char *record_hint) {
     int lines = bongo_cat_pref_detail_lines(context, detail); FormStyle saved;
     if (!bongo_cat_pref_form_begin(context, id, lines, &saved)) return false;
+    char shortcut_label[BONGO_CAT_SHORTCUT_CAP * 2];
+    bongo_cat_shortcut_format(value, shortcut_label, sizeof(shortcut_label));
     const char *shown = recording ? record_hint :
-        (value && value[0] ? value : idle_hint);
+        (value && value[0] ? shortcut_label : idle_hint);
     const struct nk_user_font *font = bongo_cat_ui_body_font(context);
     float width = font->width(font->userdata, font->height, shown,
         nk_strlen(shown));

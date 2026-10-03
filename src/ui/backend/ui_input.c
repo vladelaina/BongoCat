@@ -40,8 +40,10 @@ static void key_event(BongoCatUIBackend *ui, const SDL_KeyboardEvent *event) {
     bool control = (event->mod & SDL_KMOD_CTRL) != 0;
     struct nk_context *context = &ui->context;
     switch (event->key) {
-    case SDLK_LSHIFT: case SDLK_RSHIFT: nk_input_key(context, NK_KEY_SHIFT, down); break;
-    case SDLK_LALT: case SDLK_RALT: nk_input_key(context, NK_KEY_ALT, down); break;
+    case SDLK_LSHIFT: case SDLK_RSHIFT:
+        nk_input_key(context, NK_KEY_SHIFT, (event->mod & SDL_KMOD_SHIFT) != 0); break;
+    case SDLK_LALT: case SDLK_RALT:
+        nk_input_key(context, NK_KEY_ALT, (event->mod & SDL_KMOD_ALT) != 0); break;
     case SDLK_DELETE: nk_input_key(context, NK_KEY_DEL, down); break;
     case SDLK_RETURN: case SDLK_KP_ENTER: nk_input_key(context, NK_KEY_ENTER, down); break;
     case SDLK_TAB: nk_input_key(context, NK_KEY_TAB, down); break;
@@ -59,16 +61,18 @@ static void key_event(BongoCatUIBackend *ui, const SDL_KeyboardEvent *event) {
     case SDLK_UP: nk_input_key(context, NK_KEY_UP, down); break;
     case SDLK_DOWN: nk_input_key(context, NK_KEY_DOWN, down); break;
     case SDLK_LEFT:
-        nk_input_key(context, control ? NK_KEY_TEXT_WORD_LEFT : NK_KEY_LEFT, down);
+        nk_input_key(context, NK_KEY_TEXT_WORD_LEFT, down && control);
+        nk_input_key(context, NK_KEY_LEFT, down && !control);
         break;
     case SDLK_RIGHT:
-        nk_input_key(context, control ? NK_KEY_TEXT_WORD_RIGHT : NK_KEY_RIGHT, down);
+        nk_input_key(context, NK_KEY_TEXT_WORD_RIGHT, down && control);
+        nk_input_key(context, NK_KEY_RIGHT, down && !control);
         break;
-    case SDLK_A: if (control) nk_input_key(context, NK_KEY_TEXT_SELECT_ALL, down); break;
-    case SDLK_C: if (control) nk_input_key(context, NK_KEY_COPY, down); break;
-    case SDLK_V: if (control) nk_input_key(context, NK_KEY_PASTE, down); break;
-    case SDLK_X: if (control) nk_input_key(context, NK_KEY_CUT, down); break;
-    case SDLK_Z: if (control) nk_input_key(context, NK_KEY_TEXT_UNDO, down); break;
+    case SDLK_A: nk_input_key(context, NK_KEY_TEXT_SELECT_ALL, down && control); break;
+    case SDLK_C: nk_input_key(context, NK_KEY_COPY, down && control); break;
+    case SDLK_V: nk_input_key(context, NK_KEY_PASTE, down && control); break;
+    case SDLK_X: nk_input_key(context, NK_KEY_CUT, down && control); break;
+    case SDLK_Z: nk_input_key(context, NK_KEY_TEXT_UNDO, down && control); break;
     default: break;
     }
 }
@@ -135,8 +139,7 @@ bool bongo_cat_ui_event(BongoCatUIBackend *ui, const SDL_Event *event) {
         nk_input_scroll(context, nk_vec2(event->wheel.x, event->wheel.y));
         return true;
     case SDL_EVENT_WINDOW_FOCUS_LOST:
-        ui->last_left_click_ns = 0;
-        ui->double_click_down = false;
+        bongo_cat_ui_input_reset(ui);
         return false;
     default: return false;
     }

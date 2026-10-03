@@ -1,8 +1,19 @@
 #include "runtime.h"
 
 #include <stdlib.h>
+#ifdef _WIN32
+#include "windows_autostart.h"
+#include "windows_game_compatibility.h"
+#include "storage_paths.h"
+#endif
 
 int bongo_cat_app_run(int argc, char **argv) {
+#ifdef _WIN32
+    int autostart_exit = 0;
+    if (bongo_cat_windows_autostart_command(argc, argv, &autostart_exit))
+        return autostart_exit;
+    if (!bongo_cat_windows_game_compatibility_command()) return 1;
+#endif
     if (bongo_cat_platform_update_shutdown_argument(argc, argv)) return 0;
     bool secondary = bongo_cat_multi_pet_secondary_argument(argc, argv);
     if (!secondary && !bongo_cat_platform_single_instance_begin()) return 0;
@@ -16,6 +27,24 @@ int bongo_cat_app_run(int argc, char **argv) {
         return 1;
     }
     BongoCatError error = {0};
+#ifdef _WIN32
+    /* Check the saved opt-in before opening logs, windows or model resources. */
+    bongo_cat_settings_defaults(&app->settings);
+    if (bongo_cat_startup_arguments(app, argc, argv, &error) &&
+        bongo_cat_storage_paths_prepare(app, &error) &&
+        bongo_cat_settings_load(app->settings_path, &app->settings, &error) == BONGO_CAT_OK) {
+        bool restarting = false;
+        bool success = bongo_cat_windows_game_compatibility_startup(app, &restarting, &error);
+        if (!success || restarting) {
+            if (!success) bongo_cat_startup_failure(NULL, &error);
+            free(app);
+            if (!secondary) bongo_cat_platform_single_instance_end();
+            bongo_cat_windows_game_compatibility_finish();
+            return success ? 0 : 1;
+        }
+    }
+    error = (BongoCatError){0};
+#endif
     if (!bongo_cat_app_initialize(app, argc, argv, &error)) {
         bongo_cat_startup_failure(app, &error);
         if (app->smoke) bongo_cat_startup_ci_failure(app, &error);
@@ -29,5 +58,8 @@ int bongo_cat_app_run(int argc, char **argv) {
     bongo_cat_app_shutdown(app, "shutdown:normal", exit_code);
     free(app);
     if (!secondary) bongo_cat_platform_single_instance_end();
+#ifdef _WIN32
+    bongo_cat_windows_game_compatibility_finish();
+#endif
     return exit_code;
 }

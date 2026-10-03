@@ -151,6 +151,10 @@ int main(void) {
     yyjson_doc *reference = load(root, "zh-CN");
     if (!reference) return 1;
     const char *required_ui_keys[] = {
+        "pages.preference.general.labels.gameCompatibility",
+        "pages.preference.cat.hints.gameCompatibility",
+        "pages.preference.cat.hints.gameCompatibilityHelp",
+        "pages.preference.cat.hints.gameCompatibilityFailed",
         "pages.preference.general.hints.autostartFailed",
         "pages.preference.model.hints.deleteFailed",
         "pages.preference.model.hints.importFailed",

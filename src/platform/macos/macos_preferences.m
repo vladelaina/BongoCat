@@ -5,8 +5,9 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_properties.h>
 
-BongoCatResult bongo_cat_platform_set_autostart(bool enabled,
+BongoCatResult bongo_cat_platform_set_autostart(bool enabled, bool administrator,
     BongoCatError *error) {
+    (void)administrator;
     @autoreleasepool {
         NSString *directory = [NSHomeDirectory()
             stringByAppendingPathComponent:@"Library/LaunchAgents"];
@@ -44,7 +45,7 @@ void bongo_cat_platform_configure_preferences_window(SDL_Window *sdl_window) {
         SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, NULL);
     if (!window) return;
     NSWindowStyleMask style = [window styleMask];
-    style |= NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
+    style |= NSWindowStyleMaskClosable |
         NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable |
         NSWindowStyleMaskFullSizeContentView;
     [window setStyleMask:style];

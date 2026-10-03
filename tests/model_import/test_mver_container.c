@@ -24,7 +24,73 @@ static void progressive_receipt(void *userdata,
     log->installed += receipt->installed_count;
 }
 
+static void import_without_hand_images(void) {
+    char *temporary = SDL_GetCurrentDirectory();
+    BongoCatImportDiscovery *discovery = calloc(1, sizeof(*discovery));
+    CHECK(temporary && discovery);
+    if (!temporary || !discovery) {
+        SDL_free(temporary);
+        free(discovery);
+        return;
+    }
+    char root[BONGO_CAT_PATH_CAP], package[BONGO_CAT_PATH_CAP];
+    char models[BONGO_CAT_PATH_CAP], stored[BONGO_CAT_PATH_CAP];
+    char path[BONGO_CAT_PATH_CAP], copied[BONGO_CAT_PATH_CAP];
+    snprintf(root, sizeof(root), "%s/bongocat-no-hand-%llu", temporary,
+        (unsigned long long)SDL_GetTicksNS());
+    CHECK(SDL_CreateDirectory(root));
+    CHECK(child(package, sizeof(package), root, "source", true));
+    CHECK(mver_fixture(package));
+    BongoCatError error = {0};
+    CHECK(child(path, sizeof(path), package, "img/standard/hand/0.png", false));
+    CHECK(SDL_RemovePath(path));
+    CHECK(bongo_cat_import_mver_discover_exact(package, discovery, &error) == 1);
+    CHECK(discovery->count == 1);
+    CHECK(child(path, sizeof(path), package, "img/standard/hand", false));
+    CHECK(bongo_cat_model_remove_tree(path, NULL));
+    CHECK(child(models, sizeof(models), root, "models", true));
+    BongoCatImportReceipt receipt = {0};
+    CHECK(bongo_cat_import_install(package, models, &receipt, &error) == BONGO_CAT_OK);
+    CHECK(receipt.count == 1 && receipt.installed_count == 1);
+    CHECK(child(stored, sizeof(stored), models, receipt.ids[0], false));
+    memset(discovery, 0, sizeof(*discovery));
+    CHECK(bongo_cat_import_mver_discover_exact(stored, discovery, &error) == 1);
+    CHECK(discovery->count == 1);
+    CHECK(child(path, sizeof(path), root, "adapter", false));
+    CHECK(bongo_cat_import_prepare_adapter(&discovery->candidates[0], path, &error));
+    CHECK(child(path, sizeof(path), root, "adapter/resources/left-keys", false));
+    CHECK(!bongo_cat_path_find_suffix(path, ".png", copied, sizeof(copied)));
+    CHECK(child(path, sizeof(path), package, "img/standard/hand", false));
+    CHECK(!bongo_cat_path_is_dir(path));
+    CHECK(child(path, sizeof(path), stored, "img/standard/hand", false));
+    CHECK(!bongo_cat_path_is_dir(path));
+    static const char *const preserved[] = {
+        "config.json", "img/standard/cat_model/cat.model3.json",
+        "img/standard/cat_model/cat.moc3", "img/standard/cat_model/texture.png"
+    };
+    for (size_t i = 0; i < sizeof(preserved) / sizeof(preserved[0]); ++i) {
+        CHECK(child(path, sizeof(path), package, preserved[i], false));
+        CHECK(child(copied, sizeof(copied), stored, preserved[i], false));
+        size_t source_size = 0, copied_size = 0;
+        void *source_data = SDL_LoadFile(path, &source_size);
+        void *copied_data = SDL_LoadFile(copied, &copied_size);
+        CHECK(source_data && copied_data && source_size == copied_size &&
+            memcmp(source_data, copied_data, source_size) == 0);
+        SDL_free(source_data);
+        SDL_free(copied_data);
+    }
+    CHECK(child(path, sizeof(path), package, "img/standard/cat_model/texture.png", false));
+    CHECK(SDL_RemovePath(path));
+    memset(discovery, 0, sizeof(*discovery));
+    CHECK(bongo_cat_import_mver_discover_exact(package, discovery, &error) == -1);
+    CHECK(error.code == BONGO_CAT_ERROR_FORMAT);
+    CHECK(bongo_cat_model_remove_tree(root, NULL));
+    SDL_free(temporary);
+    free(discovery);
+}
+
 void test_mver_container_discovery(void) {
+    import_without_hand_images();
     char root[BONGO_CAT_PATH_CAP], package[BONGO_CAT_PATH_CAP];
     char backup[BONGO_CAT_PATH_CAP];
     char mode[BONGO_CAT_PATH_CAP];
@@ -175,6 +241,15 @@ void test_mver_container_discovery(void) {
     CHECK(progressive.callbacks == 2 && progressive.resolved == 2 &&
         progressive.installed == 2);
     CHECK(stats.succeeded_count == 2 && stats.failed_count == 0);
+    CHECK(child(mode, sizeof(mode), package,
+        "img/standard/cat_model/cat.moc3", false));
+    progressive = (ProgressiveImportLog){0};
+    CHECK(session && bongo_cat_import_session_install_progressive(session,
+        mode, progressive_receipt, &progressive, &stats, &error) ==
+        BONGO_CAT_OK);
+    CHECK(progressive.callbacks == 1 && progressive.resolved == 1 &&
+        progressive.installed == 0);
+    CHECK(stats.succeeded_count == 1 && stats.failed_count == 0);
     char missing_source[BONGO_CAT_PATH_CAP];
     CHECK(child(missing_source, sizeof(missing_source), progressive_root,
         "missing", false));
@@ -202,6 +277,14 @@ void test_mver_container_discovery(void) {
         &error) == BONGO_CAT_OK);
     CHECK(subset_receipt.count == 1 && subset_receipt.installed_count == 0 &&
         strcmp(subset_receipt.ids[0], receipt.ids[0]) == 0);
+    CHECK(child(mode, sizeof(mode), package,
+        "img/standard/cat_model/cat.moc3", false));
+    BongoCatImportReceipt moc_receipt = {0};
+    CHECK(bongo_cat_import_install(mode, models_root, &moc_receipt,
+        &error) == BONGO_CAT_OK);
+    CHECK(moc_receipt.count == subset_receipt.count &&
+        moc_receipt.installed_count == 0 &&
+        strcmp(moc_receipt.ids[0], subset_receipt.ids[0]) == 0);
     char stored[BONGO_CAT_PATH_CAP], duplicate_directory[BONGO_CAT_PATH_CAP];
     CHECK(child(stored, sizeof(stored), models_root, receipt.ids[0], false) &&
         bongo_cat_path_is_dir(stored));

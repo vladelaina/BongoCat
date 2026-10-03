@@ -69,6 +69,7 @@ try {
     if ($actualSha256 -ne $ExpectedSha256) {
         throw "Cubism SDK archive hash mismatch: expected $ExpectedSha256, got $actualSha256."
     }
+    Write-Host "Cubism SDK archive SHA-256: $actualSha256"
 
     Expand-Archive -LiteralPath $archivePath -DestinationPath $extractPath -Force
     $rootCandidate = Get-Item -LiteralPath $extractPath
@@ -102,6 +103,7 @@ try {
     if ($actualGlewSha256 -ne $ExpectedGlewSha256) {
         throw "GLEW archive hash mismatch: expected $ExpectedGlewSha256, got $actualGlewSha256."
     }
+    Write-Host "GLEW archive SHA-256: $actualGlewSha256"
     Expand-Archive -LiteralPath $glewArchivePath -DestinationPath $extractPath -Force
     $glewRoot = Get-ChildItem -LiteralPath $extractPath -Directory -Recurse |
         Where-Object {

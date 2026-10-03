@@ -1,5 +1,6 @@
 #include "preferences_text_edit.h"
 #include "preferences_text_session.h"
+#include "ui_backend.h"
 
 #include <SDL3/SDL.h>
 #include <stdio.h>
@@ -82,9 +83,54 @@ static void text_session(void) {
     CHECK(!bongo_cat_preferences_text_session_active(&session));
 }
 
+static void input_release_order(void) {
+    BongoCatUIBackend ui = {0};
+    const SDL_Keycode keys[] = {SDLK_A, SDLK_C, SDLK_V, SDLK_X, SDLK_Z,
+        SDLK_LEFT, SDLK_RIGHT};
+    const enum nk_keys actions[] = {NK_KEY_TEXT_SELECT_ALL, NK_KEY_COPY,
+        NK_KEY_PASTE, NK_KEY_CUT, NK_KEY_TEXT_UNDO,
+        NK_KEY_TEXT_WORD_LEFT, NK_KEY_TEXT_WORD_RIGHT};
+    for (size_t i = 0; i < sizeof(keys) / sizeof(keys[0]); ++i) {
+        SDL_Event event = {.type = SDL_EVENT_KEY_DOWN};
+        event.key.key = keys[i];
+        event.key.down = true;
+        event.key.mod = SDL_KMOD_CTRL;
+        bongo_cat_ui_event(&ui, &event);
+        CHECK(ui.context.input.keyboard.keys[actions[i]].down);
+        event.type = SDL_EVENT_KEY_UP;
+        event.key.key = SDLK_LCTRL;
+        event.key.down = false;
+        event.key.mod = SDL_KMOD_NONE;
+        bongo_cat_ui_event(&ui, &event);
+        event.key.key = keys[i];
+        bongo_cat_ui_event(&ui, &event);
+        CHECK(!ui.context.input.keyboard.keys[actions[i]].down);
+        CHECK(!ui.context.input.keyboard.keys[NK_KEY_LEFT].down);
+        CHECK(!ui.context.input.keyboard.keys[NK_KEY_RIGHT].down);
+    }
+    SDL_Event event = {.type = SDL_EVENT_KEY_UP};
+    event.key.key = SDLK_LSHIFT;
+    event.key.mod = SDL_KMOD_RSHIFT;
+    bongo_cat_ui_event(&ui, &event);
+    CHECK(ui.context.input.keyboard.keys[NK_KEY_SHIFT].down);
+    event.key.key = SDLK_RSHIFT;
+    event.key.mod = SDL_KMOD_NONE;
+    bongo_cat_ui_event(&ui, &event);
+    CHECK(!ui.context.input.keyboard.keys[NK_KEY_SHIFT].down);
+    event.type = SDL_EVENT_KEY_DOWN;
+    event.key.key = SDLK_LEFT;
+    event.key.down = true;
+    bongo_cat_ui_event(&ui, &event);
+    CHECK(ui.context.input.keyboard.keys[NK_KEY_LEFT].down);
+    event.type = SDL_EVENT_WINDOW_FOCUS_LOST;
+    bongo_cat_ui_event(&ui, &event);
+    CHECK(!ui.context.input.keyboard.keys[NK_KEY_LEFT].down);
+}
+
 int test_preferences_text(void) {
     failures = 0;
     text_edit();
     text_session();
+    input_release_order();
     return failures;
 }

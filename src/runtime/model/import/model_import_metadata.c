@@ -68,6 +68,14 @@ static bool behavior_id(char *id, size_t capacity, const char *model_id,
 
 void bongo_cat_import_apply_metadata(BongoCatApp *app, const char *model_id,
     const char *directory) {
+    const BongoCatModelEntry *model = bongo_cat_models_find(&app->models, model_id);
+    if (model && (model->source_format == BONGO_CAT_MODEL_SOURCE_MVER ||
+        model->source_format == BONGO_CAT_MODEL_SOURCE_MVER_PATCH)) {
+        BongoCatError error = {0};
+        if (!bongo_cat_mver_shortcuts_load(app, model, &error))
+            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "%s", error.message);
+        return;
+    }
     char path[BONGO_CAT_PATH_CAP];
     if (!bongo_cat_model_adapter_metadata_path(directory, path,
         sizeof(path))) return;
@@ -95,7 +103,14 @@ void bongo_cat_import_apply_metadata(BongoCatApp *app, const char *model_id,
         BongoCatBehaviorShortcut *value =
             &app->settings.behavior_shortcuts[app->settings.behavior_shortcut_count++];
         snprintf(value->id, sizeof(value->id), "%s", id);
-        snprintf(value->shortcut, sizeof(value->shortcut), "%s", shortcut);
+        if (strlen(shortcut) >= sizeof(value->shortcut) ||
+            (*shortcut && !bongo_cat_shortcut_equal(shortcut, shortcut))) {
+            /* Never import a truncated prefix as a different, shorter chord. */
+            value->shortcut[0] = '\0';
+            value->shortcut_disabled = true;
+        } else {
+            snprintf(value->shortcut, sizeof(value->shortcut), "%s", shortcut);
+        }
         if (label) snprintf(value->label, sizeof(value->label), "%s", label);
     }
     yyjson_doc_free(document);
@@ -121,6 +136,7 @@ bool bongo_cat_import_render_options(const char *directory,
         yyjson_get_num(scale) <= 100.0 && width > 0 && height > 0;
     if (valid) {
         options->mver_projection = true;
+        options->auto_frame = yyjson_get_bool(yyjson_obj_get(render, "autoFrame"));
         options->projection_scale = (float)yyjson_get_num(scale);
         options->offset_x = (float)yyjson_get_num(yyjson_obj_get(render, "offsetX"));
         options->offset_y = (float)yyjson_get_num(yyjson_obj_get(render, "offsetY"));

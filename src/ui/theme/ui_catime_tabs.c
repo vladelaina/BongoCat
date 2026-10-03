@@ -71,7 +71,7 @@ static void tab_content(struct nk_command_buffer *canvas,
 
 void bongo_cat_ui_tabs(struct nk_context *context, const char *const *labels,
     const int *icons, int count, int *active, bool interactive, bool dark,
-    float available_height,
+    float available_height, bool about_badge,
     BongoCatUIIconDraw draw_icon, void *icon_userdata) {
     BongoCatUIPalette p = bongo_cat_ui_palette(dark);
     struct nk_command_buffer *canvas = nk_window_get_canvas(context);
@@ -111,6 +111,10 @@ void bongo_cat_ui_tabs(struct nk_context *context, const char *const *labels,
             (hover ? p.accent : p.muted);
         tab_content(canvas, context, tile, labels[i], icons ? icons[i] : i, color,
             draw_icon, icon_userdata);
+        if (about_badge && i == count - 1) {
+            nk_fill_circle(canvas, nk_rect(tile.x + tile.w - 11.0f,
+                tile.y + 7.0f, 7.0f, 7.0f), p.danger);
+        }
         if (hover) bongo_cat_ui_cursor_hover_rect(context, hit,
             BONGO_CAT_UI_CURSOR_POINTER);
         if (hover && nk_input_is_mouse_click_in_rect(&context->input,

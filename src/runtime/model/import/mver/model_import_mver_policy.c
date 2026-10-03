@@ -1,4 +1,5 @@
 #include "model_import_mver_policy.h"
+#include "model_import_mver_manifest.h"
 #include "bongo_cat/file.h"
 #include "bongo_cat/path.h"
 
@@ -121,9 +122,7 @@ bool bongo_cat_import_mver_stock_model(
     char manifest[BONGO_CAT_PATH_CAP];
     if (!bongo_cat_path_join(manifest, sizeof(manifest), candidate->directory,
             candidate->setting)) return false;
-    FILE *file = bongo_cat_file_open(manifest, "rb");
-    yyjson_doc *document = file ? yyjson_read_fp(file, 0, NULL, NULL) : NULL;
-    if (file) fclose(file);
+    yyjson_doc *document = bongo_cat_import_mver_manifest_read(manifest, NULL);
     yyjson_val *root = document ? yyjson_doc_get_root(document) : NULL;
     yyjson_val *refs = yyjson_is_obj(root)
         ? yyjson_obj_get(root, "FileReferences") : NULL;

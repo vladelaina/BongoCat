@@ -5,6 +5,7 @@
 
 void bongo_cat_input_init(BongoCatInputState *state) {
     if (!state) return;
+    atomic_init(&state->queue_busy, false);
     memset(state->queue, 0, sizeof(state->queue));
     atomic_init(&state->head, 0);
     atomic_init(&state->tail, 0);
@@ -46,8 +47,7 @@ static void update_modifiers(BongoCatInputState *state, const BongoCatInputEvent
     else atomic_fetch_and_explicit(value, (uint8_t)~mask, memory_order_release);
 }
 
-bool bongo_cat_input_push(BongoCatInputState *state, const BongoCatInputEvent *event) {
-    if (!state || !event) return false;
+static bool push_locked(BongoCatInputState *state, const BongoCatInputEvent *event) {
     update_modifiers(state, event);
     uint64_t sequence = atomic_fetch_add_explicit(&state->next_sequence, 1,
         memory_order_relaxed);
@@ -77,8 +77,7 @@ bool bongo_cat_input_push(BongoCatInputState *state, const BongoCatInputEvent *e
     return true;
 }
 
-bool bongo_cat_input_pop(BongoCatInputState *state, BongoCatInputEvent *event) {
-    if (!state || !event) return false;
+static bool pop_locked(BongoCatInputState *state, BongoCatInputEvent *event) {
     uint16_t tail = (uint16_t)atomic_load_explicit(&state->tail, memory_order_relaxed);
     uint16_t head = (uint16_t)atomic_load_explicit(&state->head, memory_order_acquire);
     uint8_t recovery_tail = (uint8_t)atomic_load_explicit(
@@ -100,6 +99,29 @@ bool bongo_cat_input_pop(BongoCatInputState *state, BongoCatInputEvent *event) {
     atomic_store_explicit(&state->tail,
         (tail + 1u) % BONGO_CAT_INPUT_QUEUE_CAP, memory_order_release);
     return true;
+}
+
+/* Platform listeners and SDL/gamepad events can produce concurrently. Protect
+   both rings together so recovery releases remain ordered with normal events.
+   The critical section only copies fixed-size events; it never waits on I/O. */
+static void lock_queue(BongoCatInputState *state) {
+    while (atomic_exchange_explicit(&state->queue_busy, true, memory_order_acquire)) {}
+}
+
+bool bongo_cat_input_push(BongoCatInputState *state, const BongoCatInputEvent *event) {
+    if (!state || !event) return false;
+    lock_queue(state);
+    bool pushed = push_locked(state, event);
+    atomic_store_explicit(&state->queue_busy, false, memory_order_release);
+    return pushed;
+}
+
+bool bongo_cat_input_pop(BongoCatInputState *state, BongoCatInputEvent *event) {
+    if (!state || !event) return false;
+    lock_queue(state);
+    bool popped = pop_locked(state, event);
+    atomic_store_explicit(&state->queue_busy, false, memory_order_release);
+    return popped;
 }
 
 bool bongo_cat_input_mouse(BongoCatInputState *state, double x, double y) {

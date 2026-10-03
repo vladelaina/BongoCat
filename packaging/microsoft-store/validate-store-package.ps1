@@ -112,6 +112,20 @@ try {
 
     $namespaceManager = [Xml.XmlNamespaceManager]::new($manifest.NameTable)
     $namespaceManager.AddNamespace(
+        'foundation',
+        'http://schemas.microsoft.com/appx/manifest/foundation/windows10')
+    $namespaceManager.AddNamespace(
+        'rescap',
+        'http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities')
+    foreach ($capability in @('runFullTrust', 'allowElevation')) {
+        $declaration = $manifest.SelectSingleNode(
+            "/foundation:Package/foundation:Capabilities/rescap:Capability[@Name='$capability']",
+            $namespaceManager)
+        if (-not $declaration) {
+            throw "Manifest is missing required restricted capability: $capability."
+        }
+    }
+    $namespaceManager.AddNamespace(
         'desktop7',
         'http://schemas.microsoft.com/appx/manifest/desktop/windows10/7')
     $shortcutExtension = $manifest.SelectSingleNode(

@@ -11,7 +11,8 @@ typedef struct PointerVertex {
 static PointerVertex vertex(const BongoCatMverPointerOverlay *value,
     float x, float y, float u, float v, float r, float g, float b, float a) {
     return (PointerVertex){2.0f * x / value->reference_width - 1.0f,
-        1.0f - 2.0f * y / value->reference_height, u, v, r, g, b, a};
+        (1.0f - 2.0f * y / value->reference_height) *
+            (value->vertical_flip ? -1.0f : 1.0f), u, v, r, g, b, a};
 }
 
 static void draw(BongoCatMverPointerOverlay *value, unsigned int primitive,

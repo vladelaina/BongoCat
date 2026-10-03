@@ -128,7 +128,8 @@ static void remove_model(BongoCatApp *app) {
 
 void bongo_cat_preferences_remove_dialog_draw(BongoCatApp *app,
     struct nk_context *context) {
-    if (!bongo_cat_preferences_remove_dialog_active(app)) return;
+    if (!bongo_cat_preferences_remove_dialog_active(app) ||
+        !app->preferences) return;
     bongo_cat_ui_cursor_reset(context);
     struct nk_rect region = nk_window_get_bounds(context);
     float width = NK_MIN(420.0f, region.w - 48.0f), height = 202.0f;
@@ -172,5 +173,6 @@ void bongo_cat_preferences_remove_dialog_draw(BongoCatApp *app,
     bool outside = hit(context, region, enabled) &&
         !nk_input_is_mouse_hovering_rect(&context->input, frame.panel);
     if (close || outside) bongo_cat_preferences_remove_dialog_close(app);
-    if (frame.visibility < 1.0f || closing) app->preferences->render_dirty = true;
+    if (app->preferences && (frame.visibility < 1.0f || closing))
+        app->preferences->render_dirty = true;
 }
