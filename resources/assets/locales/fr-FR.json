@@ -12,29 +12,46 @@
         "title": "Préférences",
         "labels": {
           "modelSettings": "Modèle",
+          "gamepadFourHands": "Mode quatre mains à la manette",
+          "dynamicTextureResolution": "Désactiver la résolution dynamique des textures",
           "mirrorMode": "Mode miroir",
-          "mouseMirror": "Miroir de la souris",
-          "mouseCentered": "Souris centrée sur le compagnon",
+          "verticalFlip": "Suspendre la tête en bas",
+          "mouseVerticalFlip": "Inverser la souris verticalement",
+          "mouseMirror": "Inverser la souris horizontalement",
+          "mouseCentered": "Désactiver le centrage de la souris sur le compagnon",
           "ignoreMouse": "Ignorer les événements de souris",
           "windowSettings": "Fenêtre",
           "passThrough": "Clics traversants",
           "alwaysOnTop": "Toujours au premier plan",
           "keepInScreen": "Maintenir à l'écran",
           "windowSize": "Taille de la fenêtre",
+          "resetPosition": "Réinitialiser",
+          "windowCorners": "Coins arrondis",
           "opacity": "Opacité",
           "randomExpression": "Expressions aléatoires",
+          "randomMotion": "Mouvements aléatoires",
+          "secondsUnit": "s",
           "obsBackground": "Arrière-plan uni",
           "hideOnHover": "Masquer au survol",
+          "hideFadeSeconds": "Durée du fondu (s)",
           "maxFPS": "Fréquence d'images maximale"
         },
         "hints": {
-          "passThrough": "Lorsque cette option est activée, les clics traversent la fenêtre sans l'affecter.",
+          "dynamicTextureResolution": "Adapte automatiquement la résolution des textures à la taille réelle d’affichage, tout en préservant les détails visuels et en optimisant l’utilisation de la mémoire vidéo. Il est généralement déconseillé d’activer cette option.",
+          "hoverRequires": "Activez les options [Passage des clics] et [Toujours au premier plan] ci-dessus.",
+          "hoverUnavailable": "Le masquage au survol est indisponible dans cet environnement de bureau.",
+          "gamepadFourHands": "Affiche en permanence deux mains supplémentaires en mode manette. Le rendu dépend du modèle",
+          "gameCompatibility": "Activez cette option si la mascotte ne réagit pas en jeu et passez en mode fenêtré dans les paramètres du jeu",
+          "gameCompatibilityHelp": "Une fois cette option activée, BongoCat redémarre avec les droits administrateur. Il conserve ces droits à chaque lancement suivant. Désactivez cette option pour revenir aux droits normaux.\n\nPourquoi une mascotte de bureau a-t-elle besoin des droits administrateur ?\n\nCertains jeux s'exécutent avec les droits administrateur. Windows isolant les processus selon leurs droits, BongoCat avec des droits normaux peut ne pas recevoir les entrées du clavier et de la souris dans ces jeux. La mascotte ne réagit alors plus.\n\nPour faire simple, c'est comme si le jeu et BongoCat se trouvaient à des étages différents. Certains jeux fonctionnent à un niveau de droits supérieur, auquel BongoCat ne peut pas accéder avec ses droits normaux. Vous jouez à l'étage et BongoCat est en bas : le son ne passe pas, et la mascotte ne peut pas suivre vos actions.\n\nSi vous ne jouez pas à ce type de jeux, vous pouvez laisser cette option désactivée. Nous ne demandons pas les droits administrateur sans nécessité.",
+          "gameCompatibilityFailed": "Impossible de modifier le mode de compatibilité des jeux.",
+          "passThrough": "Désactivation possible aussi par clic droit sur l’icône de la zone de notification",
           "alwaysOnTop": "Lorsque cette option est activée, la fenêtre reste au-dessus des autres fenêtres.",
           "keepInScreen": "Lorsque cette option est activée, la fenêtre reste automatiquement dans les limites de l'écran.",
           "obsBackground": "La capture de fenêtre est noire ?",
           "obsBackgroundHelp": "OBS : activez cette option, utilisez la méthode compatible Windows 7 et supprimez le fond avec un filtre d'incrustation couleur.",
-          "windowSize": "Placez la souris sur le bord de la fenêtre, ou maintenez Maj et faites glisser avec le bouton droit pour redimensionner.",
-          "hideOnHover": "Lorsque cette option est activée, la fenêtre se masque au survol de la souris. Vous pouvez définir un délai ; 0 signifie immédiatement."
+          "windowSize": "Utilisez la [molette] pour redimensionner ou [maintenez le bouton droit enfoncé] et glissez à droite pour agrandir, à gauche pour réduire",
+          "dynamicTextureResolutionFailed": "Unable to reload the model with the selected texture mode.",
+          "hideOnHover": "Lorsque le passage des clics et Toujours au premier plan sont activés, le compagnon se masque immédiatement au survol et réapparaît lorsque le pointeur s’éloigne."
         }
       },
       "general": {
@@ -42,6 +59,7 @@
         "labels": {
           "appSettings": "Application",
           "launchOnStartup": "Lancer au démarrage",
+          "gameCompatibility": "Mode de compatibilité des jeux",
           "showTrayIcon": "Afficher l'icône dans la zone de notification",
           "appearanceSettings": "Apparence",
           "themeMode": "Thème",
@@ -58,8 +76,8 @@
         "hints": {
           "showTrayIcon": "Lorsque cette option est activée, l'icône de l'application apparaît dans la zone de notification.",
           "autostartFailed": "Impossible de modifier le lancement au démarrage",
-          "inputMonitoringPermission": "Activez la surveillance des entrées pour recevoir les événements clavier et souris du système.",
-          "inputMonitoringPermissionGuide": "L'autorisation de surveillance des entrées est nécessaire pour recevoir les événements clavier et souris du système.\n\nÉtapes :\n1. Ouvrez Réglages Système > Confidentialité et sécurité > Surveillance de l'entrée.\n2. Si BongoCat figure déjà dans la liste, sélectionnez-le et cliquez sur le bouton \"-\" pour le retirer.\n3. Cliquez sur le bouton \"+\" pour rechercher et ajouter BongoCat.\n4. Redémarrez l'application pour appliquer l'autorisation.",
+          "inputMonitoringPermission": "Redémarrez après l'autorisation.",
+          "inputMonitoringPermissionGuide": "La surveillance des entrées permet à BongoCat de voir les touches pressées dans d'autres applications ; la souris continue de fonctionner sans elle. BongoCat construit l'écoute à son démarrage, un changement d'autorisation demande donc un redémarrage.\n\nÉtapes :\n1. Ouvrez Réglages Système → Confidentialité et sécurité → Surveillance de l'entrée.\n2. Activez l'entrée BongoCat déjà présente dans la liste ; ne supprimez aucune entrée.\n3. Si BongoCat n'est pas listé, cliquez sur \"+\" et ajoutez la copie que vous exécutez (vérifiez son emplacement).\n4. Quittez complètement BongoCat puis relancez-le pour qu'il reconstruise l'écoute.\n\nSi le clavier reste sans réponse, vous pouvez supprimer puis rajouter vous-même l'entrée BongoCat.",
           "administratorPermission": "Exécuter l'application en tant qu'administrateur permet de capturer plus fiablement certaines touches système et certains événements d'entrée.",
           "administratorPermissionGuide": "Pour capturer plus fiablement certaines touches système et certains événements d'entrée, il est recommandé d'exécuter l'application en tant qu'administrateur.\n\nProcédure :\n1. Quittez d'abord l'application.\n2. Trouvez le fichier exe ou son raccourci dans l'Explorateur de fichiers.\n3. Choisissez le mode de lancement :\n   - Une fois : faites un clic droit et choisissez \"Exécuter en tant qu'administrateur\".\n   - Toujours : clic droit > Propriétés > onglet Compatibilité > cochez \"Exécuter ce programme en tant qu'administrateur\" > OK."
         },
@@ -67,7 +85,8 @@
           "authorized": "Autorisé",
           "adminEnabled": "Activé",
           "authorize": "Activer",
-          "viewGuide": "Voir les instructions"
+          "viewGuide": "Voir les instructions",
+          "openSettingsFailed": "Réglages Système → Confidentialité et sécurité → Surveillance de l'entrée."
         },
         "buttons": {
           "openNow": "Ouvrir maintenant",
@@ -86,19 +105,23 @@
           "deleteSuccess": "« %s » a été supprimé",
           "deleteModel": "Voulez-vous vraiment supprimer \"%s\" ?",
           "deleteFailed": "Impossible de supprimer ce modèle",
-          "importSuccess": "Importation réussie",
-          "importExists": "Le modèle existe déjà",
-          "importBatchResult": "Importations réussies : %zu ; échecs : %zu. Modèles en échec : %s%s. Premier échec : %s",
+          "importSuccess": "%zu modèle(s) importé(s) : %s",
+          "importExists": "%zu modèle(s) déjà présent(s) : %s",
+          "importBatchResult": "Échec de l’importation de %zu modèle(s) : %s.\nPremière erreur : %s",
           "importMoreFailures": " et %zu autre(s)",
           "importUnknownSource": "source inconnue",
           "importInvalidSource": "La source sélectionnée n'existe plus ou ne peut pas être utilisée",
           "importInvalidFormat": "Aucun modèle pris en charge n'a été trouvé, ou le paquet du modèle est incomplet",
+          "importUnsupportedArchive": "Seules les archives ZIP sont prises en charge. Extrayez l’archive et importez le dossier du modèle, ou recompressez-le au format ZIP avant de l’importer",
           "importFileAccess": "Impossible de lire ou d'enregistrer les fichiers du modèle. Vérifiez les autorisations et l'espace disque disponible",
           "importOutOfMemory": "La mémoire disponible est insuffisante pour importer ce modèle",
           "importLoadFailed": "Le modèle a été importé, mais il n'a pas pu être affiché",
           "importFailed": "Échec de l'importation du modèle. Vérifiez les fichiers sélectionnés et réessayez",
+          "shortcutLoadFailed": "Impossible de charger les raccourcis du modèle. Vérifiez les fichiers de configuration du modèle",
+          "behaviorLoadFailed": "Impossible de charger les actions du modèle. Vérifiez que les fichiers du modèle sont complets et lisibles",
+          "shortcutSaveFailed": "Impossible d’enregistrer le raccourci du modèle. Vérifiez les autorisations des fichiers et l’espace disque disponible",
+          "behaviorRenameLimit": "Impossible d’enregistrer davantage de noms d’actions personnalisés. La limite de paramètres personnalisés est atteinte",
           "clickOrDragToImport": "Cliquez ou déposez un dossier",
-          "supportedImportFormats": "Formats Mver et Tauri pris en charge",
           "openDirectoryFailed": "Impossible d'ouvrir le dossier du modèle"
         },
         "tooltips": {
@@ -107,10 +130,12 @@
           "moreModels": "Plus de modèles"
         },
         "behaviorModal": {
-          "title": "Mouvements et expressions",
+          "title": "Mouvements, expressions et audio",
           "labels": {
             "motion": "Mouvement",
             "expression": "Expression",
+            "audio": "Audio",
+            "stopAllAudio": "Arrêter tous les sons",
             "motionIndex": "Mouvement {index}",
             "motionGroupIndex": "Groupe de mouvements {index}",
             "expressionIndex": "Expression {index}"
@@ -167,6 +192,7 @@
         "showCat": "Afficher le compagnon",
         "passThrough": "Clics traversants",
         "alwaysOnTop": "Toujours au premier plan",
+        "cancelAlwaysOnTop": "Ne plus garder au premier plan",
         "windowSize": "Taille de la fenêtre",
         "opacity": "Opacité",
         "motion": "Mouvements",
@@ -187,8 +213,26 @@
     }
   },
   "native": {
+    "about": {
+      "wechat": "WeChat",
+      "wechatHint": "Hover to scan and chat",
+      "loading": "Loading...",
+      "contributorsFailed": "Cannot load contributors. Click to retry.",
+      "qrUnavailable": "QR code unavailable",
+      "reload": "Reload",
+      "qrFailed": "QR code unavailable. Click to retry.",
+      "contributorsTitle": "Open source & community contributions",
+      "contributorsText": "Every step of BongoCat comes from the power of open source. Thank you to all community contributors for making desktop companionship freer and simpler.",
+      "joinTitle": "Want to appear in the contributors list?",
+      "joinText": "Whether you contribute code, improve documentation, report bugs or translate, every contribution makes BongoCat better.",
+      "code": "Code",
+      "docs": "Documentation",
+      "bugs": "Bug reports",
+      "translations": "Translations",
+      "joinGithub": "Contribute on GitHub"
+    },
     "multiplePets": "Afficher plusieurs modèles",
-    "multiplePetsLimit": "Jusqu'\u00e0 8 mascottes peuvent \u00eatre affich\u00e9es \u00e0 la fois",
+    "multiplePetsLimit": "Jusqu'à 8 mascottes peuvent être affichées à la fois",
     "removeDesktopPet": "Fermer cette mascotte de bureau",
     "modelLoadFailed": "Impossible d'afficher ce modèle",
     "noBehaviors": "Aucun élément",
@@ -211,7 +255,8 @@
       "checkingUpdate": "Vérification...",
       "updateAvailable": "Nouvelle version disponible :",
       "updateFailed": "Impossible de vérifier les mises à jour",
-      "downloadUpdate": "Télécharger v%s",
+      "updateHttpFailed": "GitHub a renvoyé le statut HTTP %s",
+      "downloadUpdate": "Mettre à jour vers v%s",
       "openStore": "Ouvrir Microsoft Store",
       "viewReleases": "Voir les versions",
       "openUpdateFailed": "Impossible d'ouvrir la page de mise à jour",
@@ -227,6 +272,7 @@
     "shortcut": {
       "toggleCat": "Afficher/masquer",
       "preferences": "Préférences",
+      "openMenu": "Afficher/masquer le menu radial",
       "mirror": "Miroir",
       "passThrough": "Clics traversants",
       "alwaysOnTop": "Toujours au premier plan"

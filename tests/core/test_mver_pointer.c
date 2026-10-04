@@ -69,4 +69,22 @@ void test_mver_pointer(void) {
     CHECK(bongo_cat_mver_pointer_update(&state, 800.0, 700.0,
         0.0, 0.0, false, &bounds, &pointer_x, &pointer_y));
     CHECK(pointer_x == 800.0 && pointer_y == 700.0);
+
+    state = (BongoCatMverPointerState){0};
+    bounds = (BongoCatMverPointerBounds){0.0, 0.0, 3440.0, 1440.0};
+    CHECK(bongo_cat_mver_pointer_update(&state, 1720.0, 720.0,
+        0.0, 0.0, false, &bounds, &pointer_x, &pointer_y));
+    for (int index = 0; index < 10; ++index)
+        CHECK(bongo_cat_mver_pointer_update(&state, 1720.0, 720.0,
+            -1000.0, -1000.0, true, &bounds, &pointer_x, &pointer_y));
+    CHECK(pointer_x == 0.0 && pointer_y == 0.0);
+    CHECK(bongo_cat_mver_pointer_update(&state, 1720.0, 720.0,
+        5.0, 7.0, true, &bounds, &pointer_x, &pointer_y));
+    CHECK(pointer_x == 5.0 && pointer_y == 7.0);
+    CHECK(bongo_cat_mver_pointer_update(&state, 1720.0, 720.0,
+        0.0, 0.0, true, &bounds, &pointer_x, &pointer_y));
+    CHECK(pointer_x == 5.0 && pointer_y == 7.0);
+    CHECK(bongo_cat_mver_pointer_update(&state, 2700.0, 900.0,
+        0.0, 0.0, false, &bounds, &pointer_x, &pointer_y));
+    CHECK(pointer_x == 2700.0 && pointer_y == 900.0);
 }

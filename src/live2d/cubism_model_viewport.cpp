@@ -1,4 +1,5 @@
 #include "cubism_model.hpp"
+#include "model_frame_policy.h"
 
 #include <algorithm>
 #include <cmath>
@@ -6,27 +7,19 @@
 namespace bongo_cat {
 
 void NativeModel::update_viewport() {
-    float horizontal = 1.0f + frame_.left + frame_.right;
-    float vertical = 1.0f + frame_.top + frame_.bottom;
-    if (!std::isfinite(horizontal) || !std::isfinite(vertical) ||
-        horizontal <= 0.0f || vertical <= 0.0f || width_ <= 0 || height_ <= 0) {
-        viewport_x_ = viewport_y_ = 0;
-        viewport_width_ = std::max(1, width_);
-        viewport_height_ = std::max(1, height_);
-        return;
-    }
-    float content_width = width_ / horizontal;
-    float content_height = height_ / vertical;
-    int left = (int)std::lround(frame_.left * content_width);
-    int right = (int)std::lround(frame_.right * content_width);
-    int bottom = (int)std::lround(frame_.bottom * content_height);
-    int top = (int)std::lround(frame_.top * content_height);
-    viewport_x_ = std::max(0, std::min(width_ - 1, left));
-    viewport_y_ = std::max(0, std::min(height_ - 1, bottom));
-    viewport_width_ = std::max(1,
-        width_ - viewport_x_ - std::max(0, right));
-    viewport_height_ = std::max(1,
-        height_ - viewport_y_ - std::max(0, top));
+    BongoCatFrameViewport v = bongo_cat_frame_viewport(frame_, required_frame_,
+        std::max(1, width_), std::max(1, height_), vertical_flip_);
+    viewport_x_ = v.x;
+    viewport_y_ = v.y;
+    viewport_width_ = v.width;
+    viewport_height_ = v.height;
+    frame_fit_scale_ = v.scale;
+}
+
+void NativeModel::set_frame(const BongoCatLive2DFrame &frame) {
+    if (!bongo_cat_frame_valid(frame)) return;
+    frame_ = frame;
+    update_viewport();
 }
 
 bool NativeModel::frame(BongoCatLive2DFrame *frame) const {
@@ -63,7 +56,7 @@ void NativeModel::apply_viewport_projection(
     matrix[13] = matrix[13] * scale_y + translate_y;
 }
 
-void NativeModel::record_visible_state(Csm::CubismMatrix44 &projection) {
+void NativeModel::record_visible_state(Csm::CubismMatrix44 &projection) const {
     visual_state_.drawable_count = _model->GetDrawableCount();
     for (int i = 0; i < _model->GetDrawableCount(); ++i) {
         if (_model->GetDrawableDynamicFlagIsVisible(i) &&
@@ -80,6 +73,7 @@ void NativeModel::record_visible_state(Csm::CubismMatrix44 &projection) {
     for (int i = 0; i < _model->GetPartCount(); ++i)
         if (_model->GetPartOpacity(i) > 0.001f)
             ++visual_state_.part_positive;
+    if (_model->GetModelOpacity() <= 0.001f) return;
     ModelBounds bounds = capture_visible_bounds();
     if (!bounds.valid) return;
     float x0 = projection.TransformX(bounds.min_x);
@@ -95,6 +89,18 @@ void NativeModel::record_visible_state(Csm::CubismMatrix44 &projection) {
 
 bool NativeModel::visual_state(BongoCatLive2DVisualState *state) const {
     if (!state || !visual_state_ready_) return false;
+    if (!visual_state_cached_) {
+        // Bounds are used by pointer anchoring and visual audits, not drawing.
+        // Avoid traversing every triangle on every animated frame.
+        bool mver_projection = visual_state_.mver_projection;
+        float fit_scale = visual_state_.fit_scale;
+        visual_state_ = BongoCatLive2DVisualState{};
+        visual_state_.fit_scale = fit_scale;
+        visual_state_.fitted = fit_scale < 0.9999f;
+        visual_state_.mver_projection = mver_projection;
+        record_visible_state(visual_projection_);
+        visual_state_cached_ = true;
+    }
     *state = visual_state_;
     return true;
 }

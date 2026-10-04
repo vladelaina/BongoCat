@@ -6,6 +6,6 @@
 typedef struct BongoCatPreferences BongoCatPreferences;
 
 bool bongo_cat_preferences_gl_create(BongoCatPreferences *value);
-void bongo_cat_preferences_gl_destroy(BongoCatPreferences *value);
+bool bongo_cat_preferences_gl_destroy(BongoCatPreferences *value);
 
 #endif

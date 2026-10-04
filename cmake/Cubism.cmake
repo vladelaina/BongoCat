@@ -2,10 +2,6 @@ set(CUBISM_CORE_PATH "${BONGO_CAT_CUBISM_SDK}/Core")
 set(CUBISM_FRAMEWORK_PATH "${BONGO_CAT_CUBISM_SDK}/Framework")
 set(CUBISM_GLEW_PATH "${BONGO_CAT_CUBISM_SDK}/Samples/OpenGL/thirdParty/glew")
 
-# GLEW 2.2.0 declares an obsolete policy floor. Keep its unchanged upstream
-# project compatible with current CMake releases without patching vendor files.
-set(CMAKE_POLICY_VERSION_MINIMUM 3.10)
-
 foreach(PATH IN ITEMS CUBISM_FRAMEWORK_PATH CUBISM_GLEW_PATH)
   if(NOT EXISTS "${${PATH}}")
     message(FATAL_ERROR "Incomplete Cubism SDK: ${${PATH}} is missing")
@@ -43,25 +39,34 @@ set_target_properties(Live2DCubismCore PROPERTIES
   IMPORTED_LOCATION "${CUBISM_CORE_LIBRARY}"
   INTERFACE_INCLUDE_DIRECTORIES "${CUBISM_CORE_PATH}/include")
 
-set(BUILD_UTILS OFF CACHE BOOL "" FORCE)
-add_subdirectory("${CUBISM_GLEW_PATH}/build/cmake" "${CMAKE_BINARY_DIR}/cubism-glew"
-  EXCLUDE_FROM_ALL)
+add_library(glew_s STATIC "${CUBISM_GLEW_PATH}/src/glew.c")
+target_include_directories(glew_s SYSTEM PUBLIC "${CUBISM_GLEW_PATH}/include")
+target_compile_definitions(glew_s PUBLIC GLEW_STATIC GLEW_NO_GLU)
+target_link_libraries(glew_s PUBLIC OpenGL::GL)
+if(UNIX AND NOT APPLE)
+  find_package(X11 REQUIRED)
+  target_link_libraries(glew_s PRIVATE X11::X11 ${CMAKE_DL_LIBS})
+endif()
 set(FRAMEWORK_SOURCE OpenGL)
 add_subdirectory("${CUBISM_FRAMEWORK_PATH}" "${CMAKE_BINARY_DIR}/cubism-framework")
 include(cmake/CubismUserModelSafety.cmake)
 bongo_cat_harden_cubism_user_model(Framework)
+include(cmake/CubismCoreProfile.cmake)
 include(cmake/CubismShaderOptimize.cmake)
 bongo_cat_optimize_cubism_shaders(Framework)
+if(APPLE)
+  bongo_cat_core_profile_prepare_shaders()
+  bongo_cat_core_profile_patch_renderer(Framework)
+endif()
 
 if(WIN32)
-  target_compile_definitions(Framework PUBLIC CSM_TARGET_WIN_GL GLEW_NO_GLU)
+  target_compile_definitions(Framework PUBLIC CSM_TARGET_WIN_GL)
 elseif(APPLE)
-  target_compile_definitions(Framework PUBLIC CSM_TARGET_MAC_GL GLEW_NO_GLU)
+  target_compile_definitions(Framework PUBLIC CSM_TARGET_MAC_GL)
 else()
-  target_compile_definitions(Framework PUBLIC CSM_TARGET_LINUX_GL GLEW_NO_GLU)
+  target_compile_definitions(Framework PUBLIC CSM_TARGET_LINUX_GL)
 endif()
 target_include_directories(Framework SYSTEM PUBLIC
   "${CUBISM_FRAMEWORK_PATH}/src"
-  "${CUBISM_CORE_PATH}/include"
-  "${CUBISM_GLEW_PATH}/include")
+  "${CUBISM_CORE_PATH}/include")
 target_link_libraries(Framework PUBLIC Live2DCubismCore glew_s)

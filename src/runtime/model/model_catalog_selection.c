@@ -1,4 +1,5 @@
 #include "model_catalog_selection.h"
+#include "bongo_cat/overlay.h"
 
 #include <SDL3/SDL.h>
 #include <stdio.h>
@@ -47,10 +48,15 @@ static bool selection_matches(const BongoCatApp *app,
 
 static void clear_loaded_model(BongoCatApp *app) {
     if (!app) return;
+    bongo_cat_window_snapshot_end(app);
+    bongo_cat_overlay_clear(app->overlay);
+    app->dirty = true;
     app->loaded_model[0] = '\0';
     app->loading_model[0] = '\0';
     app->loaded_mode = BONGO_CAT_MODE_STANDARD;
+    app->loaded_gamepad_keyboard = false;
     bongo_cat_gamepads_set_enabled(app, false);
+    if (app->window) bongo_cat_window_set_visible(app, false);
 }
 
 bool bongo_cat_model_catalog_reconcile(BongoCatApp *app) {
@@ -75,13 +81,8 @@ bool bongo_cat_model_catalog_reconcile(BongoCatApp *app) {
             changed = true;
         }
     }
-    if (app->settings.model.multiple_pets) {
-        bongo_cat_model_selection_restore(app, &selection);
-        if (!selection_matches(app, &selection)) changed = true;
-    } else if (app->session.additional_model_count) {
-        bongo_cat_session_clear_additional_models(&app->session);
-        changed = true;
-    }
+    bongo_cat_model_selection_restore(app, &selection);
+    if (!selection_matches(app, &selection)) changed = true;
     if (app->loaded_model[0] && !loaded) {
         if (active && app->live2d) {
             BongoCatError error = {0};

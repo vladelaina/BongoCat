@@ -18,6 +18,8 @@ void bongo_cat_window_menu_preview_tick(void *userdata);
 void bongo_cat_window_menu_restore(void *userdata, BongoCatMenuAction selected);
 bool bongo_cat_window_menu_preview_applied(
     const BongoCatWindowMenuPreview *state, BongoCatMenuAction selected);
+void bongo_cat_window_audio_labels(BongoCatApp *app,
+    char names[][BONGO_CAT_MENU_LABEL_CAP], bool *checked, size_t *count);
 void bongo_cat_window_behavior_labels(BongoCatApp *app,
     char motions[][BONGO_CAT_MENU_LABEL_CAP], bool *motion_checked,
     size_t *motion_count, char expressions[][BONGO_CAT_MENU_LABEL_CAP],

@@ -1,6 +1,7 @@
 #include "preferences_widgets.h"
 #include "preferences_widgets_internal.h"
 #include "preferences_controls.h"
+#include "preferences_theme.h"
 #include "ui_backend.h"
 #include "ui_catime.h"
 #include "ui_paint.h"
@@ -158,6 +159,38 @@ void bongo_cat_pref_section(struct nk_context *context, const char *title) {
 void bongo_cat_pref_section_icon(struct nk_context *context,
     const char *title, BongoCatPrefIcon icon) {
     section_context = context; section_first = true;
+    const struct nk_user_font *font = bongo_cat_ui_label_font(context);
+    float width = nk_window_get_content_region(context).w - 42;
+    float measured = font->width(font->userdata, font->height,
+        title, nk_strlen(title));
+    if (width > 0 && measured > width) {
+        /* Leave room for word wrapping in longer translations. */
+        float height = (float)((int)(measured / width) + 2) *
+            NK_MAX(22.0f, font->height + 2.0f);
+        struct nk_vec2 spacing = context->style.window.spacing;
+        struct nk_vec2 padding = context->style.text.padding;
+        context->style.window.spacing.x = 0;
+        context->style.text.padding = nk_vec2(0, 0);
+        nk_style_push_font(context, font);
+        nk_layout_row_begin(context, NK_STATIC, height, 2);
+        nk_layout_row_push(context, 42);
+        struct nk_rect bounds;
+        if (nk_widget(&bounds, context) != NK_WIDGET_INVALID) {
+            BongoCatUIPalette p = bongo_cat_ui_palette(bongo_cat_ui_dark(context));
+            struct nk_command_buffer *canvas = nk_window_get_canvas(context);
+            nk_fill_rect(canvas, nk_rect(bounds.x, bounds.y + 2, 4, 18), 2, p.pink);
+            bongo_cat_pref_icon_draw(canvas,
+                nk_rect(bounds.x + 14, bounds.y + 2, 18, 18), icon, p.accent);
+        }
+        nk_layout_row_push(context, width);
+        nk_text_wrap_colored(context, title, nk_strlen(title),
+            bongo_cat_ui_palette(bongo_cat_ui_dark(context)).accent);
+        nk_layout_row_end(context);
+        nk_style_pop_font(context);
+        context->style.window.spacing = spacing;
+        context->style.text.padding = padding;
+        return;
+    }
     struct nk_rect bounds;
     nk_layout_row_dynamic(context, 22, 1);
     if (nk_widget(&bounds, context) == NK_WIDGET_INVALID) return;
@@ -167,7 +200,6 @@ void bongo_cat_pref_section_icon(struct nk_context *context,
     struct nk_rect icon_bounds = nk_rect(bounds.x + 14,
         bounds.y + 2, 18, 18);
     bongo_cat_pref_icon_draw(canvas, icon_bounds, icon, p.accent);
-    const struct nk_user_font *font = bongo_cat_ui_label_font(context);
     struct nk_rect text = nk_rect(bounds.x + 42,
         bounds.y + (bounds.h - font->height) * .5f,
         bounds.w - 42, font->height);
@@ -182,6 +214,18 @@ bool bongo_cat_pref_toggle(struct nk_context *context, const char *id,
     bool changed = bongo_cat_pref_control_toggle(context, id, value);
     nk_layout_row_end(context); bongo_cat_pref_description(context, detail, lines);
     form_end(context, &saved); return changed;
+}
+bool bongo_cat_pref_toggle_help(struct nk_context *context, const char *id,
+    const char *title, const char *description, const char *help, bool *value) {
+    FormStyle saved;
+    int lines = bongo_cat_pref_detail_lines(context, description);
+    if (!form_begin(context, id, lines, &saved)) return false;
+    bongo_cat_pref_form_title_sized(context, title, 80.0f);
+    bool changed = bongo_cat_pref_control_toggle(context, id, value);
+    nk_layout_row_end(context);
+    bongo_cat_ui_question_tooltip(context, description, help);
+    form_end(context, &saved);
+    return changed;
 }
 bool bongo_cat_pref_obs_background(struct nk_context *context, const char *id,
     const char *title, const char *question, const char *reply, bool *enabled,
@@ -204,6 +248,40 @@ bool bongo_cat_pref_float(struct nk_context *context, const char *id,
         minimum, value, maximum, step, default_value);
     nk_layout_row_end(context); bongo_cat_pref_description(context, detail, lines);
     form_end(context, &saved); return changed;
+}
+bool bongo_cat_pref_float_action(struct nk_context *context, const char *id,
+    const char *title, const char *detail, float minimum, float *value,
+    float maximum, float step, float default_value, const char *button) {
+    float detail_width = NK_MAX(1.0f,
+        nk_window_get_content_region(context).w - 26.0f - 33.0f);
+    int lines = bongo_cat_pref_detail_text(context, detail,
+        nk_rect(0, 0, detail_width, 0), false);
+    FormStyle saved;
+    if (!form_begin(context, id, lines, &saved)) return false;
+    const struct nk_user_font *font = context->style.font;
+    float button_width = NK_MAX(88.0f, font->width(font->userdata,
+        font->height, button, nk_strlen(button)) + 24.0f);
+    float available = nk_window_get_content_region(context).w;
+    nk_layout_row_begin(context, NK_STATIC, 36, 3);
+    nk_layout_row_push(context, NK_MAX(1.0f, available - 124.0f -
+        button_width - 16.0f));
+    bongo_cat_pref_form_label(context, title);
+    nk_layout_row_push(context, 124.0f);
+    bongo_cat_pref_control_float(context, id,
+        minimum, value, maximum, step, default_value);
+    nk_layout_row_push(context, button_width);
+    bool clicked = bongo_cat_pref_capsule_button(context, id, button);
+    nk_layout_row_end(context);
+    if (lines) {
+        nk_layout_row_dynamic(context, 19.0f * lines, 1);
+        struct nk_rect bounds;
+        if (nk_widget(&bounds, context) != NK_WIDGET_INVALID) {
+            bounds.x += 33.0f;
+            bounds.w = detail_width;
+            bongo_cat_pref_detail_text(context, detail, bounds, true);
+        }
+    }
+    form_end(context, &saved); return clicked;
 }
 bool bongo_cat_pref_int(struct nk_context *context, const char *id,
     const char *title, const char *detail, int minimum, int *value,

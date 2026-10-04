@@ -99,17 +99,21 @@ struct nk_font *bongo_cat_ui_font_add_family(struct nk_font_atlas *atlas,
     const UIFontSource *korean_fallback, float size, const nk_rune *all,
     const nk_rune *primary_ranges, const nk_rune *cjk,
     const nk_rune *korean) {
-    bool merge = primary && primary->data && fallback && fallback->data &&
+    const UIFontSource *base = primary && primary->data ? primary :
+        (fallback && fallback->data ? fallback : korean_fallback);
+    const UIFontSource *cjk_source = fallback && fallback->data ? fallback : base;
+    const UIFontSource *korean_source = korean_fallback && korean_fallback->data ?
+        korean_fallback : cjk_source;
+    /* Each script can have its own fallback even when the Latin or CJK
+       system font is missing. Use the built-in font for an absent base. */
+    bool merge = primary_ranges &&
         ((cjk && cjk[0]) || (korean && korean[0]));
-    const UIFontSource *base = primary && primary->data ? primary : fallback;
     struct nk_font *font = add_font(atlas, base, size,
         merge ? primary_ranges : all, false);
     if (!font || !merge) return font;
     font_to_front(atlas, font);
-    if (cjk && cjk[0] && !add_font(atlas, fallback, size, cjk, true))
+    if (cjk && cjk[0] && !add_font(atlas, cjk_source, size, cjk, true))
         return NULL;
-    const UIFontSource *korean_source = korean_fallback && korean_fallback->data ?
-        korean_fallback : fallback;
     if (korean && korean[0] &&
         !add_font(atlas, korean_source, size, korean, true)) return NULL;
     return font;

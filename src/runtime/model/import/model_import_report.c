@@ -1,4 +1,5 @@
 #include "model_import.h"
+#include "mver/model_import_mver_manifest.h"
 #include "bongo_cat/file.h"
 #include "bongo_cat/json.h"
 #include "bongo_cat/path.h"
@@ -39,7 +40,7 @@ static bool add_stat(yyjson_mut_doc *output, yyjson_mut_val *stats,
     yyjson_val *mode, const BongoCatImportCandidate *candidate,
     const char *key, const char *directory, bool sound) {
     yyjson_val *rows = yyjson_obj_get(mode, key);
-    if (!rows) return true;
+    if (!rows || yyjson_is_null(rows)) return true;
     if (!yyjson_is_arr(rows)) return false;
     size_t declared = yyjson_arr_size(rows), available = 0;
     for (size_t i = 0; i < declared; ++i)
@@ -67,9 +68,6 @@ static bool add_degradations(yyjson_mut_doc *output, yyjson_mut_val *items,
     yyjson_val *decoration = yyjson_obj_get(config, "decoration");
     yyjson_val *mode = yyjson_obj_get(config, bongo_cat_mode_name(candidate->mode));
     bool ok = true;
-    if (configured(decoration, "window_size") || configured(decoration, "topWindow"))
-        ok = add_degradation(output, items, "decoration.window",
-            "BongoCat keeps window size and always-on-top as cross-platform user preferences");
     if (ok && (configured(decoration, "offsetX") || configured(decoration, "offsetY") ||
         configured(decoration, "scalar") || configured(decoration, "hand_offset")))
         ok = add_degradation(output, items, "decoration.sprite_geometry",
@@ -85,7 +83,9 @@ static size_t missing_motion_sounds(const BongoCatImportCandidate *candidate) {
     char manifest_path[BONGO_CAT_PATH_CAP];
     if (!bongo_cat_path_join(manifest_path, sizeof(manifest_path),
         candidate->directory, candidate->setting)) return 0;
-    yyjson_doc *document = bongo_cat_json_read_file(manifest_path, 0, NULL);
+    yyjson_doc *document = candidate->format == BONGO_CAT_IMPORT_TAURI
+        ? bongo_cat_json_read_file(manifest_path, 0, NULL)
+        : bongo_cat_import_mver_manifest_read(manifest_path, NULL);
     yyjson_val *refs = document ? yyjson_obj_get(yyjson_doc_get_root(document),
         "FileReferences") : NULL;
     yyjson_val *motions = yyjson_obj_get(refs, "Motions");

@@ -2,7 +2,6 @@
 
 #include "bongo_cat/path.h"
 
-#include <stdio.h>
 
 bool bongo_cat_tauri_find_resource_file(
     const BongoCatImportCandidate *candidate, const char *name,
@@ -38,17 +37,6 @@ bool bongo_cat_tauri_find_resource_directory(
             bongo_cat_path_is_dir(path)) return true;
     }
     return false;
-}
-
-bool bongo_cat_tauri_resource_root(const BongoCatImportCandidate *candidate,
-    char *path, size_t capacity) {
-    if (!candidate || !path || !capacity) return false;
-    if (bongo_cat_path_join(path, capacity, candidate->assets, "resources") &&
-        bongo_cat_path_is_dir(path)) return true;
-    if (bongo_cat_path_join(path, capacity, candidate->directory,
-            "resources") && bongo_cat_path_is_dir(path)) return true;
-    int written = snprintf(path, capacity, "%s", candidate->assets);
-    return written >= 0 && (size_t)written < capacity && path[0];
 }
 
 bool bongo_cat_tauri_find_package_file(

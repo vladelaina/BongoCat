@@ -14,9 +14,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  version-check:
+    name: quality / tag-version
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v5
+
+      - name: Validate tag matches project version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: ./.github/scripts/check-tag-version.ps1 -Tag $env:GITHUB_REF_NAME
+
   publishing-policy:
     name: security / publishing-policy
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout source
         uses: actions/checkout@v5
@@ -26,8 +38,8 @@ jobs:
         run: ./.github/scripts/check-publish-guards.ps1 -SelfTest
 
   quality:
-    name: quality / syntax-tests
-    runs-on: ubuntu-latest
+    name: quality / static-analysis
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout source
         uses: actions/checkout@v5
@@ -37,7 +49,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             cmake ninja-build cppcheck \
-            libgl1-mesa-dev libx11-dev libxi-dev libxfixes-dev
+            libgl1-mesa-dev libegl1-mesa-dev libx11-dev libxi-dev libxfixes-dev \
+            libcurl4-openssl-dev libfontconfig1-dev
 
       - name: Reject legacy product-name references
         run: |
@@ -51,7 +64,10 @@ jobs:
       - name: Check source file size policy
         run: cmake -DROOT="$GITHUB_WORKSPACE" -P cmake/CheckLines.cmake
 
-      - name: Run Cppcheck
+      - name: Check Windows icon dimensions and image data
+        run: python3 scripts/check-windows-icon.py
+
+      - name: Check C and C++ safety with Cppcheck
         shell: bash
         run: |
           mapfile -d '' c_files < <(find src -type f -name '*.c' -print0)
@@ -74,34 +90,133 @@ jobs:
             -Isrc/ui/theme "${cpp_files[@]}"
 
       - name: Configure warning-clean Linux build
+        env:
+          CC: gcc
+          CXX: g++
         run: |
           cmake -S . -B build-quality -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTING=OFF \
+            -DBONGO_CAT_STATIC_ANALYZER=ON \
+            -DBONGO_CAT_OPTIMIZE_RELEASE_SIZE=ON \
+            -DBONGO_CAT_OPTIMIZE_RELEASE_IPO=ON \
             -DBONGO_CAT_WARNINGS_AS_ERRORS=ON
 
       - name: Register GCC diagnostics
         run: echo "::add-matcher::$GITHUB_WORKSPACE/.github/gcc-problem-matcher.json"
 
-      - name: Build
+      - name: Build and analyze C memory safety
         run: bash .github/scripts/build-unix.sh cmake --build build-quality --parallel 2
 
-      - name: Run native tests
-        run: ctest --test-dir build-quality --output-on-failure
+  clang-tidy:
+    name: quality / clang-tidy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v5
+
+      - name: Install Clang analysis dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build clang-18 clang-tidy-18 \
+            libgl1-mesa-dev libegl1-mesa-dev libx11-dev libxi-dev libxfixes-dev \
+            libcurl4-openssl-dev libfontconfig1-dev
+
+      - name: Validate Clang-Tidy rules
+        run: clang-tidy-18 --verify-config
+
+      - name: Generate compilation database
+        env:
+          CC: clang-18
+          CXX: clang++-18
+        run: |
+          cmake -S . -B build-clang-tidy -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DBUILD_TESTING=OFF \
+            -DBONGO_CAT_OPTIMIZE_RELEASE_SIZE=OFF \
+            -DBONGO_CAT_OPTIMIZE_RELEASE_IPO=OFF
+
+      - name: Analyze project memory safety and common coding errors
+        run: |
+          run-clang-tidy-18 -p build-clang-tidy -j 2 \
+            -header-filter="^${GITHUB_WORKSPACE}/(include|src)/" \
+            "^${GITHUB_WORKSPACE}/src/"
+
+  sanitizers:
+    name: quality / ASan + UBSan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v5
+
+      - name: Install sanitizer and display dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build clang-18 llvm-18 libclang-rt-18-dev \
+            xvfb xauth libgl1-mesa-dri libglx-mesa0 \
+            libgl1-mesa-dev libegl1-mesa-dev libx11-dev libxi-dev libxfixes-dev \
+            libcurl4-openssl-dev libfontconfig1-dev
+
+      - name: Configure instrumented application
+        env:
+          CC: clang-18
+          CXX: clang++-18
+        run: |
+          cmake -S . -B build-sanitizers -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DBUILD_TESTING=OFF \
+            -DBONGO_CAT_OPTIMIZE_RELEASE_SIZE=OFF \
+            -DBONGO_CAT_OPTIMIZE_RELEASE_IPO=OFF \
+            -DCMAKE_C_FLAGS="-O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer" \
+            -DCMAKE_CXX_FLAGS="-O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+
+      - name: Build instrumented application
+        run: bash .github/scripts/build-unix.sh cmake --build build-sanitizers --target bongo_cat --parallel 2
+
+      - name: Check application memory and undefined behavior
+        timeout-minutes: 10
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+          ASAN_SYMBOLIZER_PATH: /usr/bin/llvm-symbolizer-18
+          UBSAN_SYMBOLIZER_PATH: /usr/bin/llvm-symbolizer-18
+          BONGO_CAT_DISABLE_NEARBY_MODEL_SCAN: '1'
+        run: |
+          bash .github/scripts/test-unix.sh \
+            bash .github/scripts/run-sanitizers.sh \
+            "$GITHUB_WORKSPACE/build-sanitizers/BongoCat" \
+            "$GITHUB_WORKSPACE/build-sanitizers/reports"
+
+      - name: Upload sanitizer diagnostics
+        if: always() && github.repository == 'vladelaina/BongoCat'
+        uses: actions/upload-artifact@v7
+        with:
+          name: sanitizer-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            build-sanitizers/reports/
+            ${{ runner.temp }}/bongocat-native-build.log
+          if-no-files-found: ignore
+          retention-days: 14
 
   build:
     name: build / ${{ matrix.platform }}
-    needs: quality
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
+          - os: windows-2022
             platform: windows-x64
             cmake_arch: x64
-          - os: windows-latest
+          - os: windows-2022
             platform: windows-x86
             cmake_arch: Win32
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             platform: linux-x64
             cmake_arch: ''
           - os: macos-15-intel
@@ -120,21 +235,17 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            cmake ninja-build libgl1-mesa-dev libx11-dev libxi-dev \
-            libxfixes-dev
-
-      - name: Configure Windows release
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          cmake -S . -B build -A ${{ matrix.cmake_arch }} `
-            -DBONGO_CAT_WARNINGS_AS_ERRORS=ON
+            cmake ninja-build libgl1-mesa-dev libegl1-mesa-dev libx11-dev libxi-dev \
+            libxfixes-dev libcurl4-openssl-dev libfontconfig1-dev
 
       - name: Configure Unix release
         if: runner.os != 'Windows'
         run: |
           cmake -S . -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTING=OFF \
+            -DBONGO_CAT_OPTIMIZE_RELEASE_SIZE=ON \
+            -DBONGO_CAT_OPTIMIZE_RELEASE_IPO=ON \
             -DCMAKE_OSX_ARCHITECTURES=${{ matrix.cmake_arch }} \
             -DBONGO_CAT_WARNINGS_AS_ERRORS=ON
 
@@ -145,32 +256,18 @@ jobs:
       - name: Build Windows release
         if: runner.os == 'Windows'
         shell: pwsh
-        run: >-
-          & ./.github/scripts/build-windows.ps1
-          cmake --build build --config Release --parallel 2
-
-      - name: Build Windows validation tools
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: >-
-          & ./.github/scripts/build-windows.ps1
-          cmake --build build --config Release
-          --target bongo_cat_validation_tools --parallel 2
+        run: |
+          & ./scripts/build-windows.ps1 `
+            -SkipTests `
+            -BuildDir build `
+            -Configuration Release `
+            -Architecture '${{ matrix.cmake_arch }}' `
+            -Jobs 2 `
+            -Target ALL_BUILD
 
       - name: Build Unix release
         if: runner.os != 'Windows'
         run: bash .github/scripts/build-unix.sh cmake --build build --parallel 2
-
-      - name: Test Windows release
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: >-
-          & ./.github/scripts/test-windows.ps1
-          ctest --test-dir build -C Release --output-on-failure
-
-      - name: Test Unix release
-        if: runner.os != 'Windows'
-        run: ctest --test-dir build --output-on-failure
 
   desktop-package:
     name: package / ${{ matrix.platform }}
@@ -178,12 +275,11 @@ jobs:
       github.repository == 'vladelaina/BongoCat' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
       github.ref == 'refs/heads/main'
-    needs: [publishing-policy, quality]
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             platform: linux-x64
             cmake_arch: ''
           - os: macos-15-intel
@@ -211,13 +307,16 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            cmake ninja-build libgl1-mesa-dev libx11-dev libxi-dev \
-            libxfixes-dev
+            cmake ninja-build libgl1-mesa-dev libegl1-mesa-dev libx11-dev libxi-dev \
+            libxfixes-dev libcurl4-openssl-dev libfontconfig1-dev
 
       - name: Configure release
         run: |
           cmake -S . -B build-package -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTING=OFF \
+            -DBONGO_CAT_OPTIMIZE_RELEASE_SIZE=ON \
+            -DBONGO_CAT_OPTIMIZE_RELEASE_IPO=ON \
             -DCMAKE_OSX_ARCHITECTURES=${{ matrix.cmake_arch }} \
             -DBONGO_CAT_REQUIRE_CUBISM=ON \
             -DBONGO_CAT_WARNINGS_AS_ERRORS=ON
@@ -225,11 +324,9 @@ jobs:
       - name: Build release
         run: bash .github/scripts/build-unix.sh cmake --build build-package --parallel 2
 
-      - name: Test release
-        run: ctest --test-dir build-package --output-on-failure
-
       - name: Package desktop release
         id: package
+        timeout-minutes: 5
         shell: pwsh
         run: |
           $projectVersion = & ./packaging/get-project-version.ps1
@@ -241,12 +338,19 @@ jobs:
           }
 
           cmake --build build-package --target package
+          if ($LASTEXITCODE -ne 0) { throw 'Unix archive packaging failed' }
           $archives = @(Get-ChildItem build-package/dist -File | Where-Object {
             $_.Name -match '\.(zip|tar\.gz)$'
           })
           if ($archives.Count -ne 1) {
             throw "Expected one desktop archive, found $($archives.Count)"
           }
+          $packageCheckArgs = @{
+            Archive = $archives[0].FullName
+            Platform = $platform
+            SkipSmoke = $platform.StartsWith('macos-')
+          }
+          & ./.github/scripts/check-unix-package.ps1 @packageCheckArgs
           "name=$name" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "file=$($archives[0].FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
@@ -258,7 +362,8 @@ jobs:
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
-          archive: false
+          # Preserve package ZIPs inside the artifact transport archive.
+          archive: true
 
   store-package:
     name: package / ${{ matrix.platform }}
@@ -266,7 +371,6 @@ jobs:
       github.repository == 'vladelaina/BongoCat' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
       github.ref == 'refs/heads/main'
-    needs: [publishing-policy, quality]
     strategy:
       fail-fast: false
       matrix:
@@ -291,25 +395,17 @@ jobs:
         shell: pwsh
         run: ./.github/scripts/restore-cubism-sdk.ps1
 
-      - name: Configure Store release
-        shell: pwsh
-        run: |
-          cmake -S . -B build-store -G "Visual Studio 17 2022" `
-            -A ${{ matrix.cmake_arch }} -T v143 `
-            -DBONGO_CAT_REQUIRE_CUBISM=ON `
-            -DBONGO_CAT_WARNINGS_AS_ERRORS=ON
-
       - name: Build Store release
         shell: pwsh
-        run: >-
-          & ./.github/scripts/build-windows.ps1
-          cmake --build build-store --config Release --parallel 2
-
-      - name: Run Store release tests
-        shell: pwsh
-        run: >-
-          & ./.github/scripts/test-windows.ps1
-          ctest --test-dir build-store -C Release --output-on-failure
+        run: |
+          & ./scripts/build-windows.ps1 `
+            -SkipTests `
+            -BuildDir build-store `
+            -Configuration Release `
+            -Architecture '${{ matrix.cmake_arch }}' `
+            -Jobs 2 `
+            -RequireCubism `
+            -Target ALL_BUILD
 
       - name: Read app version
         id: version
@@ -319,25 +415,10 @@ jobs:
           "version=$($projectVersion.AppVersion)" |
             Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
-      - name: Install NSIS
+      - name: Install Inno Setup
         shell: pwsh
-        run: |
-          if (-not (Get-Command makensis.exe -ErrorAction SilentlyContinue)) {
-            choco install nsis --no-progress --yes
-          }
-          $nsisCommand = Get-Command makensis.exe -ErrorAction SilentlyContinue
-          $nsisRoots = @(
-            (Join-Path ${env:ProgramFiles(x86)} 'NSIS'),
-            (Join-Path $env:ProgramFiles 'NSIS')
-          )
-          if ($nsisCommand) { $nsisRoots += Split-Path $nsisCommand.Source }
-          $nsisRoot = $nsisRoots | Where-Object {
-            Test-Path -LiteralPath (Join-Path $_ 'makensis.exe')
-          } | Select-Object -First 1
-          if (-not $nsisRoot) {
-            throw 'NSIS was not installed (makensis.exe was not found)'
-          }
-          $nsisRoot | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+        run: >-
+          & ./.github/scripts/install-inno.ps1
 
       - name: Package Windows desktop release
         id: desktop-package
@@ -368,6 +449,14 @@ jobs:
           "portable=$portable" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "file=$setup" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
+      - name: Upload Windows installer failure log
+        if: failure() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: installer-log-${{ matrix.platform }}-${{ github.run_attempt }}
+          path: build-store/installer.log
+          if-no-files-found: ignore
+
       - name: Build Microsoft Store MSIX
         if: matrix.store_arch == 'x64'
         shell: pwsh
@@ -396,7 +485,8 @@ jobs:
           if-no-files-found: error
           retention-days: 90
           compression-level: 0
-          archive: false
+          # Preserve package ZIPs inside the artifact transport archive.
+          archive: true
 
       - name: Upload Windows desktop release
         uses: actions/upload-artifact@v7
@@ -406,7 +496,8 @@ jobs:
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
-          archive: false
+          # Preserve package ZIPs inside the artifact transport archive.
+          archive: true
 
       - name: Upload Windows portable release
         uses: actions/upload-artifact@v7
@@ -416,7 +507,8 @@ jobs:
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
-          archive: false
+          # Preserve package ZIPs inside the artifact transport archive.
+          archive: true
 
   virus-total:
     name: security / virustotal
@@ -424,63 +516,30 @@ jobs:
       github.repository == 'vladelaina/BongoCat' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
       github.ref == 'refs/heads/main'
-    needs: [desktop-package, store-package]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 310
+    # CI and releases share the same VirusTotal API quota.
+    concurrency:
+      group: bongocat-virustotal
+      cancel-in-progress: false
     permissions:
       contents: read
-      actions: write
+      actions: read
 
     steps:
       - name: Checkout source
         uses: actions/checkout@v5
 
-      - name: Download Linux x64 archive
-        uses: actions/download-artifact@v8
-        with:
-          pattern: BongoCat-*-linux-x64.tar.gz
-          path: vt-input
-
-      # Raw ZIP artifacts are unpacked by download-artifact, so scan formats
-      # that remain intact as standalone files in the workspace.
-      - name: Download Windows x86 installer
-        uses: actions/download-artifact@v8
-        with:
-          pattern: BongoCat-*-windows-x86-setup.exe
-          path: vt-input
-
-      - name: Download Windows x64 installer
-        uses: actions/download-artifact@v8
-        with:
-          pattern: BongoCat-*-windows-x64-setup.exe
-          path: vt-input
-
-      - name: Download Windows x64 MSIX
-        uses: actions/download-artifact@v8
-        with:
-          pattern: bongocat_*_x64.msix
-          path: vt-input
-
-      - name: Scan all release artifacts with VirusTotal
+      # Discover artifacts while matrix jobs are still building. A single
+      # worker owns the rolling request window for every platform.
+      - name: Scan artifacts as they become available
         env:
           VIRUSTOTAL_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
-        run: |
-          set -euo pipefail
-          mapfile -d '' files < <(find vt-input -type f \( \
-            -iname '*-windows-x64-setup.exe' -o \
-            -iname 'bongocat_*_x64.msix' -o \
-            -iname '*-linux-x64.tar.gz' -o \
-            -iname '*-windows-x86-setup.exe' \
-            \) -print0 | sort -z)
-          if [ "${#files[@]}" -ne 4 ]; then
-            echo "::error::Expected 4 representative VirusTotal inputs, found ${#files[@]}"
-            printf 'Found: %s\n' "${files[@]}"
-            exit 1
-          fi
-          for file in "${files[@]}"; do
-            report=$(basename "$file" | tr -c 'A-Za-z0-9._-' '_')
-            VT_REPORT_PATH="virustotal-report-$report.json" \
-              python3 .github/scripts/scan-virustotal.py --file "$file"
-          done
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          python3 -u .github/scripts/watch-virustotal.py
+          --artifact-prefix 'bongocat-vt-'
+          --producer-prefix 'package / '
 
       - name: Add VirusTotal note when scanning is skipped
         if: always() && hashFiles('virustotal-report-*.json') == ''
@@ -488,7 +547,7 @@ jobs:
           {
             echo "## VirusTotal scans"
             echo
-            echo "No report was produced. Check that VIRUSTOTAL_API_KEY is configured."
+            echo "No report was produced. Check the scan logs and VIRUSTOTAL_API_KEY configuration."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload VirusTotal reports

@@ -15,6 +15,7 @@ typedef struct TauriMverCalibration {
     int window_width;
     int window_height;
     bool mirror;
+    bool auto_frame;
 } TauriMverCalibration;
 
 typedef struct TauriKeyFile {
@@ -39,13 +40,15 @@ bool bongo_cat_tauri_find_resource_file(
 bool bongo_cat_tauri_find_resource_directory(
     const BongoCatImportCandidate *candidate, const char *name,
     char *path, size_t capacity);
-bool bongo_cat_tauri_resource_root(const BongoCatImportCandidate *candidate,
-    char *path, size_t capacity);
 bool bongo_cat_tauri_find_package_file(
     const BongoCatImportCandidate *candidate, const char *name,
     char *path, size_t capacity);
 
 /* Mver normalization steps. */
+int bongo_cat_tauri_key_code(const char *filename);
+void bongo_cat_tauri_calibration_defaults(TauriMverCalibration *calibration);
+void bongo_cat_tauri_legacy_calibration(
+    const BongoCatImportCandidate *candidate, TauriMverCalibration *calibration);
 bool bongo_cat_tauri_copy_image_or_placeholder(const char *source,
     const char *target, BongoCatError *error);
 bool bongo_cat_tauri_copy_preview(const BongoCatImportCandidate *candidate,
@@ -54,7 +57,7 @@ bool bongo_cat_tauri_copy_runtime_images(
     const BongoCatImportCandidate *candidate, const char *mode_root,
     BongoCatError *error);
 bool bongo_cat_tauri_copy_input_images(
-    const BongoCatImportCandidate *candidate, const char *resource_directory,
+    const BongoCatImportCandidate *candidate,
     const char *mode_root, TauriKeyFiles *left, TauriKeyFiles *right,
     BongoCatError *error);
 bool bongo_cat_tauri_write_config(const char *path, BongoCatModelMode mode,

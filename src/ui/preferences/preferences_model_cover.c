@@ -22,6 +22,18 @@ static uint64_t cover_generation;
 static unsigned cover_load_budget;
 static bool cover_load_deferred;
 
+size_t bongo_cat_preferences_model_cover_usage(BongoCatApp *app, size_t *count) {
+    size_t bytes = 0, textures = 0;
+    for (size_t i = 0; i < BONGO_CAT_MODEL_CAP; ++i) {
+        const ModelCoverSlot *slot = &cover_cache[i];
+        if (slot->app != app || !slot->image.texture) continue;
+        ++textures;
+        bytes += (size_t)slot->image.width * slot->image.height * 4;
+    }
+    if (count) *count = textures;
+    return bytes;
+}
+
 void bongo_cat_preferences_model_cover_cache_clear(BongoCatApp *app) {
     for (size_t i = 0; i < BONGO_CAT_MODEL_CAP; ++i) {
         ModelCoverSlot *slot = &cover_cache[i];
@@ -80,9 +92,10 @@ void bongo_cat_preferences_model_cache_abandon(BongoCatApp *app) {
 void bongo_cat_preferences_model_covers_begin(BongoCatApp *app) {
     cover_generation++;
     if (!cover_generation) cover_generation++;
-    cover_load_budget = 1;
+    /* Keep existing thumbnails during a model transaction. Decoding another
+       cover in a progress frame competes with the atlas currently loading. */
+    cover_load_budget = app && app->loading_model[0] ? 0 : 1;
     cover_load_deferred = false;
-    (void)app;
 }
 
 const BongoCatModelCover *bongo_cat_preferences_model_cover(

@@ -146,6 +146,7 @@ static ControlReadResult read_control(BongoCatApp *app,
 
 static void reload_secondary_settings(BongoCatApp *app) {
     BongoCatSettings settings = app->settings;
+    BongoCatSettings previous_settings = app->settings;
     BongoCatError error = {0};
     BongoCatResult loaded = bongo_cat_settings_load(
         app->settings_path, &settings, &error);
@@ -158,11 +159,73 @@ static void reload_secondary_settings(BongoCatApp *app) {
     }
     if (app->secondary_control_known)
         settings.window.pass_through = app->secondary_control_pass_through;
-    bool model_changed = memcmp(&settings.model, &app->settings.model,
-        sizeof(settings.model)) != 0;
-    bool window_changed = memcmp(&settings.window, &app->settings.window,
-        sizeof(settings.window)) != 0;
+    bool model_changed =
+        settings.model.multiple_pets != app->settings.model.multiple_pets ||
+        settings.model.mirror != app->settings.model.mirror ||
+        settings.model.vertical_flip != app->settings.model.vertical_flip ||
+        settings.model.mouse_mirror != app->settings.model.mouse_mirror ||
+        settings.model.mouse_vertical_flip != app->settings.model.mouse_vertical_flip ||
+        settings.model.mouse_centered != app->settings.model.mouse_centered ||
+        settings.model.ignore_mouse != app->settings.model.ignore_mouse ||
+        settings.model.gamepad_four_hands != app->settings.model.gamepad_four_hands ||
+        settings.model.dynamic_texture_resolution !=
+            app->settings.model.dynamic_texture_resolution ||
+        settings.model.render_quality_percent !=
+            app->settings.model.render_quality_percent ||
+        settings.model.max_fps != app->settings.model.max_fps;
+    bool texture_resolution_changed =
+        settings.model.dynamic_texture_resolution !=
+            app->settings.model.dynamic_texture_resolution ||
+        settings.model.render_quality_percent !=
+            app->settings.model.render_quality_percent;
+    bool hands_changed = settings.model.gamepad_four_hands !=
+        app->settings.model.gamepad_four_hands;
+    bool window_changed =
+        settings.window.pass_through != app->settings.window.pass_through ||
+        settings.window.always_on_top != app->settings.window.always_on_top ||
+        settings.window.hide_on_hover != app->settings.window.hide_on_hover ||
+        settings.window.obs_background != app->settings.window.obs_background ||
+        settings.window.random_expression != app->settings.window.random_expression ||
+        settings.window.random_motion != app->settings.window.random_motion ||
+        settings.window.rounded_corners != app->settings.window.rounded_corners ||
+        settings.window.obs_background_color !=
+            app->settings.window.obs_background_color ||
+        settings.window.hide_delay_seconds != app->settings.window.hide_delay_seconds ||
+        settings.window.hide_fade_seconds != app->settings.window.hide_fade_seconds ||
+        settings.window.random_expression_interval_seconds !=
+            app->settings.window.random_expression_interval_seconds ||
+        settings.window.random_motion_interval_seconds !=
+            app->settings.window.random_motion_interval_seconds ||
+        settings.window.corner_radius_percent !=
+            app->settings.window.corner_radius_percent;
+    bool pointer_orientation_changed = settings.model.vertical_flip !=
+        app->settings.model.vertical_flip ||
+        settings.model.mouse_vertical_flip != app->settings.model.mouse_vertical_flip;
     app->settings = settings;
+    if (pointer_orientation_changed) bongo_cat_app_reset_pointer_tracking(app);
+    if (hands_changed) bongo_cat_app_refresh_hands(app);
+    if (texture_resolution_changed && app->loaded_model[0]) {
+        BongoCatError reload_error = {0};
+        bool reused = settings.model.dynamic_texture_resolution ==
+            previous_settings.model.dynamic_texture_resolution &&
+            bongo_cat_live2d_try_reuse_texture_quality(app->live2d,
+                settings.model.render_quality_percent);
+        if (!reused && !bongo_cat_app_reload_model_with_error(app, &reload_error)) {
+            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
+                "[runtime] Multi-pet texture resolution reload failed: %s",
+                reload_error.message);
+            /* Keep the setting aligned with the model that survived the
+               failed transaction. Other settings from the control file may
+               still be applied normally. */
+            app->settings.model.dynamic_texture_resolution =
+                previous_settings.model.dynamic_texture_resolution;
+            app->settings.model.render_quality_percent =
+                previous_settings.model.render_quality_percent;
+        }
+    }
+    const BongoCatModelEntry *active = bongo_cat_models_find(&app->models, app->loaded_model);
+    if (active && !bongo_cat_mver_shortcuts_load(app, active, &error))
+        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "%s", error.message);
     if (model_changed) app->dirty = true;
     if (window_changed) {
         app->dirty = true;

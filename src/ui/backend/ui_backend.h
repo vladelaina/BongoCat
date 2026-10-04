@@ -88,7 +88,7 @@ void bongo_cat_ui_input_begin(BongoCatUIBackend *ui);
 void bongo_cat_ui_input_end(BongoCatUIBackend *ui);
 void bongo_cat_ui_input_reset(BongoCatUIBackend *ui);
 bool bongo_cat_ui_event(BongoCatUIBackend *ui, const SDL_Event *event);
-void bongo_cat_ui_render(BongoCatUIBackend *ui);
+bool bongo_cat_ui_render(BongoCatUIBackend *ui);
 void bongo_cat_ui_trim_idle(BongoCatUIBackend *ui);
 bool bongo_cat_ui_resize_cache_capture(BongoCatUIBackend *ui);
 bool bongo_cat_ui_resize_cache_present(BongoCatUIBackend *ui);

@@ -4,6 +4,7 @@
 #include "preferences_internal.h"
 #include "preferences_scrollbar.h"
 #include "preferences_text_session.h"
+#include "about/preferences_about.h"
 #include "ui_backend.h"
 
 #define BONGO_CAT_MODEL_LOAD_VISUAL_DURATION_NS 5000000000ull
@@ -15,9 +16,12 @@
 #include "modal_frame.h"
 
 typedef struct BongoCatPreferenceNotice {
-    char message[384];
+    char message[1024];
     uint64_t started_ns;
     uint64_t until_ns;
+    uint64_t timer_updated_ns;
+    struct nk_rect bounds;
+    bool hovered;
     bool error;
 } BongoCatPreferenceNotice;
 
@@ -28,9 +32,12 @@ struct BongoCatPreferences {
     bool owns_gl_context;
     bool transparent_window;
     bool visible;
+    unsigned release_wait_flags;
     bool ui_initialized;
     BongoCatUIBackend ui;
     unsigned int logo_texture;
+    unsigned int asset_retry_count;
+    uint64_t asset_retry_ns;
     unsigned int icon_texture;
     unsigned int icon_texture_hidpi;
     bool icon_hidpi_attempted;
@@ -41,11 +48,13 @@ struct BongoCatPreferences {
     int catime_width, catime_height;
     int vlaina_width, vlaina_height;
     bool support_assets_loaded;
+    BongoCatAboutState about;
     struct nk_user_font support_logs_font;
     int page;
     int style_theme;
     BongoCatLanguage font_language;
-    nk_rune glyph_ranges[2048];
+    nk_rune glyph_ranges[16384];
+    uint64_t behavior_font_serial;
     bool input_active;
     bool import_requested;
     bool import_drop_active;
@@ -57,7 +66,6 @@ struct BongoCatPreferences {
     bool font_reload_defer_once;
     size_t pending_import_name_count;
     char pending_import_names[BONGO_CAT_MODEL_CAP][BONGO_CAT_ID_CAP];
-    bool model_glyphs_loaded;
     bool model_directory_watch_active;
     bool model_directory_watch_known;
     bool model_directory_watch_refresh;
@@ -75,6 +83,10 @@ struct BongoCatPreferences {
     float model_load_progress;
     float model_load_render_progress;
     uint64_t model_load_render_ns;
+    uint64_t model_load_render_cost_ns;
+    uint64_t model_load_render_total_ns;
+    unsigned model_load_render_count;
+    unsigned model_load_render_deferred;
     uint64_t model_load_visual_started_ns;
     uint64_t model_load_visual_completion_ns;
     char pending_model_id[BONGO_CAT_ID_CAP];
@@ -92,13 +104,15 @@ struct BongoCatPreferences {
     int last_page;
     uint64_t page_transition_ns;
     BongoCatPreferenceNotice notices[4];
+    BongoCatBehaviorCatalog *behavior_catalog;
+    char behavior_model_id[BONGO_CAT_ID_CAP];
     bool behavior_dialog;
     bool behavior_dialog_input_armed;
     int behavior_tab;
     uint64_t behavior_dialog_opened_ns;
     uint64_t behavior_dialog_closing_ns;
     uint64_t behavior_tab_transition_ns;
-    float behavior_scroll[2];
+    float behavior_scroll[3];
     BongoCatPreferencesScrollbar behavior_scrollbar;
     BongoCatPreferencesTextSession behavior_rename;
     BongoCatPreferencesTextSession model_rename;
@@ -115,18 +129,31 @@ struct BongoCatPreferences {
     int drag_window_y;
     float drag_pointer_x;
     float drag_pointer_y;
-    char shortcut_id[BONGO_CAT_ID_CAP + 16];
+    char shortcut_id[BONGO_CAT_BEHAVIOR_ID_CAP + 16];
     char *shortcut_target;
     int shortcut_capacity;
     char shortcut_original[BONGO_CAT_SHORTCUT_CAP];
     SDL_Keycode shortcut_key;
     bool shortcut_recording;
     uint64_t shortcut_suppress_until_ns;
+#ifdef __APPLE__
+    /* The permission changes while the user is in System Settings, so the page
+       reads it again when it becomes visible and when the window regains focus
+       instead of querying macOS per frame. */
+    bool input_monitoring_authorized;
+    bool input_monitoring_valid;
+#endif
 };
+
+#ifdef __APPLE__
+void bongo_cat_preferences_input_monitoring_refresh(BongoCatPreferences *value);
+#endif
 
 int bongo_cat_preferences_resolved_theme(const BongoCatPreferences *value);
 void bongo_cat_preferences_apply_theme(BongoCatPreferences *value);
 bool bongo_cat_preferences_open_window(BongoCatPreferences *value);
+void bongo_cat_preferences_release_idle_window(BongoCatPreferences *value);
+void bongo_cat_preferences_resource_note(BongoCatPreferences *value, const char *stage);
 bool bongo_cat_preferences_scale_event(BongoCatPreferences *value,
     const SDL_Event *event);
 bool bongo_cat_preferences_refresh_raster(BongoCatPreferences *value);
@@ -144,6 +171,7 @@ void bongo_cat_preferences_model_visual_begin(BongoCatPreferences *value,
     const char *model_id);
 void bongo_cat_preferences_model_load_progress(BongoCatPreferences *value,
     float progress);
+bool bongo_cat_preferences_model_texture_busy(const BongoCatPreferences *value);
 float bongo_cat_preferences_model_visual_progress(BongoCatPreferences *value,
     const char *model_id);
 void bongo_cat_preferences_assets_clear(BongoCatPreferences *value);

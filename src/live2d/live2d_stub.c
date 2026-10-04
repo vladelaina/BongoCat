@@ -1,5 +1,7 @@
 #include "bongo_cat/model.h"
 #include "model_import_manifest.h"
+#include "bongo_cat/json.h"
+#include "bongo_cat/path.h"
 
 #include <SDL3/SDL_log.h>
 #include <stdlib.h>
@@ -33,19 +35,38 @@ BongoCatLive2D *bongo_cat_live2d_create(const char *asset_root,
 
 void bongo_cat_live2d_destroy(BongoCatLive2D *live2d) { free(live2d); }
 
+BongoCatResult bongo_cat_live2d_load_ex(BongoCatLive2D *live2d,
+    const char *model_dir,
+    const char *setting_file, bool preset,
+    const BongoCatLive2DRenderOptions *render_options,
+    const BongoCatLive2DTextureOptions *texture_options,
+    BongoCatLive2DLoadProgress progress, void *userdata,
+    BongoCatError *error) {
+    (void)preset; (void)render_options; (void)texture_options;
+    if (!live2d || !model_dir || !setting_file) return BONGO_CAT_ERROR_ARGUMENT;
+    if (progress) progress(userdata, 0.1f);
+    char path[BONGO_CAT_PATH_CAP];
+    yyjson_doc *document = bongo_cat_path_join(path, sizeof(path), model_dir,
+        setting_file) ? bongo_cat_model_json_read(path, NULL) : NULL;
+    bool valid = bongo_cat_import_manifest_document_valid(model_dir, document, true);
+    yyjson_doc_free(document);
+    if (!valid) {
+        bongo_cat_error_set(error, BONGO_CAT_ERROR_FORMAT,
+            "Model manifest or required assets are invalid: %s", setting_file);
+        return BONGO_CAT_ERROR_FORMAT;
+    }
+    live2d->loaded = true;
+    if (progress) progress(userdata, 1.0f);
+    return BONGO_CAT_OK;
+}
+
 BongoCatResult bongo_cat_live2d_load(BongoCatLive2D *live2d, const char *model_dir,
     const char *setting_file, bool preset,
     const BongoCatLive2DRenderOptions *render_options,
     BongoCatLive2DLoadProgress progress, void *userdata,
     BongoCatError *error) {
-    (void)preset; (void)render_options;
-    if (!live2d || !model_dir || !setting_file) return BONGO_CAT_ERROR_ARGUMENT;
-    if (progress) progress(userdata, 0.1f);
-    if (!bongo_cat_import_manifest_valid(model_dir, setting_file, error))
-        return BONGO_CAT_ERROR_FORMAT;
-    live2d->loaded = true;
-    if (progress) progress(userdata, 1.0f);
-    return BONGO_CAT_OK;
+    return bongo_cat_live2d_load_ex(live2d, model_dir, setting_file, preset,
+        render_options, NULL, progress, userdata, error);
 }
 
 bool bongo_cat_live2d_ready(const BongoCatLive2D *live2d) {
@@ -86,7 +107,43 @@ void bongo_cat_live2d_reshape(BongoCatLive2D *live2d, int width, int height) {
 bool bongo_cat_live2d_update(BongoCatLive2D *live2d, float delta_seconds) {
     (void)live2d; (void)delta_seconds; return false;
 }
+bool bongo_cat_live2d_texture_refresh_pending(const BongoCatLive2D *live2d, bool active) {
+    (void)live2d; (void)active; return false;
+}
+bool bongo_cat_live2d_texture_refresh_due(const BongoCatLive2D *live2d,
+    bool active, bool allow_start) {
+    (void)live2d; (void)active; (void)allow_start; return false;
+}
+bool bongo_cat_live2d_try_reuse_texture_quality(BongoCatLive2D *live2d,
+    float quality_percent) {
+    (void)live2d; (void)quality_percent; return false;
+}
+
+bool bongo_cat_live2d_measure_frame(BongoCatLive2D *live2d,
+    BongoCatLive2DFrame *required) {
+    (void)live2d; (void)required;
+    return false;
+}
+
+void bongo_cat_live2d_set_frame(BongoCatLive2D *live2d,
+    const BongoCatLive2DFrame *frame) {
+    (void)live2d; (void)frame;
+}
+bool bongo_cat_live2d_refresh_textures(BongoCatLive2D *live2d,
+    bool active, bool allow_start) {
+    (void)live2d; (void)active; (void)allow_start; return false;
+}
+bool bongo_cat_live2d_texture_refresh_busy(const BongoCatLive2D *live2d) {
+    (void)live2d; return false;
+}
+void bongo_cat_live2d_cancel_texture_refresh(BongoCatLive2D *live2d) {
+    (void)live2d;
+}
 void bongo_cat_live2d_draw(BongoCatLive2D *live2d) { (void)live2d; }
+void bongo_cat_live2d_set_vertical_flip(BongoCatLive2D *live2d, bool flipped) {
+    (void)live2d; (void)flipped;
+}
+
 void bongo_cat_live2d_set_mirror(BongoCatLive2D *live2d, bool mirror) {
     (void)live2d; (void)mirror;
 }

@@ -60,8 +60,8 @@ bool bongo_cat_preferences_gl_create(BongoCatPreferences *value) {
     return true;
 }
 
-void bongo_cat_preferences_gl_destroy(BongoCatPreferences *value) {
-    if (!value || !value->gl_context) return;
+bool bongo_cat_preferences_gl_destroy(BongoCatPreferences *value) {
+    if (!value || !value->gl_context) return true;
     SDL_Log("[runtime] Preferences OpenGL context release: "
         "settings_window=%p settings_context=%p current_window=%p "
         "current_context=%p", (void *)value->window,
@@ -69,7 +69,8 @@ void bongo_cat_preferences_gl_destroy(BongoCatPreferences *value) {
         (void *)SDL_GL_GetCurrentContext());
     if (SDL_GL_GetCurrentContext() == value->gl_context)
         SDL_GL_MakeCurrent(value->app->window, value->app->gl_context);
-    if (value->owns_gl_context) SDL_GL_DestroyContext(value->gl_context);
+    bool destroyed = !value->owns_gl_context || SDL_GL_DestroyContext(value->gl_context);
     value->gl_context = NULL;
     value->owns_gl_context = false;
+    return destroyed;
 }

@@ -8,13 +8,14 @@
 #include <stdio.h>
 
 static bool toggle_at(struct nk_context *context, const char *id,
-    bool *value, struct nk_rect cell) {
+    bool *value, struct nk_rect cell, bool available) {
     const float effect_margin = 18.0f;
     struct nk_rect track = nk_rect(cell.x + cell.w - 46 - effect_margin,
         cell.y + (cell.h - 24) * .5f, 46, 24);
     struct nk_rect interaction = nk_rect(track.x, track.y,
         track.w + effect_margin, track.h);
-    bool hover = nk_input_is_mouse_hovering_rect(&context->input, interaction);
+    bool hover = available &&
+        nk_input_is_mouse_hovering_rect(&context->input, interaction);
     bool changed = hover && nk_input_is_mouse_click_in_rect(&context->input,
         NK_BUTTON_LEFT, interaction);
     if (changed) *value = !*value;
@@ -47,7 +48,8 @@ static bool toggle_at(struct nk_context *context, const char *id,
         track.y + (track.h - knob_size) * .5f, knob_size, knob_size);
     if (p.effects) bongo_cat_ui_paint_shadow(context, knob,
         knob_size * .5f, 0, 2, 5, 0, nk_rgba(0, 0, 0, 51));
-    nk_fill_circle(canvas, knob, nk_rgb(255, 255, 255));
+    nk_fill_circle(canvas, knob,
+        available ? nk_rgb(255, 255, 255) : nk_rgb(245, 248, 252));
     if (hover) bongo_cat_ui_cursor_hover_rect(context, interaction,
         BONGO_CAT_UI_CURSOR_POINTER);
     return changed;
@@ -55,9 +57,14 @@ static bool toggle_at(struct nk_context *context, const char *id,
 
 bool bongo_cat_pref_control_toggle(struct nk_context *context,
     const char *id, bool *value) {
+    return bongo_cat_pref_control_toggle_available(context, id, value, true);
+}
+
+bool bongo_cat_pref_control_toggle_available(struct nk_context *context,
+    const char *id, bool *value, bool available) {
     struct nk_rect cell;
     if (nk_widget(&cell, context) == NK_WIDGET_INVALID) return false;
-    return toggle_at(context, id, value, cell);
+    return toggle_at(context, id, value, cell, available);
 }
 
 static bool draw_swatches(struct nk_context *context, const char *id,
@@ -104,6 +111,6 @@ bool bongo_cat_pref_control_obs_background(struct nk_context *context,
     const char *id, bool *enabled, BongoCatObsBackgroundColor *color) {
     struct nk_rect cell;
     if (nk_widget(&cell, context) == NK_WIDGET_INVALID) return false;
-    bool changed = toggle_at(context, id, enabled, cell);
+    bool changed = toggle_at(context, id, enabled, cell, true);
     return (*enabled && draw_swatches(context, id, cell, color)) || changed;
 }

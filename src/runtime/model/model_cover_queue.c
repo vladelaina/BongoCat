@@ -124,7 +124,8 @@ bool bongo_cat_model_cover_pending(const BongoCatApp *app) {
 }
 
 bool bongo_cat_model_cover_capture_due(const BongoCatApp *app, uint64_t now) {
-    size_t index = find_task(app, app ? app->loaded_model : NULL);
+    if (!app) return false;
+    size_t index = find_task(app, app->loaded_model);
     return index != SIZE_MAX &&
         (!app->pending_model_cover_retry_ns[index] ||
         now >= app->pending_model_cover_retry_ns[index]);

@@ -12,29 +12,46 @@
         "title": "Preferencias",
         "labels": {
           "modelSettings": "Modelo",
+          "gamepadFourHands": "Modo de cuatro manos con mando",
+          "dynamicTextureResolution": "Desactivar la resolución dinámica de texturas",
           "mirrorMode": "Modo espejo",
-          "mouseMirror": "Invertir ratón",
-          "mouseCentered": "Ratón centrado en la mascota",
+          "verticalFlip": "Colgar boca abajo",
+          "mouseVerticalFlip": "Invertir ratón verticalmente",
+          "mouseMirror": "Invertir ratón horizontalmente",
+          "mouseCentered": "Desactivar el centrado del ratón en la mascota",
           "ignoreMouse": "Ignorar eventos del ratón",
           "windowSettings": "Ventana",
           "passThrough": "Dejar pasar clics",
           "alwaysOnTop": "Siempre visible",
           "keepInScreen": "Mantener en pantalla",
           "windowSize": "Tamaño de la ventana",
+          "resetPosition": "Restablecer",
+          "windowCorners": "Esquinas redondeadas",
           "opacity": "Opacidad",
           "randomExpression": "Expresiones aleatorias",
+          "randomMotion": "Movimientos aleatorios",
+          "secondsUnit": "s",
           "obsBackground": "Fondo sólido",
           "hideOnHover": "Ocultar al pasar el ratón",
+          "hideFadeSeconds": "Duración del fundido (s)",
           "maxFPS": "Frecuencia máxima de fotogramas"
         },
         "hints": {
-          "passThrough": "Al activarlo, los clics atraviesan la ventana sin afectarla.",
+          "dynamicTextureResolution": "Ajusta automáticamente la resolución de las texturas al tamaño real de visualización, conservando los detalles de la imagen y optimizando el uso de la memoria de vídeo. Por lo general, no se recomienda activar esta opción.",
+          "hoverRequires": "Requiere activar las opciones [Paso de clics] y [Siempre visible] de arriba.",
+          "hoverUnavailable": "Ocultar al pasar el cursor no está disponible en el entorno de escritorio actual.",
+          "gamepadFourHands": "Muestra siempre dos manos adicionales en el modo mando. El aspecto depende del modelo",
+          "gameCompatibility": "Actívalo si la mascota no responde en los juegos y cambia al modo ventana en los ajustes del juego",
+          "gameCompatibilityHelp": "Al activarlo, BongoCat se reiniciará con permisos de administrador. También usará estos permisos cada vez que se inicie. Al desactivar esta opción, volverá a ejecutarse con permisos normales.\n\n¿Por qué necesita permisos de administrador una mascota de escritorio?\n\nAlgunos juegos se ejecutan con permisos de administrador. Como Windows aísla los procesos con distintos niveles de permisos, BongoCat con permisos normales puede no recibir las entradas del teclado y el ratón de esos juegos, y la mascota deja de responder.\n\nEn términos sencillos, es como si el juego y BongoCat estuvieran en pisos diferentes. Algunos juegos funcionan en un nivel de permisos superior, por lo que BongoCat con permisos normales no puede recibir sus entradas. Tú juegas arriba y BongoCat está abajo: el sonido no llega, así que la mascota no puede moverse siguiendo tus acciones.\n\nSi no juegas a este tipo de juegos, puedes dejar esta opción desactivada. No solicitaremos permisos de administrador cuando no sean necesarios.",
+          "gameCompatibilityFailed": "No se pudo cambiar el modo de compatibilidad con juegos.",
+          "passThrough": "También puedes desactivarlo con un clic derecho en el icono de la bandeja",
           "alwaysOnTop": "Al activarlo, la ventana permanece por encima de las demás.",
           "keepInScreen": "Al activarlo, la ventana se mantiene automáticamente dentro de los límites de la pantalla.",
           "obsBackground": "¿La captura de ventana aparece en negro?",
           "obsBackgroundHelp": "OBS: activa esta opción, usa el método compatible con Windows 7 y elimina el fondo con un filtro de clave de color.",
-          "windowSize": "Mueva el ratón al borde de la ventana o mantenga Mayús y arrastre con el botón derecho para cambiar el tamaño.",
-          "hideOnHover": "Al activarlo, la ventana se oculta automáticamente al pasar el ratón. Puede definir un retardo; 0 significa ocultar inmediatamente."
+          "windowSize": "Usa la [rueda] para cambiar el tamaño o [mantén pulsado el botón derecho] y arrastra a la derecha para ampliar o a la izquierda para reducir",
+          "dynamicTextureResolutionFailed": "Unable to reload the model with the selected texture mode.",
+          "hideOnHover": "Con el paso de clics y Siempre visible activados, la mascota se oculta inmediatamente al pasar el ratón y reaparece al retirarlo."
         }
       },
       "general": {
@@ -42,6 +59,7 @@
         "labels": {
           "appSettings": "Aplicación",
           "launchOnStartup": "Iniciar con el sistema",
+          "gameCompatibility": "Modo de compatibilidad con juegos",
           "showTrayIcon": "Mostrar icono en la bandeja",
           "appearanceSettings": "Apariencia",
           "themeMode": "Tema",
@@ -58,8 +76,8 @@
         "hints": {
           "showTrayIcon": "Al activarlo, el icono de la aplicación aparece en la bandeja del sistema.",
           "autostartFailed": "No se pudo actualizar la configuración de inicio automático",
-          "inputMonitoringPermission": "Active la supervisión de entrada para recibir eventos de teclado y ratón del sistema.",
-          "inputMonitoringPermissionGuide": "Se necesita el permiso de supervisión de entrada para que la aplicación reciba eventos de teclado y ratón del sistema.\n\nPasos:\n1. Abra Ajustes del Sistema > Privacidad y seguridad > Supervisión de entrada.\n2. Si BongoCat ya aparece en la lista, selecciónelo y pulse el botón \"-\" para eliminarlo.\n3. Pulse el botón \"+\" para buscar y añadir BongoCat.\n4. Reinicie la aplicación para que el permiso tenga efecto.",
+          "inputMonitoringPermission": "Reinicie tras autorizar.",
+          "inputMonitoringPermissionGuide": "La Supervisión de entrada permite que BongoCat vea las teclas pulsadas en otras aplicaciones; el ratón sigue funcionando sin ella. BongoCat crea la escucha al iniciarse, así que un cambio de permiso requiere reiniciar.\n\nPasos:\n1. Abra Ajustes del Sistema → Privacidad y seguridad → Supervisión de entrada.\n2. Active la entrada de BongoCat que ya aparece en la lista; no elimine entradas existentes.\n3. Si BongoCat no está en la lista, pulse \"+\" y añada la copia que está ejecutando (compruebe la ubicación de la aplicación).\n4. Cierre BongoCat por completo y vuelva a iniciarlo para que reconstruya la escucha.\n\nSi el teclado sigue sin responder, puede eliminar y volver a añadir la entrada de BongoCat.",
           "administratorPermission": "Ejecutar la aplicación como administrador ayuda a capturar con mayor fiabilidad algunas teclas del sistema y eventos de entrada.",
           "administratorPermissionGuide": "Para capturar con mayor fiabilidad algunas teclas del sistema y eventos de entrada, se recomienda ejecutar la aplicación como administrador.\n\nCómo hacerlo:\n1. Cierre primero la aplicación.\n2. Busque el archivo exe o su acceso directo en el Explorador de archivos.\n3. Elija cómo iniciarla:\n   - Una vez: haga clic con el botón derecho y elija \"Ejecutar como administrador\".\n   - Siempre: clic derecho > Propiedades > Compatibilidad > marque \"Ejecutar este programa como administrador\" > Aceptar."
         },
@@ -67,7 +85,8 @@
           "authorized": "Autorizado",
           "adminEnabled": "Activado",
           "authorize": "Activar",
-          "viewGuide": "Ver instrucciones"
+          "viewGuide": "Ver instrucciones",
+          "openSettingsFailed": "Ajustes del Sistema → Privacidad y seguridad → Supervisión de entrada."
         },
         "buttons": {
           "openNow": "Abrir ahora",
@@ -86,19 +105,23 @@
           "deleteSuccess": "Se eliminó \"%s\"",
           "deleteModel": "¿Seguro que quiere eliminar \"%s\"?",
           "deleteFailed": "No se pudo eliminar este modelo",
-          "importSuccess": "Importado correctamente",
-          "importExists": "El modelo ya existe",
-          "importBatchResult": "Importación correcta: %zu; fallida: %zu. Modelos fallidos: %s%s. Primer error: %s",
+          "importSuccess": "Se importaron %zu modelos: %s",
+          "importExists": "Ya existen %zu modelos: %s",
+          "importBatchResult": "No se pudieron importar %zu modelos: %s.\nPrimer error: %s",
           "importMoreFailures": " y %zu más",
           "importUnknownSource": "fuente desconocida",
           "importInvalidSource": "La fuente seleccionada ya no existe o no se puede utilizar",
           "importInvalidFormat": "No se encontró ningún modelo compatible o el paquete del modelo está incompleto",
+          "importUnsupportedArchive": "Solo se admiten archivos ZIP. Extraiga el archivo e importe la carpeta del modelo, o vuelva a comprimirlo como ZIP antes de importarlo",
           "importFileAccess": "No se pudieron leer o guardar los archivos del modelo. Compruebe los permisos y el espacio disponible en el disco",
           "importOutOfMemory": "No hay memoria suficiente para importar este modelo",
           "importLoadFailed": "El modelo se importó, pero no se pudo mostrar",
           "importFailed": "Error al importar el modelo. Compruebe los archivos seleccionados e inténtelo de nuevo",
+          "shortcutLoadFailed": "No se pudieron cargar los atajos del modelo. Compruebe los archivos de configuración del modelo",
+          "behaviorLoadFailed": "No se pudieron cargar las acciones del modelo. Compruebe que los archivos del modelo estén completos y se puedan leer",
+          "shortcutSaveFailed": "No se pudo guardar el atajo del modelo. Compruebe los permisos de los archivos y el espacio disponible en el disco",
+          "behaviorRenameLimit": "No se pueden guardar más nombres de acciones personalizados. Se ha alcanzado el límite de ajustes personalizados",
           "clickOrDragToImport": "Haz clic o arrastra una carpeta",
-          "supportedImportFormats": "Compatible con Mver y Tauri",
           "openDirectoryFailed": "No se pudo abrir la carpeta del modelo"
         },
         "tooltips": {
@@ -107,10 +130,12 @@
           "moreModels": "Más modelos"
         },
         "behaviorModal": {
-          "title": "Movimientos y expresiones",
+          "title": "Movimientos, expresiones y audio",
           "labels": {
             "motion": "Movimiento",
             "expression": "Expresión",
+            "audio": "Audio",
+            "stopAllAudio": "Detener todo el audio",
             "motionIndex": "Movimiento {index}",
             "motionGroupIndex": "Grupo de movimientos {index}",
             "expressionIndex": "Expresión {index}"
@@ -167,6 +192,7 @@
         "showCat": "Mostrar mascota",
         "passThrough": "Dejar pasar clics",
         "alwaysOnTop": "Siempre visible",
+        "cancelAlwaysOnTop": "Desactivar siempre visible",
         "windowSize": "Tamaño de la ventana",
         "opacity": "Opacidad",
         "motion": "Movimientos",
@@ -187,6 +213,24 @@
     }
   },
   "native": {
+    "about": {
+      "wechat": "WeChat",
+      "wechatHint": "Hover to scan and chat",
+      "loading": "Loading...",
+      "contributorsFailed": "Cannot load contributors. Click to retry.",
+      "qrUnavailable": "QR code unavailable",
+      "reload": "Reload",
+      "qrFailed": "QR code unavailable. Click to retry.",
+      "contributorsTitle": "Open source & community contributions",
+      "contributorsText": "Every step of BongoCat comes from the power of open source. Thank you to all community contributors for making desktop companionship freer and simpler.",
+      "joinTitle": "Want to appear in the contributors list?",
+      "joinText": "Whether you contribute code, improve documentation, report bugs or translate, every contribution makes BongoCat better.",
+      "code": "Code",
+      "docs": "Documentation",
+      "bugs": "Bug reports",
+      "translations": "Translations",
+      "joinGithub": "Contribute on GitHub"
+    },
     "multiplePets": "Mostrar varias a la vez",
     "multiplePetsLimit": "Se pueden mostrar hasta 8 mascotas a la vez",
     "removeDesktopPet": "Cerrar esta mascota de escritorio",
@@ -211,7 +255,8 @@
       "checkingUpdate": "Comprobando...",
       "updateAvailable": "Nueva versión disponible:",
       "updateFailed": "No se pudieron buscar actualizaciones",
-      "downloadUpdate": "Descargar v%s",
+      "updateHttpFailed": "GitHub devolvió el estado HTTP %s",
+      "downloadUpdate": "Actualizar a v%s",
       "openStore": "Abrir Microsoft Store",
       "viewReleases": "Ver versiones",
       "openUpdateFailed": "No se pudo abrir la página de actualización",
@@ -227,6 +272,7 @@
     "shortcut": {
       "toggleCat": "Mostrar/ocultar",
       "preferences": "Preferencias",
+      "openMenu": "Mostrar/ocultar menú radial",
       "mirror": "Espejo",
       "passThrough": "Dejar pasar clics",
       "alwaysOnTop": "Siempre visible"

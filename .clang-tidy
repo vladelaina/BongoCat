@@ -1,0 +1,16 @@
+Checks: >-
+  -*,
+  clang-analyzer-core.*,
+  clang-analyzer-unix.*,
+  clang-analyzer-cplusplus.*,
+  bugprone-sizeof-expression,
+  bugprone-suspicious-memory-comparison,
+  bugprone-suspicious-memset-usage,
+  bugprone-suspicious-string-compare,
+  bugprone-undefined-memory-manipulation,
+  bugprone-use-after-move,
+  bugprone-integer-division,
+  bugprone-misplaced-widening-cast
+WarningsAsErrors: '*'
+CheckOptions:
+  bugprone-suspicious-string-compare.WarnOnImplicitComparison: false

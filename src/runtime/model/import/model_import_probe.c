@@ -1,12 +1,70 @@
 #include "model_import_probe.h"
+#include "model_import_path.h"
 #include "mver/model_import_mver.h"
 #include "tauri/model_import_tauri.h"
 
 #include <SDL3/SDL.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 typedef int (*ExactProbe)(const char *source,
     BongoCatImportDiscovery *discovery, BongoCatError *error);
+
+static int probe_live2d_owner_at(const char *directory,
+    BongoCatImportDiscovery *discovery, BongoCatError *error) {
+    memset(discovery, 0, sizeof(*discovery));
+    /* Mver's adapter owns parent lookup and protects bundled Live2D models
+       from being converted as standalone Tauri sources. */
+    int found = bongo_cat_import_mver_discover(directory, discovery, error);
+    return found ? found : bongo_cat_import_tauri_discover_exact(directory,
+        discovery, error);
+}
+
+BongoCatResult bongo_cat_import_probe_live2d_owner(const char *source,
+    char *directory, size_t capacity, BongoCatError *error) {
+    char current[BONGO_CAT_PATH_CAP];
+    if (!directory || !capacity ||
+        !bongo_cat_import_parent_path(source, current, sizeof(current))) {
+        bongo_cat_error_set(error, BONGO_CAT_ERROR_ARGUMENT,
+            "Cannot determine the selected model file directory");
+        return BONGO_CAT_ERROR_ARGUMENT;
+    }
+    BongoCatImportDiscovery *discovery = calloc(1, sizeof(*discovery));
+    if (!discovery) {
+        bongo_cat_error_set(error, BONGO_CAT_ERROR_MEMORY,
+            "Cannot allocate model source discovery workspace");
+        return BONGO_CAT_ERROR_MEMORY;
+    }
+    BongoCatResult result = BONGO_CAT_ERROR_FORMAT;
+    int found = 0;
+    for (int depth = 0; depth < 12; ++depth) {
+        BongoCatError probe_error = {0};
+        found = probe_live2d_owner_at(current, discovery, &probe_error);
+        if (found < 0) {
+            if (error) *error = probe_error;
+            result = probe_error.code ? probe_error.code : BONGO_CAT_ERROR_FORMAT;
+            break;
+        }
+        if (found > 0) {
+            int length = snprintf(directory, capacity, "%s",
+                discovery->candidates[0].package_root);
+            result = length >= 0 && (size_t)length < capacity
+                ? BONGO_CAT_OK : BONGO_CAT_ERROR_ARGUMENT;
+            if (result != BONGO_CAT_OK) bongo_cat_error_set(error, result,
+                "Model import path is too long");
+            break;
+        }
+        char parent[BONGO_CAT_PATH_CAP];
+        if (!bongo_cat_import_parent_path(current, parent, sizeof(parent)) ||
+            strcmp(current, parent) == 0) break;
+        snprintf(current, sizeof(current), "%s", parent);
+    }
+    free(discovery);
+    if (!found) bongo_cat_error_set(error, BONGO_CAT_ERROR_FORMAT,
+        "No supported model package found above Live2D .moc3 file: %s", source);
+    return result;
+}
 
 const char *bongo_cat_import_format_name(BongoCatImportFormat format) {
     switch (format) {

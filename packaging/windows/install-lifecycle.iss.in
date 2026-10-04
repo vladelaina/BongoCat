@@ -1,0 +1,147 @@
+{ Installation discovery, upgrade migration, and uninstall data policy. }
+const
+  UninstallBase = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\';
+var
+  ExistingDir: String;
+  RemoveUserData: Boolean;
+
+function CompareVersions(Left, Right: String): Integer;
+var
+  LeftVersion, RightVersion: Int64;
+begin
+  if not StrToVersion(Left, LeftVersion) then
+    RaiseException('Invalid installed version: ' + Left);
+  if not StrToVersion(Right, RightVersion) then
+    RaiseException('Invalid package version: ' + Right);
+  Result := ComparePackedVersion(LeftVersion, RightVersion);
+end;
+
+function RegisteredDir(Root: Integer; Key: String): String;
+begin
+  Result := '';
+  RegQueryStringValue(Root, UninstallBase + Key, 'InstallLocation', Result);
+  if (Result = '') and (Key = 'BongoCat') then
+    RegQueryStringValue(Root, 'Software\BongoCat\BongoCat', '', Result);
+  Result := RemoveBackslashUnlessRoot(RemoveQuotes(Result));
+  if not FileExists(Result + '\BongoCat.exe') then Result := '';
+end;
+
+function FindExistingDir: String;
+begin
+  { Prefer Inno's registration after the first migration, in either view. }
+  Result := RegisteredDir(HKCU32, 'BongoCat_is1');
+  if (Result = '') and IsWin64 then Result := RegisteredDir(HKCU64, 'BongoCat_is1');
+  if Result = '' then Result := RegisteredDir(HKCU32, 'BongoCat');
+  if (Result = '') and IsWin64 then Result := RegisteredDir(HKCU64, 'BongoCat');
+  if Result = '' then begin
+    Result := ExpandConstant('{localappdata}\Programs\BongoCat');
+    if not FileExists(Result + '\BongoCat.exe') then Result := '';
+  end;
+  if Result = '' then begin
+    Result := ExpandConstant('{localappdata}\..\LocalPrograms\BongoCat');
+    if not FileExists(Result + '\BongoCat.exe') then Result := '';
+  end;
+end;
+
+function GetInstallDir(Param: String): String;
+begin
+  if ExistingDir <> '' then Result := ExistingDir
+  else Result := ExpandConstant('{localappdata}\Programs\BongoCat');
+end;
+
+function InitializeSetup: Boolean;
+var
+  Version: String;
+begin
+  ExistingDir := FindExistingDir;
+  Result := True;
+  { Equal versions must be allowed: a same-version NSIS -> Inno migration
+    still has to replace the installer registration. Never downgrade. }
+  if (ExistingDir <> '') and
+     GetVersionNumbersString(ExistingDir + '\BongoCat.exe', Version) then
+    if CompareVersions(Version, '@PROJECT_VERSION@') > 0 then begin
+      SuppressibleMsgBox('A newer version of BongoCat is already installed.', mbError, MB_OK, IDOK);
+      Result := False;
+    end;
+end;
+
+procedure InitializeWizard;
+begin
+  if ExistingDir <> '' then begin
+    WizardForm.DirEdit.Text := ExistingDir;
+    WizardForm.DirEdit.Enabled := False;
+    WizardForm.DirBrowseButton.Enabled := False;
+  end;
+end;
+
+function ShouldSkipPage(PageID: Integer): Boolean;
+begin
+  Result := (PageID = wpSelectDir) and (ExistingDir <> '');
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  App, Version: String;
+  ExitCode: Integer;
+begin
+  Result := '';
+  if (ExistingDir <> '') and
+     (CompareText(RemoveBackslashUnlessRoot(ExpandConstant('{app}')),
+       RemoveBackslashUnlessRoot(ExistingDir)) <> 0) then begin
+    Result := 'An upgrade must use the existing BongoCat installation directory.';
+    Exit;
+  end;
+  App := ExpandConstant('{app}\BongoCat.exe');
+  if GetVersionNumbersString(App, Version) then begin
+    if CompareVersions(Version, '@PROJECT_VERSION@') > 0 then begin
+      Result := 'A newer version of BongoCat is already installed in this directory.';
+      Exit;
+    end;
+    { 0.1.0 treats unknown switches as a normal launch and would wait forever.
+      Inno Restart Manager handles that version and any shutdown failures. }
+    if CompareVersions(Version, '0.1.1') >= 0 then
+      if not Exec(App, '--shutdown-for-update', ExpandConstant('{app}'),
+          SW_HIDE, ewWaitUntilTerminated, ExitCode) then
+        Log('Update shutdown unavailable; using Restart Manager.');
+  end;
+end;
+
+procedure RemoveLegacyRegistration(Root: Integer);
+var
+  Path: String;
+begin
+  Path := RegisteredDir(Root, 'BongoCat');
+  if (Path <> '') and
+     (CompareText(Path, RemoveBackslashUnlessRoot(ExpandConstant('{app}'))) = 0) then begin
+    if not RegDeleteKeyIncludingSubkeys(Root, UninstallBase + 'BongoCat') then
+      Log('Could not remove the legacy NSIS uninstall registration.');
+    RegDeleteKeyIncludingSubkeys(Root, 'Software\BongoCat\BongoCat');
+  end;
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then begin
+    { Only retire NSIS after successful installation. Do not run its uninstaller:
+      old releases may delete user files. Inno owns only its installed payload. }
+    RemoveLegacyRegistration(HKCU32);
+    if IsWin64 then RemoveLegacyRegistration(HKCU64);
+    DeleteFile(ExpandConstant('{app}\Uninstall.exe'));
+    DeleteFile(ExpandConstant('{userprograms}\BongoCat\Uninstall BongoCat.lnk'));
+  end;
+end;
+
+function InitializeUninstall: Boolean;
+begin
+  RemoveUserData := False;
+  if not UninstallSilent then
+    RemoveUserData := MsgBox('Also delete settings, imported models, and other BongoCat user data?'
+      + #13#10 + 'Choose No to keep your data.', mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES;
+  Result := True;
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if (CurUninstallStep = usPostUninstall) and RemoveUserData then
+    DelTree(ExpandConstant('{localappdata}\BongoCat'), True, True, True);
+end;

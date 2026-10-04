@@ -4,6 +4,9 @@
 #include <SDL3/SDL.h>
 #include <stdio.h>
 #include <string.h>
+#ifndef _WIN32
+#include <strings.h>
+#endif
 
 static bool mver_input_assets(const char *directory) {
     char path[BONGO_CAT_PATH_CAP], group[BONGO_CAT_PATH_CAP];

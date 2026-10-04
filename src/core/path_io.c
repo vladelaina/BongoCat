@@ -90,7 +90,8 @@ bool bongo_cat_path_copy_file(const char *source, const char *target) {
     unsigned char buffer[8192]; bool ok = true; size_t count;
     while ((count = fread(buffer, 1, sizeof(buffer), input)) > 0)
         if (fwrite(buffer, 1, count, output) != count) { ok = false; break; }
-    if (ferror(input) || fclose(input) != 0) ok = false;
+    if (ferror(input)) ok = false;
+    if (fclose(input) != 0) ok = false;
     if (fclose(output) != 0) ok = false;
     if (!ok) remove(target);
     return ok;

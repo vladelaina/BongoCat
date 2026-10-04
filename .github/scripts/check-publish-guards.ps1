@@ -41,8 +41,15 @@ function Get-PublishingGuardFailures {
     $buildJob = @($jobMatches | Where-Object {
         $_.Groups[1].Value -eq 'build'
     } | Select-Object -First 1)
-    $protectedBuild = $buildJob.Count -eq 1 -and
-        $buildJob[0].Value.Contains('-DBONGO_CAT_REQUIRE_CUBISM=ON')
+    $cubismRequirementMarkers = @(
+        '-DBONGO_CAT_REQUIRE_CUBISM=ON',
+        '-RequireCubism'
+    )
+    $protectedBuild = $buildJob.Count -eq 1 -and @(
+        $cubismRequirementMarkers | Where-Object {
+            $buildJob[0].Value.Contains($_)
+        }
+    ).Count -gt 0
 
     foreach ($job in $jobMatches) {
         $jobName = $job.Groups[1].Value
@@ -61,8 +68,13 @@ function Get-PublishingGuardFailures {
         }).Count -gt 0
         $usesProtectedBuild = $protectedBuild -and $jobText -match
             '(?m)^\s+needs:\s*(?:build|\[[^\]]*\bbuild\b[^\]]*\])\s*$'
+        $hasCubismRequirement = @(
+            $cubismRequirementMarkers | Where-Object {
+                $jobText.Contains($_)
+            }
+        ).Count -gt 0
         if ($publishesRuntimeArtifacts -and
-            -not $jobText.Contains('-DBONGO_CAT_REQUIRE_CUBISM=ON') -and
+            -not $hasCubismRequirement -and
             -not $usesProtectedBuild) {
             $failures += "$Label`: job '$jobName' publishes artifacts without " +
                 'requiring a Cubism SDK build'
@@ -117,7 +129,8 @@ if ($SelfTest) {
         }
         $withoutCubism = $selfTestText.Replace(
             '-DBONGO_CAT_REQUIRE_CUBISM=ON',
-            '-DBONGO_CAT_REQUIRE_CUBISM=OFF')
+            '-DBONGO_CAT_REQUIRE_CUBISM=OFF').Replace(
+            '-RequireCubism', '')
         $cubismFailures = @(Get-PublishingGuardFailures `
             -Text $withoutCubism -Label 'self-test')
         if (-not ($cubismFailures -match 'requiring a Cubism SDK build')) {

@@ -4,12 +4,25 @@
 #include "preferences_internal.h"
 #include "model_import.h"
 
+typedef struct BongoCatImportSummary {
+    char ids[BONGO_CAT_MODEL_CAP][BONGO_CAT_ID_CAP];
+    bool imported[BONGO_CAT_MODEL_CAP];
+    size_t count;
+    size_t failed_count;
+    size_t failed_name_count;
+    char failed_names[BONGO_CAT_IMPORT_FAILURE_NAME_CAP][BONGO_CAT_ID_CAP];
+    BongoCatError error;
+} BongoCatImportSummary;
+
 typedef struct BongoCatImportJob {
+    struct BongoCatImportJob *next;
+    SDL_WindowID window_id;
     size_t count;
     char **paths;
     char models_root[BONGO_CAT_PATH_CAP];
     char package_ids[BONGO_CAT_MODEL_CAP][BONGO_CAT_ID_CAP];
     bool package_refresh_requested[BONGO_CAT_MODEL_CAP];
+    bool package_imported[BONGO_CAT_MODEL_CAP];
     size_t package_id_count;
     size_t resolved_count;
     size_t installed_count;
@@ -47,6 +60,9 @@ struct BongoCatImportDialog {
     SDL_WindowID window_id;
     SDL_Thread *worker;
     BongoCatImportJob *worker_job;
+    BongoCatImportJob *pending_head;
+    BongoCatImportJob *pending_tail;
+    BongoCatImportSummary summary;
     uint64_t started_ns;
     size_t completed;
     size_t total;
@@ -71,5 +87,11 @@ void bongo_cat_preferences_import_job_free(BongoCatImportJob *job);
 void bongo_cat_preferences_import_dialog_release(
     BongoCatImportDialog *dialog);
 int SDLCALL bongo_cat_preferences_import_worker(void *userdata);
+void bongo_cat_preferences_import_merge(BongoCatImportSummary *summary,
+    const BongoCatImportJob *job);
+void bongo_cat_preferences_import_message(BongoCatApp *app,
+    const BongoCatImportSummary *summary, char *message, size_t capacity);
+void bongo_cat_preferences_import_complete(BongoCatApp *app,
+    const BongoCatImportSummary *summary);
 
 #endif

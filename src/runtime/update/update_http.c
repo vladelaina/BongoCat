@@ -45,6 +45,17 @@ static bool response_status(HINTERNET request, DWORD *status) {
         WINHTTP_NO_HEADER_INDEX) != FALSE;
 }
 
+static const char *winhttp_error_name(DWORD code) {
+    switch (code) {
+    case ERROR_WINHTTP_TIMEOUT: return "network timeout";
+    case ERROR_WINHTTP_NAME_NOT_RESOLVED: return "DNS lookup failed";
+    case ERROR_WINHTTP_CANNOT_CONNECT: return "network connection refused";
+    case ERROR_WINHTTP_CONNECTION_ERROR: return "network connection error";
+    case ERROR_WINHTTP_SECURE_FAILURE: return "TLS/SSL certificate error";
+    default: return "network request failed";
+    }
+}
+
 static char *read_response(BongoCatUpdateService *service,
     HINTERNET request) {
     size_t capacity = UPDATE_INITIAL_CAPACITY, length = 0;
@@ -106,6 +117,7 @@ BongoCatUpdateFetchResult bongo_cat_update_http_fetch(
     bool sent = requested && WinHttpSendRequest(request, headers,
         (DWORD)-1L, WINHTTP_NO_REQUEST_DATA, 0, 0, 0) &&
         WinHttpReceiveResponse(request, NULL);
+    DWORD request_error = sent ? ERROR_SUCCESS : GetLastError();
     DWORD status = 0;
     bool valid_status = sent && response_status(request, &status) &&
         status == 200;
@@ -116,7 +128,8 @@ BongoCatUpdateFetchResult bongo_cat_update_http_fetch(
     release_handle(service, &service->http_session, session);
     if (cancelled(service)) return BONGO_CAT_UPDATE_FETCH_CANCELLED;
     if (!sent) {
-        snprintf(error, error_capacity, "Cannot connect to GitHub");
+        snprintf(error, error_capacity, "Network error: %s (code %lu)",
+            winhttp_error_name(request_error), (unsigned long)request_error);
         return BONGO_CAT_UPDATE_FETCH_NETWORK;
     }
     if (!valid_status) {
@@ -145,22 +158,6 @@ void bongo_cat_update_http_cancel(BongoCatUpdateService *service) {
     if (request) WinHttpCloseHandle(request);
     if (connection) WinHttpCloseHandle(connection);
     if (session) WinHttpCloseHandle(session);
-}
-
-#else
-
-BongoCatUpdateFetchResult bongo_cat_update_http_fetch(
-    BongoCatUpdateService *service, char **response, char *error,
-    size_t error_capacity) {
-    (void)service;
-    *response = NULL;
-    snprintf(error, error_capacity,
-        "Automatic updates are not available on this platform yet");
-    return BONGO_CAT_UPDATE_FETCH_UNSUPPORTED;
-}
-
-void bongo_cat_update_http_cancel(BongoCatUpdateService *service) {
-    (void)service;
 }
 
 #endif
