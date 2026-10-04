@@ -135,14 +135,18 @@ void bongo_cat_preferences_process_model_selection(BongoCatPreferences *value) {
 static void smoke_model_behavior(BongoCatPreferences *value) {
     BongoCatApp *app = value->app;
     if (app->smoke_preference_model_select) {
+        const BongoCatModelEntry *candidate = NULL;
         for (size_t i = 0; i < app->models.count; ++i) {
             const BongoCatModelEntry *entry = &app->models.entries[i];
-            if (entry->preset || !strcmp(entry->id,
-                app->session.active_model_id)) continue;
+            if (!strcmp(entry->id, app->session.active_model_id)) continue;
+            if (!candidate || !entry->preset) candidate = entry;
+            if (!entry->preset) break;
+        }
+        if (candidate) {
             app->smoke_preference_model_select = false;
             value->smoke_behavior_open_pending = true;
-            SDL_Log("Preferences smoke selecting model %s", entry->id);
-            bongo_cat_preferences_model_select(value, entry);
+            SDL_Log("Preferences smoke selecting model %s", candidate->id);
+            bongo_cat_preferences_model_select(value, candidate);
             return;
         }
     }

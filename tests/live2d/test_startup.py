@@ -22,6 +22,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("binary", type=Path)
     parser.add_argument("output", type=Path)
+    parser.add_argument("--model", choices=("standard", "keyboard", "gamepad"), default="standard")
     parser.add_argument("--exit-ms", type=int, default=1500)
     parser.add_argument("--deadline", type=float, default=15)
     parser.add_argument("--ignore-input", action="store_true")
@@ -30,7 +31,7 @@ def main():
     binary, output = args.binary.resolve(), args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
     storage = output / "storage"
-    command = [str(binary), "--ci-smoke", "--ci-model=standard",
+    command = [str(binary), "--ci-smoke", f"--ci-model={args.model}",
                "--ci-frame-series", f"--ci-exit-ms={args.exit_ms}",
                f"--storage-root={storage}"]
     if args.ignore_input:
@@ -76,14 +77,14 @@ def main():
         "bounded_normal_exit": report["returncode"] == 0 and not report["timeout"],
         "actual_initialization": "[runtime] Process started:" in stderr and "Startup stage: window-ready" in stderr,
         "full_cubism_runtime": "Live2D Cubism SDK Core Version" in stdout and "diagnostic backend" not in stdout + stderr,
-        "selected_standard_completed": "Model load completed: id=standard" in stderr,
+        "selected_model_completed": f"Model load completed: id={args.model}" in stderr,
         "startup_ready": "[runtime] Startup ready" in stderr,
         "clean_shutdown": "Shutdown started: stage=shutdown:normal exit_code=0" in stderr and "Shutdown complete: exit_code=0" in stderr,
         "visible_frame_readback": "First-frame diagnosis: OpenGL framebuffer contains visible content" in stderr,
         "visible_model_frames": len(visible_rows) >= 2 and all(
-            row["model_mode"] == "standard" and row["model_state_consistent"] == "1"
-            and row.get("loaded_model") == "standard"
-            and row.get("active_model") == "standard"
+            row["model_mode"] == args.model and row["model_state_consistent"] == "1"
+            and row.get("loaded_model") == args.model
+            and row.get("active_model") == args.model
             and int(row["visible_pixels"]) > 100 and int(row["alpha_pixels"]) > 100
             and row["window_config_visible"] == "1" and row["window_os_visible"] == "1"
             for row in visible_rows),

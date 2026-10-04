@@ -168,6 +168,22 @@ cleanup currently needs a debugger: clear a required GLEW entry after initializa
 but before validation and require a named platform error and clean startup-failure
 exit, rather than a crash.
 
+Use `--model=keyboard` or `--model=gamepad` to check the other built-ins. Run the
+settings/context sequence separately in both Debug and Release builds:
+
+```bash
+python3 tests/live2d/test_runtime_flow.py \
+  build/BongoCat.app/Contents/MacOS/BongoCat \
+  "$BONGO_STARTUP_EVIDENCE/runtime-flow" --cwd "$BONGO_STARTUP_EVIDENCE"
+```
+
+This takes about 24 seconds after startup and allows a 90-second external
+deadline. It requires every scale, opacity, model, settings-open/reopen and
+recovery stage, actual changed-model selections, visible frames and clean GL
+context state. Each stage preserves a frame for inspection. Also inspect native
+settings-window captures during both open intervals; the automated check's
+readbacks and UI diagnostics alone do not prove native presentation.
+
 ### ⚙️ CMake Options
 
 | Option | Default | Description |
