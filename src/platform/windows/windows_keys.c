@@ -2,10 +2,18 @@
 
 #ifdef _WIN32
 #include <stdio.h>
-#include <string.h>
 
-const char *bongo_cat_windows_key_name(const KBDLLHOOKSTRUCT *key, char output[16]) {
-    DWORD code = key->vkCode;
+unsigned bongo_cat_windows_key_index(const RAWKEYBOARD *key) {
+    if (key->MakeCode && key->MakeCode < 256)
+        return key->MakeCode + ((key->Flags & RI_KEY_E1) ? 512u :
+            (key->Flags & RI_KEY_E0) ? 256u : 0u);
+    return 768u + key->VKey;
+}
+
+const char *bongo_cat_windows_key_name(const RAWKEYBOARD *key, char output[16]) {
+    if (!key || key->VKey < VK_BACK || key->VKey >= 255 ||
+        key->MakeCode == KEYBOARD_OVERRUN_MAKE_CODE) return NULL;
+    unsigned code = key->VKey;
     if (code >= 'A' && code <= 'Z') {
         snprintf(output, 16, "Key%c", (char)code);
         return output;
@@ -15,10 +23,10 @@ const char *bongo_cat_windows_key_name(const KBDLLHOOKSTRUCT *key, char output[1
         return output;
     }
     if (code >= VK_F1 && code <= VK_F24) {
-        snprintf(output, 16, "F%lu", code - VK_F1 + 1);
+        snprintf(output, 16, "F%u", code - VK_F1 + 1);
         return output;
     }
-    if (!(key->flags & LLKHF_EXTENDED)) switch (code) {
+    if (!(key->Flags & RI_KEY_E0)) switch (code) {
     case VK_INSERT: return "Kp0"; case VK_END: return "Kp1";
     case VK_DOWN: return "Kp2"; case VK_NEXT: return "Kp3";
     case VK_LEFT: return "Kp4"; case VK_CLEAR: return "Kp5";
@@ -52,9 +60,9 @@ const char *bongo_cat_windows_key_name(const KBDLLHOOKSTRUCT *key, char output[1
     case VK_RCONTROL: return "ControlRight";
     case VK_LMENU: return "Alt";
     case VK_RMENU: return "AltGr";
-    case VK_SHIFT: return key->scanCode == 0x36 ? "ShiftRight" : "ShiftLeft";
-    case VK_CONTROL: return key->flags & LLKHF_EXTENDED ? "ControlRight" : "ControlLeft";
-    case VK_MENU: return key->flags & LLKHF_EXTENDED ? "AltGr" : "Alt";
+    case VK_SHIFT: return key->MakeCode == 0x36 ? "ShiftRight" : "ShiftLeft";
+    case VK_CONTROL: return key->Flags & RI_KEY_E0 ? "ControlRight" : "ControlLeft";
+    case VK_MENU: return key->Flags & RI_KEY_E0 ? "AltGr" : "Alt";
     case VK_RETURN: return "Return";
     case VK_NUMLOCK: return "NumLock";
     case VK_SCROLL: return "ScrollLock";
@@ -78,64 +86,13 @@ const char *bongo_cat_windows_key_name(const KBDLLHOOKSTRUCT *key, char output[1
     case VK_OEM_PERIOD: return "Period";
     case VK_OEM_2: return "Slash";
     default:
-        snprintf(output, 16, "%lu", code);
+        snprintf(output, 16, "%u", code);
         return output;
     }
 }
 
-bool bongo_cat_windows_keyboard_event(BongoCatWindowsKeyboard *state,
-    const KBDLLHOOKSTRUCT *key, WPARAM message, UINT *drop_key_up,
-    BongoCatWindowsKeyEmit emit, void *userdata) {
-    if (!state || !key || !emit) return false;
-    bool down = message == WM_KEYDOWN || message == WM_SYSKEYDOWN;
-    bool up = message == WM_KEYUP || message == WM_SYSKEYUP;
-    if (!down && !up) return false;
-    if (up && drop_key_up && *drop_key_up == key->vkCode) {
-        *drop_key_up = 0; return true;
-    }
-    char buffer[16];
-    const char *name = bongo_cat_windows_key_name(key, buffer);
-    if (!name || !bongo_cat_input_edge(state->down, key->vkCode, down))
-        return false;
-    if (key->vkCode < BONGO_CAT_INPUT_KEY_STATE_CAP) {
-        state->changed_ms[key->vkCode] = GetTickCount64();
-        if (down) snprintf(state->name[key->vkCode],
-            sizeof(state->name[key->vkCode]), "%s", name);
-        else state->name[key->vkCode][0] = '\0';
-    }
-    emit(down, name, userdata);
-    return true;
-}
-
-bool bongo_cat_windows_keyboard_reconcile_key(BongoCatWindowsKeyboard *state,
-    unsigned code, uint64_t now_ms, bool physically_down,
-    BongoCatWindowsKeyEmit emit, void *userdata) {
-    if (!state || !emit || code >= BONGO_CAT_INPUT_KEY_STATE_CAP ||
-        !state->down[code] || !state->name[code][0] || physically_down ||
-        now_ms < state->changed_ms[code] ||
-        now_ms - state->changed_ms[code] < 50) return false;
-    char name[BONGO_CAT_ID_CAP];
-    snprintf(name, sizeof(name), "%s", state->name[code]);
-    state->down[code] = false;
-    state->name[code][0] = '\0';
-    state->changed_ms[code] = now_ms;
-    emit(false, name, userdata);
-    return true;
-}
-
-void bongo_cat_windows_keyboard_reconcile(BongoCatWindowsKeyboard *state,
-    uint64_t now_ms, BongoCatWindowsKeyEmit emit, void *userdata) {
-    if (!state || !emit) return;
-    for (unsigned code = 0; code < BONGO_CAT_INPUT_KEY_STATE_CAP; ++code) {
-        if (!state->down[code] || !state->name[code][0] ||
-            now_ms < state->changed_ms[code] ||
-            now_ms - state->changed_ms[code] < 50) continue;
-        bongo_cat_windows_keyboard_reconcile_key(state, code, now_ms,
-            (GetAsyncKeyState((int)code) & 0x8000) != 0, emit, userdata);
-    }
-}
-
 bool bongo_cat_windows_right_button_down(void) {
+    /* Native window drag/capture state, not global model input. */
     return (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
 }
 #endif

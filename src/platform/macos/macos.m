@@ -92,12 +92,38 @@ void bongo_cat_platform_shutdown(BongoCatPlatform *platform) {
     bongo_cat_macos_input_stop(platform);
     if (active_platform == platform) active_platform = NULL;
 }
+/* SDL rewrites NSWindow.ignoresMouseEvents from the window shape whenever a mouse move reaches the
+   window, and derives "ignore the mouse" from a transparent shape pixel. Telling SDL the same state
+   through that shape keeps the two from disagreeing, which would otherwise hand the pet back to the
+   window server on the next move. The native property is written afterwards: SDL's answer depends on
+   where the pointer is, while this state has to hold wherever the pointer is. */
+static void apply_click_through_shape(BongoCatPlatform *platform, bool enabled) {
+    if (!(SDL_GetWindowFlags(platform->window) & SDL_WINDOW_TRANSPARENT)) return;
+    SDL_Surface *shape = SDL_CreateSurface(1, 1, SDL_PIXELFORMAT_ARGB32);
+    if (!shape) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_VIDEO,
+            "Click-through window has no shape SDL can follow: %s", SDL_GetError());
+        return;
+    }
+    if (!SDL_WriteSurfacePixel(shape, 0, 0, 0, 0, 0,
+            enabled ? SDL_ALPHA_TRANSPARENT : SDL_ALPHA_OPAQUE) ||
+        !SDL_SetWindowShape(platform->window, shape))
+        SDL_LogWarn(SDL_LOG_CATEGORY_VIDEO,
+            "Click-through state is not described to SDL: %s", SDL_GetError());
+    SDL_DestroySurface(shape);
+}
+
 void bongo_cat_platform_set_click_through(BongoCatPlatform *platform,
     bool forced, bool pointer_transparent) {
-    [native_window(platform) setIgnoresMouseEvents:forced || pointer_transparent];
+    if (!platform || !platform->window) return;
+    bool enabled = forced || pointer_transparent;
+    apply_click_through_shape(platform, enabled);
+    [native_window(platform) setIgnoresMouseEvents:enabled];
 }
 bool bongo_cat_platform_set_opacity(BongoCatPlatform *platform, float opacity) {
     if (!platform || !platform->window) return false;
+    opacity = SDL_clamp(opacity, 0.0f, 1.0f);
+    if (opacity == platform->window_opacity) return true;
     if (!SDL_SetWindowOpacity(platform->window, opacity)) return false;
     platform->window_opacity = opacity;
     return true;
@@ -118,6 +144,14 @@ void bongo_cat_platform_set_visible(BongoCatPlatform *platform, bool visible) {
     if (!platform || !platform->window) return;
     visible ? SDL_ShowWindow(platform->window) : SDL_HideWindow(platform->window); if (visible) configure_capture_window(native_window(platform));
 }
+/* 只在采集软件里显示: macOS 需要虚拟显示器之类的额外机制, 暂不支持 ——
+   设置界面会隐藏这一项。 */
+bool bongo_cat_platform_capture_only_supported(void) { return false; }
+bool bongo_cat_platform_set_capture_only(BongoCatPlatform *platform,
+    bool enabled) {
+    (void)platform; (void)enabled;
+    return false;
+}
 bool bongo_cat_platform_pointer_local(BongoCatPlatform *platform, double screen_x,
     double screen_y, float *local_x, float *local_y) {
     int x, y, width, height;
@@ -127,12 +161,19 @@ bool bongo_cat_platform_pointer_local(BongoCatPlatform *platform, double screen_
     *local_x = (float)(screen_x - x); *local_y = (float)(screen_y - y);
     return *local_x >= 0 && *local_x < width && *local_y >= 0 && *local_y < height;
 }
+bool bongo_cat_platform_pointer_locked(BongoCatPlatform *platform) {
+    (void)platform;
+    return false;
+}
 bool bongo_cat_platform_relative_pointer(BongoCatPlatform *platform,
     double *x, double *y) {
     (void)platform; (void)x; (void)y;
     return false;
 }
 void bongo_cat_platform_relative_pointer_reset(BongoCatPlatform *platform) {
+    (void)platform;
+}
+void bongo_cat_platform_relative_pointer_release(BongoCatPlatform *platform) {
     (void)platform;
 }
 void bongo_cat_platform_set_always_on_top(BongoCatPlatform *platform, bool enabled) {
@@ -178,7 +219,22 @@ void bongo_cat_platform_begin_drag(BongoCatPlatform *platform,
     [target release];
 }
 bool bongo_cat_platform_dynamic_hit_supported(void) {
-    return bongo_cat_macos_input_supported();
+    /* SDL's Cocoa backend polls NSEvent.mouseLocation without an event tap.
+       Input Monitoring is needed for key animation, not window hit testing. */
+    const char *driver = SDL_GetCurrentVideoDriver();
+    return driver && strcmp(driver, "cocoa") == 0;
+}
+bool bongo_cat_platform_native_hit_test(const BongoCatPlatform *platform) {
+    (void)platform;
+    return false;
+}
+
+bool bongo_cat_platform_input_monitoring_authorized(void) {
+    return bongo_cat_macos_input_monitoring_authorized();
+}
+
+bool bongo_cat_platform_input_monitoring_request(void) {
+    return bongo_cat_macos_input_monitoring_request();
 }
 
 bool bongo_cat_platform_open_directory(const char *path) {
@@ -204,6 +260,7 @@ bool bongo_cat_platform_single_instance_begin(void) {
     close(instance_lock); instance_lock = -1; return false;
 }
 bool bongo_cat_platform_single_instance_take_wake(void) { return false; }
+bool bongo_cat_platform_single_instance_take_settings(void) { return false; }
 void bongo_cat_platform_single_instance_end(void) {
     if (instance_lock >= 0) close(instance_lock);
     instance_lock = -1;
@@ -211,10 +268,6 @@ void bongo_cat_platform_single_instance_end(void) {
         [[NSDistributedNotificationCenter defaultCenter] removeObserver:instance_observer];
         [instance_observer release]; instance_observer = nil;
     }
-}
-BongoCatMenuAction bongo_cat_platform_context_menu(BongoCatPlatform *platform,
-    const BongoCatMenuLabels *labels) {
-    return bongo_cat_macos_context_menu(platform, labels);
 }
 BongoCatResult bongo_cat_platform_embedded_assets(const char *target, BongoCatError *error) {
     (void)target; (void)error; return BONGO_CAT_ERROR_PLATFORM;

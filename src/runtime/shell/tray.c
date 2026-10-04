@@ -6,6 +6,7 @@
 #include "bongo_cat/preferences.h"
 #include "modal_frame.h"
 #include "runtime.h"
+#include "ui_native_theme.h"
 
 #include <SDL3/SDL.h>
 #include <stdlib.h>
@@ -87,6 +88,12 @@ static void on_tray_restore(void *userdata) {
         SDL_Log("Windows shell restarted; scheduling tray restoration");
     tray->restore_requested = true;
     tray->restore_after_ns = 0;
+}
+
+void bongo_cat_tray_prepare_menu(BongoCatTray *tray, void *native_handle) {
+    if (!tray || !tray->app) return;
+    bool dark = SDL_GetSystemTheme() == SDL_SYSTEM_THEME_DARK;
+    bongo_cat_ui_native_menu_prepare_native(native_handle, dark);
 }
 
 static SDL_TrayEntry *add(SDL_TrayMenu *menu, const char *label,

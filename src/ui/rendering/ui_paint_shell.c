@@ -35,7 +35,8 @@ void bongo_cat_ui_paint_rounded_surface(struct nk_context *context,
         BONGO_CAT_UI_SHELL_SCALE_MAX);
     int width = NK_MAX(1, (int)ceilf(bounds.w * sx));
     int height = NK_MAX(1, (int)ceilf(bounds.h * sy));
-    int radius = (int)lroundf(rounding * (sx + sy) * .5f);
+    float raster_scale = NK_MIN(sx, sy);
+    int radius = (int)lroundf(rounding * raster_scale);
     BongoCatUIPaintKey key = {BONGO_CAT_UI_PAINT_ROUNDED_SURFACE,
         width, height, radius, 0, 0, 0, 0};
     BongoCatUIPaintTexture *item =

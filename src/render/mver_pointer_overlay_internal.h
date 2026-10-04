@@ -33,6 +33,7 @@ struct BongoCatMverPointerOverlay {
     float line_green;
     float line_blue;
     bool enabled;
+    bool vertical_flip;
     bool mouse;
     bool left_handed;
     bool left_down;

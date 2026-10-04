@@ -5,6 +5,11 @@ static int rounded_delta(float value) {
     return value < 0.0f ? (int)(value - 0.5f) : (int)(value + 0.5f);
 }
 
+static bool use_pointer_drag(const BongoCatApp *app) {
+    (void)app;
+    return true;
+}
+
 static void move_with_pointer(BongoCatApp *app, float x, float y) {
     int next_x = app->drag_window_x + rounded_delta(x - app->drag_start_x);
     int next_y = app->drag_window_y + rounded_delta(y - app->drag_start_y);
@@ -33,7 +38,7 @@ void bongo_cat_window_drag_motion(BongoCatApp *app,
         bongo_cat_window_drag_end(app); return;
     }
     if (app->window_drag_active) {
-        if (app->settings.window.keep_in_screen)
+        if (use_pointer_drag(app))
             move_with_pointer(app, pointer_x, pointer_y);
         return;
     }
@@ -42,10 +47,10 @@ void bongo_cat_window_drag_motion(BongoCatApp *app,
     if (x * x + y * y < 9.0f) return;
     app->drag_candidate = false;
     app->window_drag_active = true;
-    if (app->settings.window.keep_in_screen) {
-        bongo_cat_window_drag_bounds_refresh(app);
+    bongo_cat_window_snapshot_begin(app);
+    if (use_pointer_drag(app)) {
         if (!SDL_CaptureMouse(true)) SDL_LogWarn(SDL_LOG_CATEGORY_VIDEO,
-            "Mouse capture is unavailable during constrained window drag: %s",
+            "Mouse capture is unavailable during window drag: %s",
             SDL_GetError());
         move_with_pointer(app, pointer_x, pointer_y);
     } else {
@@ -61,8 +66,8 @@ void bongo_cat_window_drag_end(BongoCatApp *app) {
     bool was_active = app->window_drag_active;
     if (was_active) SDL_CaptureMouse(false);
     app->drag_candidate = false;
-    bongo_cat_window_clamp_to_display(app);
     app->window_drag_active = false;
+    bongo_cat_window_snapshot_end(app);
     bongo_cat_window_drag_bounds_clear(app);
     if (was_active && app->settings.model.mouse_centered) {
         float pointer_x = 0.0f, pointer_y = 0.0f;

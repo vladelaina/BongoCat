@@ -1,6 +1,5 @@
 #include "model_import_tauri_internal.h"
 
-#include "bongo_cat/image.h"
 #include "bongo_cat/json.h"
 
 #include <math.h>
@@ -9,10 +8,6 @@
 
 static bool finite_number(yyjson_val *value) {
     return yyjson_is_num(value) && isfinite(yyjson_get_num(value));
-}
-
-static bool valid_canvas_size(int width, int height) {
-    return width >= 64 && width <= 8192 && height >= 64 && height <= 8192;
 }
 
 static bool read_offset(yyjson_val *value, double *x, double *y) {
@@ -47,54 +42,14 @@ static bool read_window(yyjson_val *value, int *width, int *height) {
     return true;
 }
 
-static bool legacy_converter_double_scale(
-    const BongoCatImportCandidate *candidate, int width, int height) {
-    if (!candidate || !valid_canvas_size(width, height) ||
-        width < 256 || height < 256) return false;
-    char path[BONGO_CAT_PATH_CAP];
-    if (!bongo_cat_tauri_find_resource_directory(candidate, "left-keys",
-            path, sizeof(path))) return false;
-    if (candidate->mode != BONGO_CAT_MODE_STANDARD) return true;
-    return width == height && width >= 512;
-}
-
-static void mver_defaults(TauriMverCalibration *calibration) {
+void bongo_cat_tauri_calibration_defaults(TauriMverCalibration *calibration) {
     calibration->l2d_correct = 1.1;
     calibration->l2d_offset_x = 0.0;
     calibration->l2d_offset_y = 0.0;
     calibration->window_width = 612;
     calibration->window_height = 352;
     calibration->mirror = false;
-}
-
-static void legacy_defaults(const BongoCatImportCandidate *candidate,
-    TauriMverCalibration *calibration) {
-    mver_defaults(calibration);
-    char path[BONGO_CAT_PATH_CAP];
-    const char *names[] = {"background.png", "cover.png"};
-    for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); ++i) {
-        if (!bongo_cat_tauri_find_resource_file(candidate, names[i], path,
-                sizeof(path))) continue;
-        int width = 0, height = 0;
-        if (bongo_cat_image_info(path, &width, &height) &&
-            valid_canvas_size(width, height)) {
-            calibration->window_width = width;
-            calibration->window_height = height;
-            break;
-        }
-    }
-    /* Converter packages before schemaVersion 1 omitted their Mver projection
-       calibration. Keyboard/gamepad packages and the converter's square
-       standard profile use approximately 2.0. Non-square standard packages
-       retain Mver's 1.1 default; cover.png is only a cropped preview and must
-       not be used to infer runtime projection. */
-    if (legacy_converter_double_scale(candidate, calibration->window_width,
-            calibration->window_height)) {
-        calibration->l2d_correct = 2.0;
-        if (candidate->mode == BONGO_CAT_MODE_STANDARD &&
-            calibration->window_width == calibration->window_height)
-            calibration->l2d_offset_y = -0.005;
-    }
+    calibration->auto_frame = false;
 }
 
 bool bongo_cat_tauri_read_calibration(
@@ -104,7 +59,7 @@ bool bongo_cat_tauri_read_calibration(
     char path[BONGO_CAT_PATH_CAP];
     if (!bongo_cat_tauri_find_package_file(candidate,
             BONGO_CAT_TAURI_SOURCE_FILE, path, sizeof(path))) {
-        legacy_defaults(candidate, calibration);
+        bongo_cat_tauri_legacy_calibration(candidate, calibration);
         return true;
     }
     yyjson_doc *document = bongo_cat_json_read_file(path, 0, NULL);
@@ -118,21 +73,34 @@ bool bongo_cat_tauri_read_calibration(
         (!mode || strcmp(mode, bongo_cat_mode_name(candidate->mode)) == 0) &&
         yyjson_is_obj(decoration);
     if (valid) {
-        mver_defaults(calibration);
+        bongo_cat_tauri_calibration_defaults(calibration);
         yyjson_val *scale = yyjson_obj_get(decoration, "l2d_correct");
+        bool have_scale = false;
         if (finite_number(scale)) {
             double value = yyjson_get_num(scale);
-            if (value > 0.01 && value <= 100.0)
+            if (value > 0.01 && value <= 100.0) {
                 calibration->l2d_correct = value;
+                have_scale = true;
+            }
+        }
+        bool have_window = read_window(yyjson_obj_get(decoration, "window_size"),
+            &calibration->window_width, &calibration->window_height);
+        if (!have_scale || !have_window) {
+            TauriMverCalibration authored = *calibration;
+            bongo_cat_tauri_legacy_calibration(candidate, calibration);
+            if (have_scale) calibration->l2d_correct = authored.l2d_correct;
+            if (have_window) {
+                calibration->window_width = authored.window_width;
+                calibration->window_height = authored.window_height;
+            }
         }
         read_offset(yyjson_obj_get(decoration, "l2d_offset"),
             &calibration->l2d_offset_x, &calibration->l2d_offset_y);
-        read_window(yyjson_obj_get(decoration, "window_size"),
-            &calibration->window_width, &calibration->window_height);
+        calibration->auto_frame = !(have_scale && have_window);
         yyjson_val *mirror = yyjson_obj_get(decoration,
             "l2d_horizontal_flip");
         if (yyjson_is_bool(mirror)) calibration->mirror = yyjson_get_bool(mirror);
-    } else legacy_defaults(candidate, calibration);
+    } else bongo_cat_tauri_legacy_calibration(candidate, calibration);
     yyjson_doc_free(document);
     return true;
 }

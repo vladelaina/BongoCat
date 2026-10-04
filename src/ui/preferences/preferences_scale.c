@@ -94,6 +94,8 @@ static void discard_window(BongoCatPreferences *value) {
 
 static bool create_window(BongoCatPreferences *value, int width, int height,
     SDL_WindowFlags flags, bool transparent) {
+    if (SDL_getenv("BONGO_CAT_TEST_DISABLE_PREFERENCES_TRANSPARENCY"))
+        transparent = false;
     const char *title = bongo_cat_i18n_get(value->app->i18n,
         "native.preferencesWindowTitle", "BongoCat - Settings");
     value->window = SDL_CreateWindow(title,
@@ -124,6 +126,7 @@ bool bongo_cat_preferences_open_window(BongoCatPreferences *value) {
     SDL_SetWindowPosition(value->window, SDL_WINDOWPOS_CENTERED_DISPLAY(display),
         SDL_WINDOWPOS_CENTERED_DISPLAY(display));
     SDL_SyncWindow(value->window);
+    bongo_cat_platform_configure_preferences_window(value->window);
     display = window_display(value->window);
     float raster_scale = 1.0f;
     bongo_cat_ui_query_window_scale(value->window, &layout_scale, &raster_scale);
@@ -134,6 +137,7 @@ bool bongo_cat_preferences_open_window(BongoCatPreferences *value) {
     SDL_SetWindowPosition(value->window, SDL_WINDOWPOS_CENTERED_DISPLAY(display),
         SDL_WINDOWPOS_CENTERED_DISPLAY(display));
     SDL_SyncWindow(value->window);
+    bongo_cat_platform_configure_preferences_window(value->window);
     bool context_ready = bongo_cat_preferences_gl_create(value);
     if (!context_ready && value->transparent_window) {
         SDL_LogWarn(SDL_LOG_CATEGORY_VIDEO,
@@ -146,6 +150,7 @@ bool bongo_cat_preferences_open_window(BongoCatPreferences *value) {
             SDL_WINDOWPOS_CENTERED_DISPLAY(display),
             SDL_WINDOWPOS_CENTERED_DISPLAY(display));
         SDL_SyncWindow(value->window);
+        bongo_cat_platform_configure_preferences_window(value->window);
         context_ready = bongo_cat_preferences_gl_create(value);
     }
     if (!context_ready) return false;
@@ -218,6 +223,7 @@ bool bongo_cat_preferences_scale_event(BongoCatPreferences *value,
     SDL_SetWindowSize(value->window, width, height);
     fit_position(value->window, display, width, height);
     SDL_SyncWindow(value->window);
+    bongo_cat_platform_configure_preferences_window(value->window);
     value->live_resize_rendering = was_rendering;
     SDL_GL_MakeCurrent(value->app->window, value->app->gl_context);
     value->render_dirty = true;

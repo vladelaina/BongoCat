@@ -3,6 +3,9 @@
 #include <SDL3/SDL.h>
 #include <stdio.h>
 #include <string.h>
+#ifndef _WIN32
+#include <strings.h>
+#endif
 
 static bool ascii_contains_ci(const char *value, const char *needle) {
     if (!value || !needle || !needle[0]) return false;

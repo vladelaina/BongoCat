@@ -42,6 +42,8 @@ bool bongo_cat_tauri_write_config(const char *path, BongoCatModelMode mode,
         yyjson_mut_arr_add_real(document, offset, calibration->l2d_offset_y) &&
         yyjson_mut_obj_add_bool(document, decoration, "l2d_horizontal_flip",
             calibration->mirror) &&
+        yyjson_mut_obj_add_bool(document, decoration, "l2d_auto_frame",
+            calibration->auto_frame) &&
         yyjson_mut_obj_add_int(document, root, "mode",
             mode == BONGO_CAT_MODE_STANDARD ? 1 :
             mode == BONGO_CAT_MODE_KEYBOARD ? 2 : 3) &&

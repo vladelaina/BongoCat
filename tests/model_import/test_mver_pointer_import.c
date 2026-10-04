@@ -1,4 +1,8 @@
 #include "model_import.h"
+#include "model_import_mver.h"
+#include "test_mver_import_internal.h"
+#include "test_mver_support.h"
+#include "model_storage.h"
 #include "preferences_internal.h"
 #include "preferences_overlay.h"
 #include "preferences_state.h"
@@ -65,8 +69,41 @@ bool test_mver_pointer_adapter(const char *adapter, bool expected_enabled) {
     yyjson_doc_free(metadata);
     BongoCatLive2DRenderOptions render = {0};
     return valid && bongo_cat_import_render_options(adapter, &render) &&
+        !render.auto_frame &&
         render.pointer_left_handed && render.mouse_force_move &&
         render.mouse_speed > 1.249f && render.mouse_speed < 1.251f;
+}
+
+void test_mver_pointer_modes(void) {
+    char *current = SDL_GetCurrentDirectory();
+    CHECK(current != NULL);
+    if (!current) return;
+    char root[BONGO_CAT_PATH_CAP], adapter[BONGO_CAT_PATH_CAP];
+    char config_path[BONGO_CAT_PATH_CAP], config[2048];
+    SDL_snprintf(root, sizeof(root), "%spointer-modes-%llu", current,
+        (unsigned long long)SDL_GetTicksNS());
+    SDL_free(current);
+    CHECK(mver_fixture(root));
+    CHECK(child(adapter, sizeof(adapter), root, "adapter", true));
+    CHECK(child(config_path, sizeof(config_path), root, "config.json", false));
+    BongoCatImportDiscovery discovery = {0};
+    BongoCatError error = {0};
+    CHECK(bongo_cat_import_mver_discover(root, &discovery, &error) == 1);
+    CHECK(discovery.count == 1);
+    if (discovery.count == 1) {
+        const struct { int mode; bool live2d; bool enabled; } cases[] = {
+            {1, true, false}, {1, false, true}, {98, true, true}
+        };
+        for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i) {
+            SDL_snprintf(config, sizeof(config), "{\"mode\":%d,%s",
+                cases[i].mode, test_mver_pointer_config(cases[i].live2d) + 1);
+            CHECK(write_text(config_path, config));
+            CHECK(bongo_cat_import_prepare_adapter(&discovery.candidates[0],
+                adapter, &error));
+            CHECK(test_mver_pointer_adapter(adapter, cases[i].enabled));
+        }
+    }
+    CHECK(bongo_cat_model_remove_tree(root, NULL));
 }
 
 static bool overlay_input_self_test(void) {

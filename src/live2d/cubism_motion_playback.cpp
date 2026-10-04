@@ -59,7 +59,8 @@ void NativeModel::stop_motion_runs(const std::string &key) {
 
 void NativeModel::expire_motion_runs() {
     if (motion_runs_.empty()) return;
-    std::vector<unsigned char> finished(motion_runs_.size());
+    auto &finished = motion_finished_scratch_;
+    finished.resize(motion_runs_.size());
     for (size_t i = 0; i < motion_runs_.size(); ++i)
         finished[i] = _motionManager->IsFinished(motion_runs_[i].handle);
     bool restored_persistent_state = false;
@@ -127,10 +128,7 @@ bool NativeModel::motion_selected(const char *group, int index) const {
 }
 
 bool NativeModel::motion_visible(const char *group, int index) const {
-    if (!group || index < 0) return false;
-    std::string key = std::string(group) + "_" + std::to_string(index);
-    auto owner = motion_toggle_owners_.find(key);
-    return owner == motion_toggle_owners_.end() || owner->second == key;
+    return group && index >= 0;
 }
 
 bool NativeModel::motion_same_toggle(const char *left_group, int left_index,

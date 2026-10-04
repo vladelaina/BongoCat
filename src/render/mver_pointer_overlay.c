@@ -64,6 +64,11 @@ BongoCatMverPointerOverlay *bongo_cat_mver_pointer_overlay_create(
     return value;
 }
 
+void bongo_cat_mver_pointer_overlay_set_vertical_flip(
+    BongoCatMverPointerOverlay *value, bool flipped) {
+    if (value) value->vertical_flip = flipped;
+}
+
 void bongo_cat_mver_pointer_overlay_destroy(BongoCatMverPointerOverlay *value) {
     if (!value) return;
     clear_textures(value);

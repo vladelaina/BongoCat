@@ -165,7 +165,7 @@ static PrimaryRequest take_primary_request(BongoCatApp *app,
 }
 
 void bongo_cat_multi_pet_primary_requests_update(BongoCatApp *app) {
-    if (!app || app->secondary_pet) return;
+    if (!app || app->secondary_pet || !app->settings.model.multiple_pets) return;
     bool show_preferences = false;
     for (size_t i = 0; i < app->session.additional_model_count; ++i) {
         PrimaryRequest request = take_primary_request(app,
@@ -180,7 +180,7 @@ void bongo_cat_multi_pet_primary_requests_update(BongoCatApp *app) {
 }
 
 void bongo_cat_multi_pet_pass_through_requests_update(BongoCatApp *app) {
-    if (!app || app->secondary_pet) return;
+    if (!app || app->secondary_pet || !app->settings.model.multiple_pets) return;
     bool changed = false;
     for (size_t i = 0; i < app->session.additional_model_count; ++i) {
         bool enabled;

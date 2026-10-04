@@ -21,11 +21,13 @@ bool bongo_cat_preferences_model_name_draw(BongoCatPreferences *value,
     }
     const char *shown = renaming ? session->text :
         bongo_cat_model_name(&value->app->settings, entry);
-    if (!renaming && value->import_render_active &&
-        value->font_reload_pending &&
-        !bongo_cat_preferences_model_glyphs_ready(value, shown))
-        shown = bongo_cat_i18n_get(value->app->i18n, "native.importing",
-            "Importing...");
+    /* Page changes and catalog refreshes can draw before the atlas reload. */
+    bool name_pending = !renaming && value->font_reload_pending &&
+        !bongo_cat_preferences_model_glyphs_ready(value, shown);
+    if (name_pending)
+        shown = value->import_render_active ?
+            bongo_cat_i18n_get(value->app->i18n, "native.importing",
+                "Importing...") : "...";
     struct nk_rect text_bounds = nk_rect(bounds.x + 5,
         bounds.y + 3, bounds.w - 10, 22);
     if (renaming && session->select_all)
@@ -42,7 +44,7 @@ bool bongo_cat_preferences_model_name_draw(BongoCatPreferences *value,
         if (!session->select_all)
             nk_stroke_line(canvas, bounds.x + 5 + caret, bounds.y + 3,
                 bounds.x + 5 + caret, bounds.y + bounds.h - 3, 1, p.pink);
-    } else if (clicked)
+    } else if (clicked && !name_pending)
         bongo_cat_preferences_model_rename_begin(value, entry, bounds);
     if (hover || renaming) bongo_cat_ui_cursor_hover_rect(context, bounds,
         BONGO_CAT_UI_CURSOR_TEXT);

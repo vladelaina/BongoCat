@@ -15,6 +15,8 @@ bool bongo_cat_mver_pointer_overlay_enabled(
     const BongoCatMverPointerOverlay *value);
 bool bongo_cat_mver_pointer_overlay_left_handed(
     const BongoCatMverPointerOverlay *value);
+void bongo_cat_mver_pointer_overlay_set_vertical_flip(
+    BongoCatMverPointerOverlay *value, bool flipped);
 void bongo_cat_mver_pointer_overlay_set(BongoCatMverPointerOverlay *value,
     float x_ratio, float y_ratio, bool left, bool right, bool side);
 void bongo_cat_mver_pointer_overlay_draw_before_keys(

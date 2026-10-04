@@ -1,6 +1,7 @@
 #include "update_internal.h"
 #include "preferences_notice.h"
 #include "bongo_cat/i18n.h"
+#include "bongo_cat/log.h"
 #include "bongo_cat/preferences.h"
 
 #include <stdio.h>
@@ -37,12 +38,19 @@ static void complete(BongoCatUpdateService *service,
     if (notify) {
         service->status = status;
         if (release) service->release = *release;
-        else memset(&service->release, 0, sizeof(service->release));
+        else if (status != BONGO_CAT_UPDATE_ERROR)
+            memset(&service->release, 0, sizeof(service->release));
         snprintf(service->error, sizeof(service->error), "%s",
             error ? error : "");
     }
     SDL_UnlockMutex(service->mutex);
     if (!notify) return;
+    if (status == BONGO_CAT_UPDATE_ERROR)
+        SDL_LogError(BONGO_CAT_LOG_UPDATE, "Update check failed: %s",
+            error && error[0] ? error : "unknown error");
+    else SDL_LogInfo(BONGO_CAT_LOG_UPDATE, "Update check: %s version=%s",
+        status == BONGO_CAT_UPDATE_AVAILABLE ? "available" : "current",
+        release ? release->version : BONGO_CAT_VERSION);
     SDL_Event event = {0};
     event.type = service->event_type;
     event.user.data1 = service;
@@ -98,6 +106,17 @@ BongoCatUpdateService *bongo_cat_update_create(BongoCatApp *app) {
     else {
         service->status = BONGO_CAT_UPDATE_IDLE;
         service->installed = bongo_cat_update_platform_installed();
+        if (app->session.available_update_version[0] &&
+            bongo_cat_update_compare_versions(
+                app->session.available_update_version,
+                BONGO_CAT_VERSION) > 0) {
+            snprintf(service->release.version,
+                sizeof(service->release.version), "%s",
+                app->session.available_update_version);
+            service->status = BONGO_CAT_UPDATE_AVAILABLE;
+        } else {
+            app->session.available_update_version[0] = '\0';
+        }
     }
     return service;
 }
@@ -118,16 +137,30 @@ bool bongo_cat_update_check(BongoCatUpdateService *service, bool manual) {
     SDL_LockMutex(service->http_mutex);
     service->http_cancelled = false;
     SDL_UnlockMutex(service->http_mutex);
+    SDL_LogInfo(BONGO_CAT_LOG_UPDATE, "Update check started");
     service->worker = SDL_CreateThread(update_worker,
         BONGO_CAT_SLUG "-update-check", service);
     bool started = service->worker != NULL;
     if (!started) {
         service->status = BONGO_CAT_UPDATE_ERROR;
+        SDL_LogError(BONGO_CAT_LOG_UPDATE, "Cannot start the update checker");
         snprintf(service->error, sizeof(service->error),
             "Cannot start the update checker");
     }
     SDL_UnlockMutex(service->mutex);
     return started;
+}
+
+bool bongo_cat_update_refresh_and_open(BongoCatUpdateService *service) {
+    if (!service) return false;
+    SDL_LockMutex(service->mutex);
+    service->open_after_check = true;
+    SDL_UnlockMutex(service->mutex);
+    if (bongo_cat_update_check(service, true)) return true;
+    SDL_LockMutex(service->mutex);
+    service->open_after_check = false;
+    SDL_UnlockMutex(service->mutex);
+    return false;
 }
 
 void bongo_cat_update_start_automatic(BongoCatUpdateService *service) {
@@ -139,9 +172,6 @@ void bongo_cat_update_start_automatic(BongoCatUpdateService *service) {
         strcmp(session->last_update_check_version, BONGO_CAT_VERSION) == 0)
         return;
     if (!bongo_cat_update_check(service, false)) return;
-    session->last_update_check_day = today;
-    snprintf(session->last_update_check_version,
-        sizeof(session->last_update_check_version), "%s", BONGO_CAT_VERSION);
 }
 
 void bongo_cat_update_snapshot(BongoCatUpdateService *service,
@@ -165,39 +195,48 @@ static const char *tr(BongoCatUpdateService *service, const char *key,
     return bongo_cat_i18n_get(service->app->i18n, key, fallback);
 }
 
-static void show_completion(BongoCatUpdateService *service) {
-    BongoCatUpdateSnapshot snapshot;
-    bongo_cat_update_snapshot(service, &snapshot);
-    char message[192];
-    if (snapshot.status == BONGO_CAT_UPDATE_CURRENT) {
-        snprintf(message, sizeof(message), "%s v%s", tr(service,
-            "native.support.latest", "Already up to date"),
-            BONGO_CAT_VERSION);
-        bongo_cat_preferences_notice_show(service->app, message, false);
-    } else if (snapshot.status == BONGO_CAT_UPDATE_AVAILABLE) {
-        snprintf(message, sizeof(message), "%s v%s", tr(service,
-            "native.support.updateAvailable", "New version available:"),
-            snapshot.release.version);
-        bongo_cat_preferences_notice_show(service->app, message, false);
-    } else if (snapshot.status == BONGO_CAT_UPDATE_ERROR) {
-        bongo_cat_preferences_notice_show(service->app, tr(service,
-            "native.support.updateFailed", "Unable to check for updates"),
-            true);
-        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
-            "Update check failed: %s", snapshot.error);
-    }
-}
-
 bool bongo_cat_update_event(BongoCatUpdateService *service,
     const SDL_Event *event) {
     if (!service || !event || event->type != service->event_type ||
         event->user.data1 != service) return false;
     SDL_LockMutex(service->mutex);
     bool manual = service->manual;
+    BongoCatUpdateStatus status = service->status;
+    bool open_after_check = service->open_after_check;
+    service->open_after_check = false;
+    BongoCatUpdateRelease release = service->release;
     SDL_UnlockMutex(service->mutex);
     reap_worker(service);
+    if ((status == BONGO_CAT_UPDATE_AVAILABLE ||
+            status == BONGO_CAT_UPDATE_ERROR) && release.version[0])
+        snprintf(service->app->session.available_update_version,
+            sizeof(service->app->session.available_update_version), "%s",
+            release.version);
+    else if (status == BONGO_CAT_UPDATE_CURRENT)
+        service->app->session.available_update_version[0] = '\0';
+    if (!manual && (status == BONGO_CAT_UPDATE_CURRENT ||
+            status == BONGO_CAT_UPDATE_AVAILABLE)) {
+        int today = local_day();
+        if (today) {
+            BongoCatSessionState *session = &service->app->session;
+            session->last_update_check_day = today;
+            snprintf(session->last_update_check_version,
+                sizeof(session->last_update_check_version), "%s",
+                BONGO_CAT_VERSION);
+        }
+    }
     bongo_cat_preferences_invalidate(service->app->preferences);
-    if (manual) show_completion(service);
+    if (open_after_check && status == BONGO_CAT_UPDATE_AVAILABLE) {
+        if (!bongo_cat_update_open(service)) {
+            char detail[384];
+            const char *reason = SDL_GetError();
+            snprintf(detail, sizeof(detail), "%s: %s", tr(service,
+                "native.support.openUpdateFailed",
+                "Unable to open the update page"),
+                reason && reason[0] ? reason : "system rejected the URL");
+            bongo_cat_preferences_notice_show(service->app, detail, true);
+        }
+    } else if (manual) bongo_cat_update_show_completion(service);
     return true;
 }
 

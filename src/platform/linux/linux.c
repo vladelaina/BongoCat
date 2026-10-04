@@ -6,6 +6,7 @@
 #include "bongo_cat/common.h"
 #include "bongo_cat/path.h"
 #include "linux_internal.h"
+#include "linux_shape.h"
 
 #if !defined(_WIN32) && !defined(__APPLE__)
 #include <SDL3/SDL.h>
@@ -75,29 +76,67 @@ BongoCatResult bongo_cat_platform_init(BongoCatPlatform *platform, SDL_Window *w
     platform->window = window;
     platform->input = input;
     platform->window_opacity = 1.0f;
+    const char *driver = SDL_GetCurrentVideoDriver();
+    platform->hover_hide_unavailable = !driver || strcmp(driver, "x11") != 0;
+    if (platform->hover_hide_unavailable)
+        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
+            "Hover hiding requires the X11 backend on Linux");
     platform->wake_event_type = SDL_RegisterEvents(1);
     if (platform->wake_event_type == (Uint32)-1) {
         bongo_cat_error_set(error, BONGO_CAT_ERROR_PLATFORM,
             "Cannot reserve the Linux input wake event");
         return BONGO_CAT_ERROR_PLATFORM;
     }
+    LinuxPlatformState *native = calloc(1, sizeof(*native));
+    if (!native) {
+        bongo_cat_error_set(error, BONGO_CAT_ERROR_PLATFORM,
+            "Cannot allocate Linux platform state");
+        return BONGO_CAT_ERROR_PLATFORM;
+    }
+    platform->native = native;
+    bongo_cat_linux_shape_init(platform);
     active_platform = platform;
     publish_instance_window(window);
+    const char *wayland = getenv("WAYLAND_DISPLAY");
+    const char *session = getenv("XDG_SESSION_TYPE");
+    native->wayland = (wayland && wayland[0]) ||
+        (driver && strcmp(driver, "wayland") == 0) ||
+        (session && strcmp(session, "wayland") == 0);
+    native->evdev_selected = bongo_cat_linux_evdev_requested(
+        getenv("BONGOCAT_ENABLE_EVDEV"), native->wayland);
     BongoCatError input_error = {0};
     if (!bongo_cat_linux_x11_start(platform, &input_error) && input_error.message[0])
         SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "%s", input_error.message);
+    if (native->evdev_selected) {
+        input_error = (BongoCatError){0};
+        if (!bongo_cat_linux_evdev_start(platform, &input_error) && input_error.message[0])
+            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "%s", input_error.message);
+    }
     return BONGO_CAT_OK;
 }
 void bongo_cat_platform_shutdown(BongoCatPlatform *platform) {
+    if (!platform) return;
     bongo_cat_linux_x11_stop(platform);
+    bongo_cat_linux_evdev_stop(platform);
+    bongo_cat_linux_shape_destroy(platform);
+    free(platform->native);
+    platform->native = NULL;
     if (active_platform == platform) active_platform = NULL;
 }
 void bongo_cat_platform_set_click_through(BongoCatPlatform *platform,
     bool forced, bool pointer_transparent) {
-    bongo_cat_linux_x11_click_through(platform, forced || pointer_transparent);
+    const LinuxInputShape *shape = platform ? platform->presenter : NULL;
+    if (shape && shape->available) bongo_cat_linux_shape_force(platform, forced);
+    else bongo_cat_linux_x11_click_through(platform, forced || pointer_transparent);
+}
+bool bongo_cat_platform_native_hit_test(const BongoCatPlatform *platform) {
+    const LinuxInputShape *shape = platform ? platform->presenter : NULL;
+    return shape && shape->valid && shape->applied;
 }
 bool bongo_cat_platform_set_opacity(BongoCatPlatform *platform, float opacity) {
     if (!platform || !platform->window) return false;
+    opacity = SDL_clamp(opacity, 0.0f, 1.0f);
+    if (opacity == platform->window_opacity) return true;
     if (!SDL_SetWindowOpacity(platform->window, opacity)) return false;
     platform->window_opacity = opacity;
     return true;
@@ -106,18 +145,38 @@ float bongo_cat_platform_get_opacity(const BongoCatPlatform *platform) {
     return platform ? platform->window_opacity : 1.0f;
 }
 bool bongo_cat_platform_present(BongoCatPlatform *platform, int width, int height) {
-    (void)width; (void)height;
-    return platform && platform->window && SDL_GL_SwapWindow(platform->window);
+    if (!platform || !platform->window) return false;
+    bongo_cat_linux_shape_capture(platform, width, height);
+    if (SDL_GL_SwapWindow(platform->window)) return true;
+    bongo_cat_linux_shape_reset(platform);
+    return false;
 }
 bool bongo_cat_platform_frame_alpha(const BongoCatPlatform *platform,
     int width, int height, int x, int y, uint8_t *alpha) {
-    (void)platform; (void)width; (void)height; (void)x; (void)y; (void)alpha;
-    return false;
+    return bongo_cat_linux_shape_alpha(platform, width, height, x, y, alpha);
 }
 void bongo_cat_platform_set_visible(BongoCatPlatform *platform, bool visible) {
     if (!platform || !platform->window) return;
     visible ? SDL_ShowWindow(platform->window) : SDL_HideWindow(platform->window);
-    if (visible) bongo_cat_linux_x11_configure_capture_window(platform);
+    if (visible) {
+        /* Reapply after mapping: a Wayland surface/role may have been rebuilt. */
+        LinuxInputShape *shape = platform->presenter;
+        if (shape) {
+            shape->applied = false;
+            bongo_cat_linux_shape_force(platform, shape->forced);
+        }
+        bongo_cat_linux_x11_configure_capture_window(platform);
+        const LinuxPlatformState *native = platform->native;
+        if (native) bongo_cat_linux_x11_set_above(platform, native->always_on_top);
+    }
+}
+/* 只在采集软件里显示: X11 下没有等价机制 (需要合成器/虚拟显示器支持),
+   设置界面会因此隐藏这一项。 */
+bool bongo_cat_platform_capture_only_supported(void) { return false; }
+bool bongo_cat_platform_set_capture_only(BongoCatPlatform *platform,
+    bool enabled) {
+    (void)platform; (void)enabled;
+    return false;
 }
 bool bongo_cat_platform_pointer_local(BongoCatPlatform *platform, double screen_x,
     double screen_y, float *local_x, float *local_y) {
@@ -128,23 +187,32 @@ bool bongo_cat_platform_pointer_local(BongoCatPlatform *platform, double screen_
     *local_x = (float)(screen_x - x); *local_y = (float)(screen_y - y);
     return *local_x >= 0 && *local_x < width && *local_y >= 0 && *local_y < height;
 }
+bool bongo_cat_platform_pointer_locked(BongoCatPlatform *platform) {
+    return bongo_cat_linux_evdev_pointer_active(platform);
+}
 bool bongo_cat_platform_relative_pointer(BongoCatPlatform *platform,
     double *x, double *y) {
-    (void)platform; (void)x; (void)y;
-    return false;
+    return bongo_cat_linux_evdev_relative_pointer(platform, x, y);
 }
 void bongo_cat_platform_relative_pointer_reset(BongoCatPlatform *platform) {
-    (void)platform;
+    bongo_cat_linux_evdev_relative_pointer_reset(platform);
+}
+void bongo_cat_platform_relative_pointer_release(BongoCatPlatform *platform) {
+    bongo_cat_linux_evdev_relative_pointer_reset(platform);
 }
 void bongo_cat_platform_set_always_on_top(BongoCatPlatform *platform, bool enabled) {
+    if (!platform || !platform->window) return;
+    LinuxPlatformState *native = platform->native;
+    if (native) native->always_on_top = enabled;
     SDL_SetWindowAlwaysOnTop(platform->window, enabled);
+    bongo_cat_linux_x11_set_above(platform, enabled);
     bongo_cat_linux_x11_configure_capture_window(platform);
 }
 void bongo_cat_platform_raise_window(SDL_Window *window) {
     if (!window) return;
-    SDL_ShowWindow(window);
     if (active_platform && active_platform->window == window)
-        bongo_cat_linux_x11_configure_capture_window(active_platform);
+        bongo_cat_platform_set_visible(active_platform, true);
+    else SDL_ShowWindow(window);
     SDL_RaiseWindow(window);
 }
 
@@ -167,7 +235,11 @@ void bongo_cat_platform_begin_drag(BongoCatPlatform *platform,
     bongo_cat_linux_x11_begin_drag(platform);
 }
 bool bongo_cat_platform_dynamic_hit_supported(void) {
-    return bongo_cat_linux_x11_supported(active_platform);
+    /* XWayland only forwards pointer events while one of its surfaces has
+       pointer focus, so an empty input region would hide the pointer
+       permanently and the pet could never become clickable again. */
+    return bongo_cat_linux_x11_supported(active_platform) &&
+        !bongo_cat_linux_x11_xwayland(active_platform);
 }
 
 bool bongo_cat_platform_open_directory(const char *path) {
@@ -202,11 +274,14 @@ bool bongo_cat_platform_single_instance_begin(void) {
     restore_instance_window(); close(instance_lock); instance_lock = -1; return false;
 }
 bool bongo_cat_platform_single_instance_take_wake(void) { return false; }
+bool bongo_cat_platform_single_instance_take_settings(void) { return false; }
 void bongo_cat_platform_single_instance_end(void) {
     if (instance_lock >= 0) close(instance_lock);
     instance_lock = -1;
 }
-BongoCatResult bongo_cat_platform_set_autostart(bool enabled, BongoCatError *error) {
+BongoCatResult bongo_cat_platform_set_autostart(bool enabled, bool administrator,
+    BongoCatError *error) {
+    (void)administrator;
     const char *base = getenv("XDG_CONFIG_HOME"), *home = getenv("HOME");
     char config[BONGO_CAT_PATH_CAP], directory[BONGO_CAT_PATH_CAP], path[BONGO_CAT_PATH_CAP];
     if (base && base[0]) snprintf(config, sizeof(config), "%s", base);
@@ -234,10 +309,6 @@ BongoCatResult bongo_cat_platform_set_autostart(bool enabled, BongoCatError *err
     if (written) return BONGO_CAT_OK;
     remove(path); bongo_cat_error_set(error, BONGO_CAT_ERROR_IO, "Cannot write Linux autostart entry");
     return BONGO_CAT_ERROR_IO;
-}
-BongoCatMenuAction bongo_cat_platform_context_menu(BongoCatPlatform *platform,
-    const BongoCatMenuLabels *labels) {
-    return bongo_cat_linux_context_menu(platform, labels);
 }
 BongoCatResult bongo_cat_platform_embedded_assets(const char *target, BongoCatError *error) {
     (void)target; (void)error; return BONGO_CAT_ERROR_PLATFORM;

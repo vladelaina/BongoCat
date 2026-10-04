@@ -38,10 +38,7 @@ bool bongo_cat_import_tauri_convert_to_mver(
             "Cannot allocate Tauri conversion workspace");
         return false;
     }
-    char resource_directory[BONGO_CAT_PATH_CAP];
-    if (!bongo_cat_tauri_resource_root(candidate, resource_directory,
-            sizeof(resource_directory)) ||
-        !bongo_cat_tauri_copy_input_images(candidate, resource_directory,
+    if (!bongo_cat_tauri_copy_input_images(candidate,
             mode_root, &work->left, &work->right, error)) {
         free(work);
         return false;

@@ -11,6 +11,8 @@ typedef struct BongoCatModelRefreshJob {
     struct BongoCatModelRefresh *owner;
     BongoCatModelCatalog models;
     char asset_root[BONGO_CAT_PATH_CAP];
+    char settings_path[BONGO_CAT_PATH_CAP];
+    char session_path[BONGO_CAT_PATH_CAP];
     char models_root[BONGO_CAT_PATH_CAP];
     char cache_root[BONGO_CAT_PATH_CAP];
     char nearby_root[BONGO_CAT_PATH_CAP];
@@ -62,6 +64,10 @@ static int SDLCALL refresh_worker(void *userdata) {
     if (scan) {
         snprintf(scan->asset_root, sizeof(scan->asset_root), "%s",
             job->asset_root);
+        snprintf(scan->settings_path, sizeof(scan->settings_path), "%s",
+            job->settings_path);
+        snprintf(scan->session_path, sizeof(scan->session_path), "%s",
+            job->session_path);
         snprintf(scan->models_root, sizeof(scan->models_root), "%s",
             job->models_root);
         snprintf(scan->cache_root, sizeof(scan->cache_root), "%s",
@@ -106,6 +112,8 @@ static bool start_refresh(BongoCatApp *app, bool include_nearby,
     job->revision = refresh->revision;
     if (package_id) job->models = app->models;
     snprintf(job->asset_root, sizeof(job->asset_root), "%s", app->asset_root);
+    snprintf(job->settings_path, sizeof(job->settings_path), "%s", app->settings_path);
+    snprintf(job->session_path, sizeof(job->session_path), "%s", app->session_path);
     snprintf(job->models_root, sizeof(job->models_root), "%s", app->models_root);
     snprintf(job->cache_root, sizeof(job->cache_root), "%s", app->cache_root);
     if (include_nearby)

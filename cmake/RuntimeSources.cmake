@@ -1,5 +1,6 @@
 set(BONGO_CAT_RUNTIME_INTERNAL_INCLUDE_DIRS
   "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/input"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/lifecycle"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/model"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/model/import"
@@ -13,11 +14,21 @@ set(BONGO_CAT_RUNTIME_INTERNAL_INCLUDE_DIRS
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/theme")
 
 set(BONGO_CAT_MEDIA_SOURCES
-  src/media/audio.c
+  src/media/audio/audio.c
+  src/media/audio/audio_playback.c
   src/media/image.c
   src/media/image_decode.c
+  src/media/image_wic_stream.c
+  src/media/image_png_stream.c
+  src/media/image_png_scaled.c
+  src/media/image_texture_cache.c
+  src/media/image_texture_cache_storage.c
+  src/media/image_texture_job.c
   src/media/image_info.c
+  src/media/image_model.c
   src/media/image_mipmap.c
+  src/media/image_upload.c
+  src/media/image_upload_sync.c
   src/media/image_resize.c
   src/media/image_alpha.c
   src/media/stb_image_impl.c)
@@ -25,6 +36,8 @@ set(BONGO_CAT_MEDIA_SOURCES
 set(BONGO_CAT_RENDER_SOURCES
   src/render/gl_api.c
   src/render/overlay.c
+  src/render/overlay_assets.c
+  src/render/overlay_input.c
   src/render/overlay_draw.c
   src/render/mver_pointer_overlay.c
   src/render/mver_pointer_overlay_draw.c)
@@ -49,12 +62,16 @@ set(BONGO_CAT_RUNTIME_LIFECYCLE_SOURCES
 set(BONGO_CAT_RUNTIME_UPDATE_SOURCES
   src/runtime/update/update_channel.c
   src/runtime/update/update_http.c
+  src/runtime/update/update_http_unix.c
   src/runtime/update/update_service.c)
 
 set(BONGO_CAT_RUNTIME_DIAGNOSTIC_SOURCES
+  src/runtime/diagnostics/resource_trace.c
+  src/runtime/diagnostics/model_memory.c
   src/runtime/diagnostics/frame_audit.c
   src/runtime/diagnostics/frame_presentation_audit.c
   src/runtime/diagnostics/live2d_audit.c
+  src/runtime/diagnostics/live2d_mouse_mapping_audit.c
   src/runtime/diagnostics/live2d_pointer_audit.c
   src/runtime/diagnostics/live2d_audit_scenario.c
   src/runtime/diagnostics/live2d_viewer_audit.c
@@ -64,11 +81,16 @@ set(BONGO_CAT_RUNTIME_DIAGNOSTIC_SOURCES
 set(BONGO_CAT_RUNTIME_INPUT_SOURCES
   src/runtime/input/gamepad.c
   src/runtime/input/mouse.c
+  src/runtime/input/mouse_bounds.c
   src/runtime/input/mouse_mapping.c
-  src/runtime/input/shortcuts.c)
+  src/runtime/input/mouse_pipeline.c
+  src/runtime/input/shortcuts.c
+  src/runtime/input/sound_shortcuts.c)
 
 set(BONGO_CAT_RUNTIME_MODEL_SOURCES
+  src/runtime/model/model_behavior.c
   src/runtime/model/model_behavior_cache.c
+  src/runtime/model/model_texture_refresh.c
   src/runtime/model/model_behavior_state.c
   src/runtime/model/model_catalog_runtime.c
   src/runtime/model/model_catalog_builtins.c
@@ -85,11 +107,13 @@ set(BONGO_CAT_RUNTIME_MODEL_SOURCES
   src/runtime/model/multi_pet_process.c
   src/runtime/model/multi_pet_settings.c
   src/runtime/model/model_storage.c
+  src/runtime/model/model_random_behavior.c
   src/runtime/model/model_update.c)
 
 set(BONGO_CAT_RUNTIME_IMPORT_SOURCES
   # Shared import workflow.
   src/runtime/model/import/model_import_app.c
+  src/runtime/model/import/model_import_archive.c
   src/runtime/model/import/model_import_adapter.c
   src/runtime/model/import/model_import_digest.c
   src/runtime/model/import/model_import_digest_api.c
@@ -112,18 +136,27 @@ set(BONGO_CAT_RUNTIME_IMPORT_SOURCES
   src/runtime/model/import/model_import_session.c
   src/runtime/model/import/model_import_source.c
 
+  # Shared Mver configuration: authored fields, comments and shortcut persistence.
+  src/runtime/model/mver/mver_config.c
+  src/runtime/model/mver/mver_config_keys.c
+  src/runtime/model/mver/mver_config_text.c
+  src/runtime/model/mver/mver_config_labels.c
+  src/runtime/model/mver/mver_config_write.c
+  src/runtime/model/mver/mver_shortcuts.c
+  src/runtime/model/mver/mver_render.c
+
   # Mver is the canonical package and runtime-adapter format.
   src/runtime/model/import/mver/model_import_mver_assets.c
   src/runtime/model/import/mver/model_import_mver_copy.c
   src/runtime/model/import/mver/model_import_mver_discovery.c
+  src/runtime/model/import/mver/model_import_mver_manifest.c
   src/runtime/model/import/mver/model_import_mver_effect.c
   src/runtime/model/import/mver/model_import_mver_image.c
-  src/runtime/model/import/mver/model_import_mver_labels.c
   src/runtime/model/import/mver/model_import_mver_metadata.c
+  src/runtime/model/import/mver/model_import_mver_audio.c
   src/runtime/model/import/mver/model_import_mver_motion.c
   src/runtime/model/import/mver/model_import_mver_patch.c
   src/runtime/model/import/mver/model_import_mver_policy.c
-  src/runtime/model/import/mver/model_import_mver_shortcut.c
 
   # Tauri packages are converted to canonical Mver packages before loading.
   src/runtime/model/import/tauri/model_import_tauri_candidate.c
@@ -131,7 +164,9 @@ set(BONGO_CAT_RUNTIME_IMPORT_SOURCES
   src/runtime/model/import/tauri/model_import_tauri_convert.c
   src/runtime/model/import/tauri/model_import_tauri_discovery.c
   src/runtime/model/import/tauri/model_import_tauri_images.c
+  src/runtime/model/import/tauri/model_import_tauri_input.c
   src/runtime/model/import/tauri/model_import_tauri_keys.c
+  src/runtime/model/import/tauri/model_import_tauri_legacy.c
   src/runtime/model/import/tauri/model_import_tauri_metadata.c
   src/runtime/model/import/tauri/model_import_tauri_resources.c
   src/runtime/model/import/tauri/model_import_tauri_tree.c
@@ -146,14 +181,18 @@ set(BONGO_CAT_RUNTIME_SHELL_SOURCES
   src/runtime/shell/tray.c
   src/runtime/shell/window.c
   src/runtime/shell/window_background.c
+  src/runtime/shell/window_corners.c
   src/runtime/shell/window_display.c
   src/runtime/shell/window_drag.c
   src/runtime/shell/window_geometry.c
+  src/runtime/shell/window_frame.c
   src/runtime/shell/window_hit.c
   src/runtime/shell/window_menu_actions.c
   src/runtime/shell/window_menu_behavior.c
   src/runtime/shell/window_menu_behavior_test.c
   src/runtime/shell/window_menu_preview.c
+  src/runtime/shell/window_scale.c
+  src/runtime/shell/window_snapshot.c
   src/runtime/shell/window_wheel.c
   src/runtime/shell/window_wheel_test.c)
 
@@ -168,6 +207,16 @@ set(BONGO_CAT_UI_BACKEND_SOURCES
   src/ui/backend/ui_tooltip.c)
 
 set(BONGO_CAT_UI_RENDERING_SOURCES
+  src/ui/dial/dial_window.c
+  src/ui/dial/dial_input.c
+  src/ui/dial/dial_items.c
+  src/ui/dial/dial_geometry.c
+  src/ui/dial/dial_paint.c
+  src/ui/dial/dial_draw.c
+  src/ui/dial/dial_scene.c
+  src/ui/dial/dial_fonts.c
+  src/ui/dial/dial_covers.c
+  src/ui/dial/dial_icons.c
   src/ui/rendering/ui_animation.c
   src/ui/rendering/ui_font.c
   src/ui/rendering/ui_font_atlas.c
@@ -176,6 +225,7 @@ set(BONGO_CAT_UI_RENDERING_SOURCES
   src/ui/rendering/ui_font_atlas_upload.c
   src/ui/rendering/ui_font_reload.c
   src/ui/rendering/ui_native_theme.c
+  src/ui/rendering/ui_present.c
   src/ui/rendering/ui_paint.c
   src/ui/rendering/ui_paint_border.c
   src/ui/rendering/ui_paint_cache.c
@@ -188,18 +238,29 @@ set(BONGO_CAT_UI_THEME_SOURCES
   src/ui/theme/ui_catime_tabs.c
   src/ui/theme/ui_catime_theme.c)
 
+set(BONGO_CAT_UI_PREFERENCES_ABOUT_SOURCES
+  src/ui/preferences/about/preferences_about.c
+  src/ui/preferences/about/preferences_about_community.c
+  src/ui/preferences/about/preferences_about_contributors.c
+  src/ui/preferences/about/preferences_about_feed.c
+  src/ui/preferences/about/preferences_about_footer.c
+  src/ui/preferences/about/preferences_about_lifecycle.c
+  src/ui/preferences/about/preferences_about_online.c
+  src/ui/preferences/about/preferences_about_page.c
+  src/ui/preferences/about/preferences_about_svg.c
+  src/ui/preferences/about/preferences_about_text.c
+  src/ui/preferences/about/preferences_about_wechat.c)
+
 set(BONGO_CAT_UI_PREFERENCES_SOURCES
+  ${BONGO_CAT_UI_PREFERENCES_ABOUT_SOURCES}
   src/ui/preferences/preferences.c
-  src/ui/preferences/preferences_about.c
-  src/ui/preferences/preferences_about_community.c
-  src/ui/preferences/preferences_about_footer.c
-  src/ui/preferences/preferences_about_page.c
   src/ui/preferences/preferences_assets.c
   src/ui/preferences/preferences_behavior_dialog.c
   src/ui/preferences/preferences_behavior_rename.c
   src/ui/preferences/preferences_behavior_row.c
   src/ui/preferences/preferences_combo.c
   src/ui/preferences/preferences_controls.c
+  src/ui/preferences/preferences_number_edit.c
   src/ui/preferences/preferences_dialog.c
   src/ui/preferences/preferences_form_label.c
   src/ui/preferences/preferences_fonts.c
@@ -211,6 +272,7 @@ set(BONGO_CAT_UI_PREFERENCES_SOURCES
   src/ui/preferences/preferences_icons.c
   src/ui/preferences/preferences_language.c
   src/ui/preferences/preferences_lifecycle.c
+  src/ui/preferences/preferences_resources.c
   src/ui/preferences/preferences_live_resize.c
   src/ui/preferences/preferences_model.c
   src/ui/preferences/preferences_model_card.c
@@ -245,6 +307,7 @@ set(BONGO_CAT_UI_PREFERENCES_SOURCES
 set(BONGO_CAT_RUNTIME_SOURCES
   src/core/app_state.c
   src/platform/common/memory.c
+  src/platform/common/gl_readback.c
   src/platform/common/update_shutdown.c
   ${BONGO_CAT_MEDIA_SOURCES}
   ${BONGO_CAT_RENDER_SOURCES}

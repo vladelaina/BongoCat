@@ -128,7 +128,7 @@ void test_models(void) {
     CHECK(catalog && behaviors);
     if (!catalog || !behaviors) {
         free(catalog);
-        free(behaviors);
+        bongo_cat_behaviors_clear(behaviors); free(behaviors);
         return;
     }
     bongo_cat_models_init(catalog);
@@ -153,6 +153,6 @@ void test_models(void) {
     CHECK(strstr(behaviors->entries[0].sound, "live2d_motion1.flac") != NULL);
     CHECK(behaviors->entries[6].kind == BONGO_CAT_BEHAVIOR_EXPRESSION);
 
-    free(behaviors);
+    bongo_cat_behaviors_clear(behaviors); free(behaviors);
     free(catalog);
 }

@@ -12,6 +12,7 @@
 /.ninja_deps
 /.ninja_log
 /Makefile
+/.bongocat-deps-*/
 
 # Compiled native artifacts
 *.o
@@ -64,8 +65,18 @@ Desktop.ini
 !/docs/README.pt-BR.md
 !/docs/README.ru-RU.md
 !/docs/README.es-ES.md
-!/docs/wechat.png
+!/docs/README.id-ID.md
+!/docs/wechat.md
+!/docs/rendering-quality.md
+!/docs/texture-resolution.md
+!/docs/windows-click-through.md
+!/docs/transparent-input.md
 
 # Local Windows audit tools
 /cmake/*.ps1
 !/cmake/RunCubismViewerBlindTest.ps1
+
+# Local diagnostic test state
+/.diagnostic-session/
+/.diagnostic-storage/
+/.diagnostic-storage-morning/

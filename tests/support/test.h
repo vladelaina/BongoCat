@@ -15,6 +15,7 @@ void test_input(void);
 void test_models(void);
 void test_mver_pointer(void);
 void test_shortcut(void);
+void test_sound_shortcut(void);
 void test_update(void);
 
 #endif

@@ -1,6 +1,9 @@
 #include "model_import_tauri_internal.h"
 
 #include <SDL3/SDL.h>
+#ifndef _WIN32
+#include <strings.h>
+#endif
 
 #define TAURI_MODEL_COPY_DEPTH_CAP 32
 
