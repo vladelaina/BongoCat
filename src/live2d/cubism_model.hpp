@@ -3,6 +3,7 @@
 
 #include "bongo_cat/model.h"
 #include "bongo_cat/image.h"
+#include "cubism_core_profile.hpp"
 
 #include <Model/CubismUserModel.hpp>
 #include <CubismModelSettingJson.hpp>
@@ -136,6 +137,9 @@ private:
         size_t maximum = (size_t)-1) const;
     std::string path(const char *relative) const;
 
+#if defined(CSM_TARGET_MAC_GL)
+    CubismCoreProfile core_profile_;
+#endif
     Csm::CubismModelSettingJson *setting_ = nullptr;
     MotionMap motions_;
     MotionSignatures motion_signatures_;

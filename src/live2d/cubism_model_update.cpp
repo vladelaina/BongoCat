@@ -112,6 +112,9 @@ void NativeModel::build_projection(Csm::CubismMatrix44 &projection,
 
 void NativeModel::draw() {
     if (!_model || width_ <= 0 || height_ <= 0) return;
+#if defined(CSM_TARGET_MAC_GL)
+    if (!core_profile_.begin()) return;
+#endif
     auto *manager = Csm::Rendering::CubismOffscreenManager_OpenGLES2::GetInstance();
     manager->BeginFrameProcess();
     Csm::CubismMatrix44 projection;
@@ -125,6 +128,9 @@ void NativeModel::draw() {
     auto *renderer = GetRenderer<Csm::Rendering::CubismRenderer_OpenGLES2>();
     renderer->SetMvpMatrix(&projection);
     renderer->DrawModel();
+#if defined(CSM_TARGET_MAC_GL)
+    core_profile_.end();
+#endif
     manager->EndFrameProcess();
 }
 

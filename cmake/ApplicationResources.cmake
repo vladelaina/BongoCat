@@ -7,10 +7,10 @@ if(APPLE)
       "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Info.plist.in")
   add_custom_command(TARGET bongo_cat POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory
-      "$<TARGET_BUNDLE_CONTENT_DIR:bongo_cat>/MacOS/assets"
+      "$<TARGET_BUNDLE_CONTENT_DIR:bongo_cat>/Resources/assets"
     COMMAND ${CMAKE_COMMAND} -E copy_directory
       "${CMAKE_CURRENT_SOURCE_DIR}/resources/assets"
-      "$<TARGET_BUNDLE_CONTENT_DIR:bongo_cat>/MacOS/assets"
+      "$<TARGET_BUNDLE_CONTENT_DIR:bongo_cat>/Resources/assets"
     VERBATIM)
 endif()
 

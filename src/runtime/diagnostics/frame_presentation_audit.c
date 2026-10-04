@@ -55,12 +55,13 @@ static void log_gl_presentation_state(BongoCatApp *app) {
     glGetIntegerv(GL_READ_BUFFER, &read_buffer);
     glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &draw_framebuffer);
     glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &read_framebuffer);
-    glGetIntegerv(GL_RED_BITS, &red_bits);
-    glGetIntegerv(GL_GREEN_BITS, &green_bits);
-    glGetIntegerv(GL_BLUE_BITS, &blue_bits);
-    glGetIntegerv(GL_ALPHA_BITS, &alpha_bits);
-    glGetIntegerv(GL_DEPTH_BITS, &depth_bits);
-    glGetIntegerv(GL_STENCIL_BITS, &stencil_bits);
+    /* SDL uses attachment queries for sizes removed from core glGetIntegerv. */
+    SDL_GL_GetAttribute(SDL_GL_RED_SIZE, &red_bits);
+    SDL_GL_GetAttribute(SDL_GL_GREEN_SIZE, &green_bits);
+    SDL_GL_GetAttribute(SDL_GL_BLUE_SIZE, &blue_bits);
+    SDL_GL_GetAttribute(SDL_GL_ALPHA_SIZE, &alpha_bits);
+    SDL_GL_GetAttribute(SDL_GL_DEPTH_SIZE, &depth_bits);
+    SDL_GL_GetAttribute(SDL_GL_STENCIL_SIZE, &stencil_bits);
     glGetIntegerv(GL_SAMPLE_BUFFERS, &sample_buffers);
     glGetIntegerv(GL_SAMPLES, &samples);
     glGetBooleanv(GL_DOUBLEBUFFER, &double_buffer);

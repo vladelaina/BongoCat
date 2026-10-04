@@ -108,7 +108,7 @@ static void log_first_frame(BongoCatApp *app, int width, int height) {
 }
 
 static void record_frame(BongoCatApp *app, const unsigned char *pixels,
-    int width, int height, size_t pitch) {
+    int width, int height, size_t pitch, GLenum before, GLenum after) {
     if (!app->smoke_frame_series) return;
     char path[BONGO_CAT_PATH_CAP];
     bongo_cat_path_join(path, sizeof(path), app->state_root,
@@ -119,19 +119,22 @@ static void record_frame(BongoCatApp *app, const unsigned char *pixels,
     if (header) fputs("ticks_ns,width,height,visible_pixels,alpha_pixels,"
         "scale_percent,opacity_percent,window_opacity,model_mode,"
         "model_state_consistent,selection_serial,window_config_visible,"
-        "window_os_visible\n", file);
+        "window_os_visible,loaded_model,active_model,runtime_stage,context_current,"
+        "gl_error_before,gl_error_after\n", file);
     FrameStats stats = frame_stats(pixels, width, height, pitch);
     bool model_consistent = bongo_cat_live2d_ready(app->live2d) &&
         app->loaded_model[0] &&
         strcmp(app->loaded_model, app->session.active_model_id) == 0;
     bool os_visible = (SDL_GetWindowFlags(app->window) & SDL_WINDOW_HIDDEN) == 0;
-    fprintf(file, "%llu,%d,%d,%u,%u,%.3f,%.3f,%.5f,%s,%d,%u,%d,%d\n",
+    fprintf(file, "%llu,%d,%d,%u,%u,%.3f,%.3f,%.5f,%s,%d,%u,%d,%d,%s,%s,%u,%d,%u,%u\n",
         (unsigned long long)SDL_GetTicksNS(), width, height,
         stats.visible, stats.alpha,
         app->session.window.scale_percent, app->session.window.opacity_percent,
         bongo_cat_platform_get_opacity(&app->platform),
         bongo_cat_mode_name(app->loaded_mode), model_consistent,
-        app->model_selection_serial, app->session.window.visible, os_visible);
+        app->model_selection_serial, app->session.window.visible, os_visible,
+        app->loaded_model, app->session.active_model_id, app->smoke_runtime_stage,
+        SDL_GL_GetCurrentContext() == app->gl_context, (unsigned)before, (unsigned)after);
     fclose(file);
 }
 
@@ -145,8 +148,10 @@ void bongo_cat_frame_audit(BongoCatApp *app, int width, int height) {
     size_t pitch = (size_t)width * 4, bytes = pitch * (size_t)height;
     unsigned char *pixels = malloc(bytes);
     if (!pixels) return;
+    GLenum before = glGetError();
     glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-    record_frame(app, pixels, width, height, pitch);
+    GLenum after = glGetError();
+    record_frame(app, pixels, width, height, pitch, before, after);
     uint64_t now = SDL_GetTicksNS();
     if (app->frame_audit_bmp_ns && now >= app->frame_audit_bmp_ns &&
         now - app->frame_audit_bmp_ns < 50000000ull) {

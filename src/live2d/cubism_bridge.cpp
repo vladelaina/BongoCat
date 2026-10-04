@@ -1,9 +1,10 @@
 #include "bongo_cat/file.h"
 #include "bongo_cat/model.h"
-#if defined(CSM_TARGET_WIN_GL) || defined(CSM_TARGET_LINUX_GL)
+#if defined(CSM_TARGET_WIN_GL) || defined(CSM_TARGET_LINUX_GL) || defined(CSM_TARGET_MAC_GL)
 #include <GL/glew.h>
 #endif
 #include "cubism_runtime.hpp"
+#include "cubism_gl.hpp"
 
 #include <CubismFramework.hpp>
 #include <SDL3/SDL_filesystem.h>
@@ -75,25 +76,16 @@ Csm::csmByte *load_file(const std::string path, Csm::csmSizeInt *size) {
 void release_file(Csm::csmByte *bytes) { std::free(bytes); }
 
 bool start_framework(BongoCatError *error) {
-    if (runtime_count++) return true;
-#if defined(CSM_TARGET_WIN_GL) || defined(CSM_TARGET_LINUX_GL)
-    glewExperimental = GL_TRUE;
-    GLenum glew_result = glewInit();
-    glGetError();
-    if (glew_result != GLEW_OK) {
-        runtime_count = 0;
-        bongo_cat_error_set(error, BONGO_CAT_ERROR_PLATFORM, "GLEW initialization failed: %s",
-            reinterpret_cast<const char *>(glewGetErrorString(glew_result)));
-        return false;
-    }
-    if (!glCreateShader || !glShaderSource || !glCompileShader ||
-        !glGetShaderiv || !glCreateProgram || !glGenFramebuffers) {
-        runtime_count = 0;
+    if (!SDL_GL_GetCurrentContext()) {
         bongo_cat_error_set(error, BONGO_CAT_ERROR_PLATFORM,
-            "Required OpenGL 3.3 functions are unavailable");
+            "Cannot initialize Cubism without a current OpenGL context");
         return false;
     }
-#endif
+    if (runtime_count++) return true;
+    if (!bongo_cat_cubism_initialize_gl(error)) {
+        runtime_count = 0;
+        return false;
+    }
     framework_option = CubismFramework::Option{};
     framework_option.LogFunction = log_message;
     framework_option.LoggingLevel = CubismFramework::Option::LogLevel_Warning;

@@ -144,6 +144,30 @@ third-party tree in the layout expected by `cmake/Cubism.cmake`. Windows
 Cubism builds require Visual Studio 2022. `BONGO_CAT_REQUIRE_CUBISM=ON` makes
 configuration fail instead of silently selecting the diagnostic backend.
 
+### Full-runtime startup regression
+
+With a graphical desktop and a full Cubism build, close any other BongoCat
+instance, then run this behavioral check (Python 3 required):
+
+```bash
+BONGO_STARTUP_EVIDENCE="$(mktemp -d)"
+python3 tests/live2d/test_startup.py \
+  build/BongoCat.app/Contents/MacOS/BongoCat \
+  "$BONGO_STARTUP_EVIDENCE/startup" --cwd "$BONGO_STARTUP_EVIDENCE"
+```
+
+On Linux or Windows, substitute the executable path from the build instructions.
+The check uses isolated settings and requires full Cubism startup, the exact
+built-in standard model, visible frames with the pet context current, no reported
+OpenGL/shader errors, and normal shutdown. It fails on a diagnostic build or an
+early single-instance exit. Logs, frame statistics and `storage/state/frame.bmp`
+are retained in the output directory; inspect that image for an intact textured
+cat and transparent background, since pixel counts alone cannot prove appearance.
+This desktop test is separate from ordinary CTest runs. Controlled missing-entry
+cleanup currently needs a debugger: clear a required GLEW entry after initialization
+but before validation and require a named platform error and clean startup-failure
+exit, rather than a crash.
+
 ### ⚙️ CMake Options
 
 | Option | Default | Description |
