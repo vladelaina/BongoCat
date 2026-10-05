@@ -23,6 +23,9 @@ void NativeModel::release_textures() {
 
 void NativeModel::release_renderer() {
     DeleteRenderer();
+#if defined(CSM_TARGET_MAC_GL)
+    core_profile_.release();
+#endif
     renderer_width_ = 0;
     renderer_height_ = 0;
 }
@@ -43,6 +46,9 @@ bool NativeModel::create_renderer(BongoCatError *error) {
             "Cannot clear the OpenGL error state before creating the Live2D renderer");
         return false;
     }
+#if defined(CSM_TARGET_MAC_GL)
+    if (!core_profile_.create(error)) return false;
+#endif
     CreateRenderer((Csm::csmUint32)width_, (Csm::csmUint32)height_);
     auto *renderer = GetRenderer<Csm::Rendering::CubismRenderer_OpenGLES2>();
     if (renderer) bind_textures();
