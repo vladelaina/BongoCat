@@ -79,20 +79,20 @@ app bytes after every event against the frozen upstream oracle. Explicit
 expected traces additionally cover global precedence, repeated downs, ordered
 multi-actions, duplicate/stale/empty IDs, empty sounds, failures, repeated
 expression selection, momentary key/modifier releases, every Alt digit, gamepad
-thresholds including NaN/infinity, malformed shortcuts and unsupported events.
-Explicit cases run at tiny sizes and 31/32/33 behaviors. Deterministic random
-traces exercise both strategies and the current 128-behavior/128-binding limit.
+thresholds including NaN/infinity, and unsupported events. Explicit cases run
+at tiny sizes and 31/32/33 behaviors. Deterministic random differential traces
+include malformed shortcuts, both strategies and the current
+128-behavior/128-binding limit.
 
-## Build limitations inherited from upstream
+## Separate baseline build cleanups
 
-A full GCC 14 Release warnings-as-errors build of this baseline stops at
-`src/runtime/live2d_audit.c:121` with `-Wmisleading-indentation` (two independent
-`if` statements share a line). It also reports the unused `remove_receipt`
-function at `src/runtime/model_import.c:207`. The focused shortcut targets retain
-strict warnings-as-errors. A full diagnostic build can be checked separately
-with `-DCMAKE_C_FLAGS="-Wno-error=misleading-indentation -Wno-error=unused-function"`;
-this only downgrades those two warning classes and does not change this PR's
-source or optimization settings.
+Two minimal cleanups let the full diagnostic build pass strict GCC 14 warnings
+without changing runtime behavior. `src/runtime/live2d_audit.c` places the two
+independent mouse-screen and mouse-hand-screen conditions on separate lines.
+`src/runtime/model_import.c` compiles the `remove_receipt` definition only when
+`BONGO_CAT_HAS_CUBISM` is defined, matching its existing sole caller's condition.
+The function body and all call paths are unchanged. These cleanups are separate
+from the shortcut optimization, and neither file is linked into the benchmark.
 
 Real Windows/macOS input, native GUI smoke, actual audio/rendering and the
 licensed Cubism backend are outside this microbenchmark's coverage.
@@ -105,8 +105,8 @@ GCC 14.2.0, CMake 3.31.10 and Ninja 1.11.1.4 were used with pinned open-source
 dependencies and the diagnostic backend. Both benchmark implementations use
 Release `-O3 -DNDEBUG -std=c11`, followed by the project's effective `-Os`,
 `-ffunction-sections -fdata-sections`, `-flto=auto -fno-fat-lto-objects`, and
-`-Wall -Wextra -Werror`. The benchmark binary was built before the separate full
-build's warning exemptions. Other project builds/tests/benchmarks were paused
+`-Wall -Wextra -Werror`. The final strict benchmark binary is byte-identical to
+the binary used for timing. Other project builds/tests/benchmarks were paused
 for all three runs (14:46:12–14:46:44 UTC), but this is a shared host without
 exclusive CPU access or affinity isolation.
 
@@ -142,7 +142,6 @@ No prior-base measurements are used in these results.
 
 Verification: strict warnings-as-errors focused targets and 16,557 differential
 ordered-action/app-state comparisons passed. The complete diagnostic build and
-all 6 CTests passed with only the two inherited warning classes documented above
-downgraded. Focused AddressSanitizer + UndefinedBehaviorSanitizer passed;
+all 6 CTests passed with warnings-as-errors and no warning exemptions. Focused AddressSanitizer + UndefinedBehaviorSanitizer passed;
 LeakSanitizer was disabled because this execution environment cannot run it under
 ptrace. The existing line-policy check passed.
