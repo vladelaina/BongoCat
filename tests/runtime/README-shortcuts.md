@@ -1,8 +1,9 @@
 # Shortcut dispatch prefilter
 
-For catalogs with at least 32 behaviors, dispatch checks the existing pure
-press/release matchers once per binding before traversing behavior IDs. Unrelated
-events skip that traversal. Smaller catalogs keep ID-first matching because
+For catalogs with at least 32 behaviors, dispatch uses the existing pure
+press/release matchers as an outer guard before traversing behavior IDs. Unrelated
+events skip that traversal. The original ID-first matching/action body is kept
+verbatim; actual large-catalog hits intentionally recheck the pure matchers. Smaller catalogs keep ID-first matching because
 parsing stale bindings can cost more than a short ID scan. Empty catalogs return
 immediately. This adds no cache, allocation, invalidation rule, or input parsing.
 The 32-behavior threshold is empirical, not a guarantee for every string mix or
@@ -115,70 +116,94 @@ from the shortcut optimization, and neither file is linked into the benchmark.
 Real Windows/macOS input, native GUI smoke, actual audio/rendering and the
 licensed Cubism backend are outside this microbenchmark's coverage.
 
+## Why the action path stays unchanged
+
+The earlier cached-result version at `bf4ecdc` kept press/release booleans live
+across ID traversal and added ternaries to the action body. In the exact GCC/LTO
+benchmark binary, the catalog index was loaded from and incremented in a stack
+slot on every ID comparison. The guard-only version restores a register-held
+catalog index and binding index. Its local stack reservation drops from 88 to
+72 bytes (baseline: 56), and this dispatch routine shrinks from 588 to 499 bytes
+(baseline: 423). These are compiler-specific component observations, not
+application memory or cross-platform performance claims.
+
+Unstripped diagnostic copies were checked to have identical `.text` to their
+corresponding timed binaries. The baseline dispatch routine's machine code was
+also byte-identical between both executables. Three contemporaneous cached/guard
+run pairs alternated outer order while preserving inner baseline/candidate
+pairing. The cached stale-31 speedup ratios were 0.943/0.904/0.884×, versus
+1.094/1.687/1.100× for the guard. The 31-entry key-miss and fallback controls
+also stopped showing a consistent regression. Together, code generation and
+repeat controls support removing the avoidable
+index spill; noisy timings alone do not prove the size of its causal effect.
+No threshold or fixture was tuned. Diagnostic cached-version measurements remain
+separate from the final guard-only dataset below.
+
 ## Linux cloud measurements (2026-10-05)
 
-These fresh measurements compare this patch only with
+These measurements compare the final guard-only patch with
 `4283de1599c7da914138f82a99405d67c2c861ec`. Intel Xeon Platinum 8573C, Linux x86-64,
 GCC 14.2.0, CMake 3.31.10 and Ninja 1.11.1.4 were used with pinned open-source
-dependencies and the diagnostic backend. Both benchmark implementations use
-Release `-O3 -DNDEBUG -std=c11`, followed by the project's effective `-Os`,
+dependencies and the diagnostic backend. Both implementations use Release
+`-O3 -DNDEBUG -std=c11`, followed by the project's effective `-Os`,
 `-ffunction-sections -fdata-sections`, `-flto=auto -fno-fat-lto-objects`, and
 `-Wall -Wextra -Werror`. The final strict benchmark binary is byte-identical to
-the binary used for timing. Other project builds/tests/benchmarks were paused
-for all three runs (15:44:15–15:44:52 UTC), but this is a shared host without
-exclusive CPU access or affinity isolation. Each run first passed all 26
-fixture parity checks (416 event pairs); these checks are outside timing.
+the guard binary used for timing. Other project builds/tests/benchmarks were
+paused for all six diagnostic/final runs (16:01:32–16:02:59 UTC). This is still a
+shared host without exclusive CPU access or affinity isolation. Each guard run
+passed all 26 fixture parity checks (416 event pairs) outside timing.
 
-The table shows medians of three run-level medians and p95s; speedup ranges retain
-all three run-level median ratios. All 26 scenarios × 3 summaries and CPU timing
-are in [shortcut-results-20261005.csv](shortcut-results-20261005.csv), with all
-2,418 paired samples in
+The table shows medians of three guard run-level medians and p95s; speedup ranges
+retain all three run-level median ratios. All 26 scenarios × 3 guard summaries
+and CPU timing are in [shortcut-results-20261005.csv](shortcut-results-20261005.csv),
+with all 2,418 final paired samples in
 [shortcut-measurements-20261005.csv](shortcut-measurements-20261005.csv).
 
 | Scenario | Baseline median µs/event | Candidate median µs/event | Baseline p95 µs/event | Candidate p95 µs/event | Median speedup range |
 |---|---:|---:|---:|---:|---:|
-| empty-catalog | 0.128 | 0.072 | 0.198 | 0.122 | 1.71–1.97× |
-| no-bindings | 0.697 | 0.717 | 1.004 | 0.972 | 0.97–1.04× |
-| single-valid-miss | 0.227 | 0.225 | 0.325 | 0.285 | 0.99–1.02× |
-| single-stale-binding | 0.164 | 0.164 | 0.231 | 0.233 | 0.98–1.01× |
-| small-key-miss | 1.042 | 1.052 | 1.377 | 1.446 | 0.91–1.01× |
-| small-mixed-keys | 0.933 | 0.852 | 1.138 | 1.176 | 0.95–2.11× |
-| lower-boundary-key-miss | 3.813 | 3.973 | 5.798 | 8.946 | 0.94–0.96× |
-| medium-key-miss | 4.031 | 1.710 | 5.835 | 2.947 | 2.26–2.38× |
-| upper-boundary-key-miss | 4.126 | 1.670 | 5.330 | 2.412 | 2.40–2.47× |
-| stale-long-16 | 5.179 | 5.696 | 6.364 | 7.421 | 0.84–0.91× |
-| stale-long-31 | 9.069 | 10.093 | 12.779 | 12.267 | 0.87–0.91× |
-| stale-long-32 | 9.566 | 7.982 | 14.910 | 11.978 | 1.19–1.23× |
-| stale-long-33 | 9.757 | 7.931 | 12.645 | 10.442 | 1.14–1.26× |
-| stale-long-64 | 18.452 | 8.182 | 31.096 | 13.463 | 2.25–2.41× |
-| large-key-miss | 82.794 | 8.560 | 96.237 | 11.329 | 9.36–9.67× |
-| large-mixed-keys | 87.171 | 10.696 | 114.093 | 14.122 | 7.86–8.50× |
-| large-few-bindings | 5.584 | 1.457 | 6.946 | 1.862 | 3.77–3.97× |
-| large-label-overrides | 72.285 | 1.823 | 91.262 | 3.252 | 33.90–39.65× |
-| capacity-stale-long | 67.840 | 15.496 | 92.857 | 31.167 | 4.38–4.64× |
-| small-stale-long | 0.509 | 0.681 | 0.614 | 0.961 | 0.75–0.77× |
-| gamepad-miss | 75.206 | 1.407 | 112.919 | 3.005 | 52.41–56.73× |
-| gamepad-mixed | 78.622 | 1.908 | 117.572 | 4.548 | 36.10–43.95× |
-| non-key-event | 72.968 | 0.923 | 127.128 | 1.471 | 77.41–79.32× |
-| alt-fallback-31 | 3.571 | 3.901 | 4.899 | 6.240 | 0.89–1.01× |
-| alt-fallback-32 | 3.742 | 1.524 | 5.108 | 2.372 | 2.46–2.61× |
-| alt-fallback-33 | 4.039 | 1.598 | 5.994 | 2.631 | 2.50–2.84× |
+| empty-catalog | 0.124 | 0.069 | 0.155 | 0.103 | 1.72–1.90× |
+| no-bindings | 0.685 | 0.678 | 0.987 | 0.872 | 0.92–1.02× |
+| single-valid-miss | 0.222 | 0.224 | 0.301 | 0.279 | 0.97–1.04× |
+| single-stale-binding | 0.158 | 0.161 | 0.262 | 0.282 | 0.96–1.01× |
+| small-key-miss | 1.097 | 1.110 | 1.856 | 1.457 | 0.95–1.10× |
+| small-mixed-keys | 0.887 | 0.883 | 1.403 | 1.364 | 1.00–1.08× |
+| lower-boundary-key-miss | 4.040 | 3.816 | 7.538 | 5.514 | 1.02–1.06× |
+| medium-key-miss | 4.078 | 1.745 | 5.602 | 3.595 | 2.29–2.40× |
+| upper-boundary-key-miss | 4.261 | 1.807 | 7.374 | 3.671 | 2.34–2.46× |
+| stale-long-16 | 6.138 | 5.740 | 10.577 | 8.755 | 1.07–1.10× |
+| stale-long-31 | 10.038 | 9.128 | 15.950 | 14.599 | 1.09–1.69× |
+| stale-long-32 | 9.971 | 8.314 | 14.339 | 18.001 | 1.18–1.27× |
+| stale-long-33 | 11.030 | 8.932 | 24.541 | 17.814 | 1.24–1.31× |
+| stale-long-64 | 18.825 | 9.069 | 31.167 | 13.417 | 2.08–2.31× |
+| large-key-miss | 87.684 | 9.364 | 149.054 | 15.247 | 9.30–10.52× |
+| large-mixed-keys | 118.996 | 15.240 | 171.398 | 28.079 | 7.81–12.06× |
+| large-few-bindings | 5.820 | 1.476 | 9.798 | 3.862 | 3.87–7.04× |
+| large-label-overrides | 89.555 | 1.793 | 131.787 | 10.220 | 41.32–85.86× |
+| capacity-stale-long | 70.105 | 15.153 | 100.331 | 31.511 | 4.63–5.81× |
+| small-stale-long | 0.518 | 0.555 | 0.801 | 0.731 | 0.93–0.99× |
+| gamepad-miss | 76.182 | 1.377 | 95.016 | 2.607 | 49.89–154.87× |
+| gamepad-mixed | 79.569 | 1.703 | 110.334 | 3.475 | 43.53–116.27× |
+| non-key-event | 77.267 | 0.890 | 122.582 | 1.950 | 81.42–229.33× |
+| alt-fallback-31 | 3.894 | 3.636 | 8.324 | 9.882 | 1.01–1.19× |
+| alt-fallback-32 | 3.986 | 1.456 | 6.803 | 2.851 | 2.48–7.27× |
+| alt-fallback-33 | 3.760 | 1.477 | 6.067 | 2.169 | 2.49–2.61× |
 
-The 128-behavior/eight-binding mixed fixture improved 3.770–3.971× across repeats.
-At 32/33 behaviors, the adjacent key-miss, long-stale and fallback controls
-improved in all three runs. This does not make the optimization free: the
-31-entry long-stale control was consistently 10.0–15.5% slower, and the 31-entry
-key-miss/fallback controls also include slower runs. Tiny workloads retain
-regressions/noise. The 32-entry threshold remains an empirical strategy choice,
-not a universal crossover or a device-level speed guarantee. These component
-results establish neither whole-app improvements nor stable per-event tail
-latency. No earlier-harness or prior-base samples are used here.
+The 31-entry long-stale, key-miss and fallback controls no longer show the
+consistent regression of the cached-result version in these repeats. Large
+benefits remain: the 128/8 mixed fixture improves 3.872–7.042× and 128/128 key
+misses improve 9.298–10.519×. Run 2 has substantial shared-host variation, so the
+high end of these ranges should not be treated as stable device performance.
 
-Verification: the final strict Release build and all 6 CTests passed, including
-16,590 ordered-action/app-state comparisons. Focused AddressSanitizer +
-UndefinedBehaviorSanitizer passed with zero failures. LeakSanitizer was disabled
-because this execution environment cannot run it under ptrace. The existing
-line-policy check passed, and `model_import.c` passed a strict syntax check with
-`BONGO_CAT_HAS_CUBISM` defined as well as the diagnostic build without it.
-A POSIX failure-injection check made `clock()` return `(clock_t)-1`; the final
-benchmark exited with code 2 and an explicit error, emitting no measurement rows.
+There is still no universal improvement: the 1-behavior/64-stale-binding stress
+case is 0.933–0.991×, about 0.9–7.2% slower, and other tiny/no-binding controls
+include slower runs. The unchanged 32-entry threshold is an empirical tradeoff.
+These are component results, not whole-app or individual-event latency gains.
+No cached-version samples are mixed into the final data files.
+
+Verification: strict Release full build and all 6 CTests passed, including
+16,590 ordered-action/app-state comparisons. Current-source AddressSanitizer +
+UndefinedBehaviorSanitizer passed with zero failures; LeakSanitizer was disabled
+because this execution environment cannot run it under ptrace. The source line
+policy passed. The separate build cleanups were checked with and without
+`BONGO_CAT_HAS_CUBISM` as described above. A POSIX `clock()` failure-injection
+check exited with code 2 and an explicit error, emitting no measurement rows.

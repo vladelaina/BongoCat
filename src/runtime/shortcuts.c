@@ -43,25 +43,24 @@ static bool behavior_shortcut(BongoCatApp *app, const BongoCatInputEvent *event)
     bool prefilter = app->behaviors.count >= 32;
     for (size_t i = 0; i < app->config.behavior_shortcut_count; ++i) {
         BongoCatBehaviorShortcut *shortcut = &app->config.behavior_shortcuts[i];
-        /* Both matchers are pure; binding/catalog order remains unchanged. */
-        bool released = prefilter &&
-            bongo_cat_shortcut_release_matches(event, shortcut->shortcut);
-        bool pressed = prefilter && bongo_cat_shortcut_matches(&app->shortcut_state,
-            event, shortcut->shortcut);
-        if (prefilter && !released && !pressed) continue;
+        /* Keep the ID-first action path unchanged, including matcher rechecks. */
+        if (prefilter &&
+            !bongo_cat_shortcut_release_matches(event, shortcut->shortcut) &&
+            !bongo_cat_shortcut_matches(&app->shortcut_state,
+                event, shortcut->shortcut)) continue;
         for (size_t j = 0; j < app->behaviors.count; ++j) {
             BongoCatBehaviorEntry *behavior = &app->behaviors.entries[j];
             if (strcmp(shortcut->id, behavior->id) != 0) continue;
-            if (behavior->momentary && (prefilter ? released :
-                bongo_cat_shortcut_release_matches(event, shortcut->shortcut))) {
+            if (behavior->momentary &&
+                bongo_cat_shortcut_release_matches(event, shortcut->shortcut)) {
                 if (behavior->kind == BONGO_CAT_BEHAVIOR_EFFECT)
                     handled = bongo_cat_overlay_effect(app->overlay, NULL) || handled;
                 else if (behavior->kind == BONGO_CAT_BEHAVIOR_SOUND) {
                     bongo_cat_audio_stop(app->audio);
                     handled = true;
                 }
-            } else if ((prefilter ? pressed : bongo_cat_shortcut_matches(
-                &app->shortcut_state, event, shortcut->shortcut))) handled =
+            } else if (bongo_cat_shortcut_matches(&app->shortcut_state,
+                event, shortcut->shortcut)) handled =
                     bongo_cat_app_run_behavior(app, behavior) || handled;
         }
     }
