@@ -19,6 +19,8 @@ import subprocess
 import sys
 import time
 
+from runtime_checks import common_runtime_checks
+
 STAGES = ['startup', 'idle', 'scale-up', 'scale-down', 'opacity-50',
           'opacity-100', 'model-keyboard', 'model-standard', 'model-gamepad',
           'settings-first-model-select', 'settings-idle',
@@ -122,16 +124,16 @@ def main():
     rows = read_rows(state / 'frame-series.csv')
     stdout = (output / 'stdout.log').read_text(errors='replace')
     stderr = (output / 'stderr.log').read_text(errors='replace')
+    runtime = common_runtime_checks(stdout, stderr, rows)
     settings_context = re.search(r'Preferences OpenGL context: shared=1 dedicated=1 .*?main_context=(0x[0-9a-f]+) settings_context=(0x[0-9a-f]+)', stderr)
     checks = {
         'normal_exit': report['returncode'] == 0 and not report['timeout'],
-        'full_runtime': 'Live2D Cubism SDK Core Version' in stdout and 'diagnostic backend' not in stdout + stderr,
+        'full_runtime': runtime['full_runtime'],
         'startup_ready': 'Startup ready' in stderr and 'Model load completed: id=standard' in stderr,
         'all_stages_in_order': [e['stage'] for e in events] == STAGES,
-        'normal_shutdown': 'Shutdown started: stage=shutdown:normal exit_code=0' in stderr and 'Shutdown complete: exit_code=0' in stderr,
-        'no_render_errors': '[CSM][E]' not in stdout + stderr and '[ERROR:' not in stderr and 'stage=failed' not in stderr
-            and not re.search(r'(?:gl_|state_|restore_)?error(?:_before|_after)?=0x0*[1-9a-fA-F][0-9a-fA-F]*', stdout + stderr),
-        'frame_context_and_gl': bool(rows) and all(row.get('context_current') == '1' and row.get('gl_error_before') == row.get('gl_error_after') == '0' for row in rows),
+        'normal_shutdown': runtime['normal_shutdown'],
+        'no_render_errors': runtime['no_render_errors'] and 'stage=failed' not in stderr,
+        'frame_context_and_gl': runtime['frame_context_and_gl'],
         'dedicated_shared_settings_context': bool(settings_context) and settings_context[1] != settings_context[2]
             and int(settings_context[1], 16) != 0 and int(settings_context[2], 16) != 0,
         'two_settings_selections': stderr.count('Preferences smoke selecting model ') == 2,

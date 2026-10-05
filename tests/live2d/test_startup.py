@@ -11,11 +11,12 @@ import datetime
 import hashlib
 import json
 import os
-import re
 from pathlib import Path
 import subprocess
 import sys
 import time
+
+from runtime_checks import common_runtime_checks
 
 
 def main():
@@ -73,13 +74,14 @@ def main():
     first_visible = next((index for index, row in enumerate(rows)
                           if row["window_os_visible"] == "1"), len(rows))
     visible_rows = rows[first_visible:]
+    runtime = common_runtime_checks(stdout, stderr, rows)
     checks = {
         "bounded_normal_exit": report["returncode"] == 0 and not report["timeout"],
         "actual_initialization": "[runtime] Process started:" in stderr and "Startup stage: window-ready" in stderr,
-        "full_cubism_runtime": "Live2D Cubism SDK Core Version" in stdout and "diagnostic backend" not in stdout + stderr,
+        "full_cubism_runtime": runtime["full_runtime"],
         "selected_model_completed": f"Model load completed: id={args.model}" in stderr,
         "startup_ready": "[runtime] Startup ready" in stderr,
-        "clean_shutdown": "Shutdown started: stage=shutdown:normal exit_code=0" in stderr and "Shutdown complete: exit_code=0" in stderr,
+        "clean_shutdown": runtime["normal_shutdown"],
         "visible_frame_readback": "First-frame diagnosis: OpenGL framebuffer contains visible content" in stderr,
         "visible_model_frames": len(visible_rows) >= 2 and all(
             row["model_mode"] == args.model and row["model_state_consistent"] == "1"
@@ -88,15 +90,10 @@ def main():
             and int(row["visible_pixels"]) > 100 and int(row["alpha_pixels"]) > 100
             and row["window_config_visible"] == "1" and row["window_os_visible"] == "1"
             for row in visible_rows),
-        "consistent_frame_context": bool(rows) and all(
-            row.get("context_current") == "1"
-            and row.get("gl_error_before") == "0"
-            and row.get("gl_error_after") == "0" for row in rows),
+        "consistent_frame_context": runtime["frame_context_and_gl"],
         "preserved_frame": (storage / "state/frame.bmp").is_file(),
-        "no_startup_or_gl_error": "Startup failed:" not in stderr and "[ERROR:" not in stderr
-            and "OpenGL framebuffer readback failed" not in stderr
-            and "[CSM][E]" not in stdout + stderr
-            and not re.search(r"(?:gl_|state_|restore_)?error(?:_before|_after)?=0x0*[1-9a-fA-F][0-9a-fA-F]*", stdout + stderr),
+        "no_startup_or_gl_error": runtime["no_render_errors"] and "Startup failed:" not in stderr
+            and "OpenGL framebuffer readback failed" not in stderr,
     }
     report.update(checks=checks, frame_count=len(rows),
                   visible_frame_count=len(visible_rows),
