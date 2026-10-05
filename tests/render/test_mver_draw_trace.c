@@ -136,9 +136,95 @@ static void lifecycle(void) {
     CHECK(!value.geometry_cache_valid && !value.enabled);
     frame(&value);
 }
+/* TG-02/04/05/06: count a separate production copy, then also check the
+   ordinary production entry point from the identical starting state. */
+static void counted_phase(BongoCatMverPointerOverlay *value, bool after,
+    unsigned expected_calls) {
+    BongoCatMverPointerOverlay direct = *value;
+    unsigned calls = mver_geometry_calls, reference = mver_reference_geometry_calls;
+    mver_probe_reset();
+    if (after) mver_counted_reference_after(value);
+    else mver_counted_reference_before(value);
+    expected = mver_trace;
+    CHECK(mver_reference_geometry_calls - reference ==
+        (unsigned)(value->enabled && (!after || !value->mouse)));
+    mver_probe_reset();
+    if (after) mver_counted_after(value); else mver_counted_before(value);
+    CHECK(mver_geometry_calls - calls == expected_calls);
+    CHECK(mver_trace.size == expected.size && mver_trace.draws == expected.draws);
+    CHECK(memcmp(mver_trace.bytes, expected.bytes, expected.size) == 0);
+    mver_probe_reset();
+    if (after) bongo_cat_mver_pointer_overlay_draw_after_keys(&direct);
+    else bongo_cat_mver_pointer_overlay_draw_before_keys(&direct);
+    CHECK(mver_trace.size == expected.size && mver_trace.draws == expected.draws);
+    CHECK(memcmp(mver_trace.bytes, expected.bytes, expected.size) == 0);
+    comparisons += 2; compared_bytes += 2 * expected.size;
+}
+static void phase_order_and_dimensions(void) {
+    BongoCatMverPointerOverlay value = mver_probe_overlay();
+    value.mouse = false; value.x_ratio = .25f; value.y_ratio = .125f;
+    counted_phase(&value, true, 1);  /* Cold after-only call. */
+    counted_phase(&value, true, 0);  /* Repeated after-only call. */
+    counted_phase(&value, false, 0);
+    value.left_handed = true;       /* Hand changes between real phases. */
+    counted_phase(&value, true, 1);
+    counted_phase(&value, true, 0);
+    BongoCatPointerTexture *textures[] = {&value.device, &value.left, &value.right};
+    for (size_t i = 0; i < sizeof(textures) / sizeof(*textures); i++) {
+        value.left_down = i == 1; value.right_down = i == 2;
+        counted_phase(&value, true, 0);
+        textures[i]->width += 37;
+        counted_phase(&value, true, 0);
+        textures[i]->height += 23;
+        counted_phase(&value, true, 0);
+    }
+    value = mver_probe_overlay(); value.mouse = false;
+    counted_phase(&value, false, 1); /* Cold and repeated before-only calls. */
+    counted_phase(&value, false, 0);
+}
+static void interleaved_lifecycle(void) {
+    BongoCatMverPointerOverlay first = mver_probe_overlay();
+    BongoCatMverPointerOverlay second = mver_probe_overlay();
+    first.mouse = second.mouse = false;
+    first.x_ratio = .125f; first.y_ratio = .25f;
+    second.x_ratio = .75f; second.y_ratio = .875f;
+    second.left_handed = true;
+    second.geometry = (BongoCatMverPointerConfig){17, -23, 31, -47};
+    /* Distinct fake resources as well as distinct input/cache storage. */
+    second.arm.id += 100; second.device.id += 100;
+    second.left.id += 100; second.right.id += 100; second.side.id += 100;
+    second.program += 100; second.vao += 100; second.vbo += 100;
+    counted_phase(&first, false, 1); counted_phase(&second, true, 1);
+    counted_phase(&first, true, 0); counted_phase(&second, false, 0);
+    const BongoCatMverPointerOverlay saved = second;
+    const char *fixtures[] = {"/valid", "/valid", "/disabled", "/valid", "/missing"};
+    for (size_t i = 0; i < sizeof(fixtures) / sizeof(*fixtures); i++) {
+        char path[1024]; BongoCatError error = {0};
+        int length = snprintf(path, sizeof(path), "%s%s",
+            BONGO_CAT_MVER_FIXTURE_DIR, fixtures[i]);
+        CHECK(length > 0 && (size_t)length < sizeof(path));
+        mver_probe_reset();
+        bool result = bongo_cat_mver_pointer_overlay_load(&first, path, &error);
+        CHECK(result == (i != 4));
+        CHECK(!first.geometry_cache_valid);
+        CHECK(first.enabled == (i != 2 && i != 4));
+        CHECK(second.geometry_cache_valid);
+        CHECK(second.geometry_cache_left_handed == saved.geometry_cache_left_handed);
+        CHECK(memcmp(second.geometry_cache_key, saved.geometry_cache_key,
+            sizeof(saved.geometry_cache_key)) == 0);
+        CHECK(memcmp(&second.cached_geometry, &saved.cached_geometry,
+            sizeof(saved.cached_geometry)) == 0);
+        counted_phase(&second, true, 0);
+        counted_phase(&first, true, (unsigned)first.enabled);
+        counted_phase(&second, false, 0);
+    }
+}
 int main(void) {
     grid(); changed_state(); special_values(); lifecycle();
+    phase_order_and_dimensions(); interleaved_lifecycle();
     printf("Mver ordered GL trace: %u phase comparisons, %zu exact bytes, "
-        "%d failures\n", comparisons, compared_bytes, bongo_cat_test_failures);
+        "%d failures; targeted geometry calls=%u, reference calls=%u\n",
+        comparisons, compared_bytes, bongo_cat_test_failures,
+        mver_geometry_calls, mver_reference_geometry_calls);
     return bongo_cat_test_failures ? 1 : 0;
 }

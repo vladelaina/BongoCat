@@ -24,4 +24,14 @@ void mver_probe_enable(GLenum cap);
 void mver_probe_bind_texture(GLenum target, GLuint texture);
 void mver_probe_draw_arrays(GLenum mode, GLint first, GLsizei count);
 void mver_probe_delete_textures(GLsizei count, const GLuint *textures);
+/* Separate correctness-only subjects; never called by timed benchmark paths. */
+extern unsigned mver_geometry_calls, mver_reference_geometry_calls;
+bool mver_counted_reference_geometry(float x, float y,
+    const BongoCatMverPointerConfig *config, BongoCatMverPointerGeometry *output);
+bool mver_counted_overlay_geometry(BongoCatMverPointerOverlay *value,
+    BongoCatMverPointerGeometry *output);
+void mver_counted_before(BongoCatMverPointerOverlay *value);
+void mver_counted_after(BongoCatMverPointerOverlay *value);
+void mver_counted_reference_before(BongoCatMverPointerOverlay *value);
+void mver_counted_reference_after(BongoCatMverPointerOverlay *value);
 #endif

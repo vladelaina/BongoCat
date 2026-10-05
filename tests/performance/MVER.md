@@ -41,8 +41,16 @@ vertex byte against the renderer frozen from upstream commit
 only remaps test symbols. Cases include both hands, mouse/tablet modes, every
 button combination, absent textures, color/scale/reference changes, disabled
 rendering, load/reload/disabled/failure, and anchor/offset changes between phases.
+Targeted phase tests also cover cold/repeated after-only and before-only calls,
+handedness changes between phases, and selected texture width/height changes
+on cache hits. Separate correctness-only copies count geometry evaluations;
+these copies and the ordinary production entry points both match the frozen
+renderer. Interleaved lifecycle tests keep a second distinct overlay live while
+the first loads, reloads, disables and fails loading, checking the untouched
+instance's cache key, geometry bytes and continued cache hits.
 Metadata parsing and regular-file validation are real; image decoding and GL
-resource operations use deterministic stubs.
+resource operations use deterministic stubs. Successful GL-backed creation and
+destruction ownership have source-inspection evidence only.
 
 These are strict CPU-output equivalence checks. Identical GL command streams
 and payloads support unchanged rendering under identical external GPU state,
@@ -71,6 +79,19 @@ copying full traces but consumes arguments and vertex data. Geometry-only runs
 also pass the complete output to an opaque non-IPO sink to prevent IPO from
 removing unused arm-coordinate computation or cache-copy work.
 
+Before starting any clocks, all eleven workloads are replayed at the requested
+operation count and block boundaries. The original timed baseline/candidate
+paths and separate counted copies must have exactly matching geometry or
+ordered GL traces. An independent fixture-state oracle checks expected geometry
+calls phase by phase; per-scenario counts and checked byte totals are printed
+to stderr. The preflight does not read production cache state. Counters are
+reset before timing and must remain zero afterward; the timed renderer subjects
+contain no counting instrumentation. To run only these checks:
+
+```sh
+build/bongo_cat_mver_bench --preflight-only 2000 15 100
+```
+
 There are three warm-up rounds and 21 measured A/B pairs by default. Each trial
 interleaves 100-operation blocks in alternating AB/BA order to
 reduce drift on shared hosts. The first variant also alternates between rounds.
@@ -82,8 +103,14 @@ p95 is the 95th percentile of batch averages, **not** single-input tail latency.
 
 Scenarios separate stationary/repeated inputs from every-frame changes. A
 moving tablet can reuse geometry between its two phases; the mid-frame-change
-scenario changes the anchor again and must miss in both phases. Both mouse
+scenario changes the anchor again and must miss in both phases. Additional
+controls cover left-handed stationary reuse, handedness toggles between phases,
+after-only changing inputs, and a four-frame invalid/invalid/recovery/reuse cycle.
+The invalid phases must draw nothing and recompute on every failed attempt.
+Both mouse
 drawing paths remain uncached controls, and the mouse second phase
 remains the original no-op. No additional heap allocation is
 introduced; retained memory is one geometry plus its key and validity flags in
 the existing overlay allocation. Exact structure sizes are printed to stderr.
+Stack usage changes have not been measured. Process RSS has not been measured,
+and the inline cache growth is not a memory-reduction claim.
