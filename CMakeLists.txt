@@ -80,6 +80,7 @@ add_library(bongo_cat_runtime STATIC
   src/media/stb_image_impl.c
   src/platform/memory.c src/render/gl_api.c
   src/render/overlay.c src/render/mver_pointer_overlay.c src/render/mver_pointer_overlay_draw.c
+  src/render/mver_pointer_overlay_geometry.c
   src/runtime/app.c src/runtime/config_store.c
   src/runtime/assets.c src/runtime/startup.c
   src/runtime/frame_audit.c src/runtime/frame_clock.c src/runtime/modal_frame.c
@@ -297,6 +298,7 @@ add_custom_target(check-lines ALL
     -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckLines.cmake
   VERBATIM)
 if(BUILD_TESTING)
+  include(cmake/MverCacheTests.cmake)
   add_executable(bongo_cat_core_tests tests/test_main.c tests/test_config.c tests/test_input.c tests/test_models.c tests/test_mver_pointer.c tests/test_shortcut.c src/platform/windows_keys.c)
   target_link_libraries(bongo_cat_core_tests PRIVATE bongo_cat_core bongo_cat_warnings $<$<PLATFORM_ID:Windows>:user32>)
   target_compile_definitions(bongo_cat_core_tests PRIVATE BONGO_CAT_NATIVE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
