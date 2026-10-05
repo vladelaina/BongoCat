@@ -3,14 +3,13 @@
 ## Status and scope
 
 Baseline: upstream `4283de1599c7da914138f82a99405d67c2c861ec`.
-Initial requirements frozen on 2026-10-05 before the spec reviewer inspected
-this candidate implementation or its added tests. Implementation existed before
-the user's new spec-driven requirement; this is an explicit reconciliation,
-not a claim that the earlier implementation was written from this document.
-The requirements below were derived from baseline `src/runtime/shortcuts.c`,
-`src/core/shortcut.c`, and the user's preservation/maintainability goals.
-No repository-specific SDD framework, AGENTS.md, or relevant local skill was
-found. This document uses the repository's existing plain Markdown style.
+The candidate implementation already existed when this contract was written.
+The requirements were derived from baseline `src/runtime/shortcuts.c` and
+`src/core/shortcut.c`, together with the behavior-preservation and
+maintainability goals, and frozen on 2026-10-05 before the reconciliation
+changes. Candidate code and evidence were then checked against that contract.
+This does not imply the earlier implementation was written from this document.
+Plain Markdown follows the project's existing documentation style.
 
 Goal: avoid behavior-ID scans for inputs that cannot match a configured
 shortcut, while retaining the baseline's exact observable behavior. Do not
@@ -113,15 +112,69 @@ not a claim of a discovered behavioral regression.
 | SC-08 | No application-layout edits, no new allocation, fixed automatic locals | Added persistent state **0 bytes**, added dynamic allocations **0** by source inspection; no process-RSS improvement established |
 | SC-09 | Exact warning cleanups are separate, conditional helper/caller agree; prior strict full build and 6/6 CTests passed; macro-defined syntax check passed | Rerun final-source tests after gap closure; licensed Cubism link/runtime, native windows, Windows/macOS behavior and real audio/input remain untested |
 
-Initial benchmark evidence is in
-[`README-shortcuts.md`](../../tests/runtime/README-shortcuts.md),
-[`shortcut-results-20261005.csv`](../../tests/runtime/shortcut-results-20261005.csv)
-and the linked raw samples. They document earlier candidate measurements, not
-results of the pending gap-closing changes. The 32-entry long-stale control
-already includes a slower repeat; do not hide it or turn the threshold into a
-universal performance guarantee.
+The table above records the initial review, before the gaps were closed.
+Initial measurements are historical evidence retained in the earlier revision;
+the current linked files below contain the final rerun and supersede them.
 
 ### Final verification
 
-Pending gap-closing tests, final strict checks and updated measurements.
-The initial requirements above remain the acceptance basis.
+The SC requirements were not changed to fit the result. All three initial
+evidence gaps are closed. A later performance review found avoidable register
+pressure in the first implementation, so the production prefilter was simplified
+before publication rather than accepting that counterexample.
+
+- **G-SC1 / SC-05/06:** `shortcut_live_edit_cases` in
+  [`test_shortcut_live_edits.c`](../../tests/runtime/test_shortcut_live_edits.c)
+  preserves one continuous state stream through 31→32→33→32→31, zero/regrowth,
+  repeated-down, same-count binding/catalog mutations, left/right modifier
+  changes and releases. It then checks fallback across catalog changes,
+  including fewer than ten entries. Both explicit action expectations and
+  the baseline differential checker run on every event.
+- **G-SC2 / SC-07:** the benchmark now contains 26 scenarios, including
+  like-for-like 31/32/33 catalog controls for key misses, long stale bindings
+  and Alt fallback. Existing gamepad, key-up, actual match, empty and large
+  catalog workloads remain. POSIX/Windows CPU clock failures now fail clearly
+  instead of yielding invalid measurements.
+- **G-SC3 / SC-07:** `benchmark_outputs_match` checks all application bytes
+  and ordered action traces over two complete event cycles (16 events) for
+  every timed fixture before starting its clock. Timed tracing remains off.
+- **SC-01 / performance correction:** the final production change adds only
+  eight lines around the original lookup/action body. It uses an outer pure
+  matcher guard and intentionally rechecks matches after an ID hit; the inner
+  loop and following source are byte-identical to baseline. Removing cached
+  match booleans returns both loop indices to registers in the tested GCC/LTO
+  dispatcher. Its stack reservation is 72 bytes versus 88 in the rejected
+  version and 56 in the baseline. These are benchmark-compiler observations,
+  not application or cross-platform memory measurements. Contemporaneous
+  cached/guard controls kept the threshold and all 26 fixtures fixed; the
+  consistent stale-31 regression did not persist with the simpler guard.
+- **SC-01..06/08/09:** final strict Release build and all **6/6 CTests**
+  passed, with **16,590** ordered-action/state comparisons. Current-source
+  ASan/UBSan passed the differential suite. The source line policy passed.
+  There are still **0 added persistent bytes and 0 added heap allocations**
+  by source inspection. The unchanged warning-cleanup source passed the
+  diagnostic build and strict Cubism-defined syntax check.
+
+Current reproduction, environment, caveats and final measurements are in
+[`README-shortcuts.md`](../../tests/runtime/README-shortcuts.md),
+[`shortcut-results-20261005.csv`](../../tests/runtime/shortcut-results-20261005.csv)
+and [`shortcut-measurements-20261005.csv`](../../tests/runtime/shortcut-measurements-20261005.csv).
+The final dataset is 26 scenarios × three runs × 31 paired samples.
+Adjacent threshold and negative/no-benefit controls remain visible. The final
+1-behavior/64-stale-binding control still costs 6.60–37.01 ns more per event
+(0.9–7.2%) in these runs. The outer guard adds a decision per binding even when
+ID-first scanning is retained, and the compiled frame is not identical to the
+baseline; timings do not establish how much each effect contributes. The spec
+does not promise zero overhead or an arbitrary universal speedup. Avoidable
+index spills were removed without duplicating the original action logic, and
+the remaining bounded component tradeoff is explicitly reported for review.
+No universal crossover or end-to-end latency gain is claimed. Final samples,
+all 78 summaries and binary identity were independently verified before
+publication; cached-version controls are not mixed into these measurements.
+
+Remaining validation limits are explicit: no licensed Cubism link/runtime,
+Windows/macOS native execution, live GUI/audio/input-device test, process-RSS
+measurement or individual-event tail-latency measurement. LeakSanitizer was
+disabled due to the execution environment; it is not a passed leak check.
+These limits do not erase the component-level parity evidence or imply a
+platform-wide performance guarantee.

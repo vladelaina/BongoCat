@@ -3,7 +3,8 @@
 For catalogs with at least 32 behaviors, dispatch uses the existing pure
 press/release matchers as an outer guard before traversing behavior IDs. Unrelated
 events skip that traversal. The original ID-first matching/action body is kept
-verbatim; actual large-catalog hits intentionally recheck the pure matchers. Smaller catalogs keep ID-first matching because
+verbatim; actual large-catalog hits intentionally recheck the pure matchers.
+Smaller catalogs keep ID-first matching because
 parsing stale bindings can cost more than a short ID scan. Empty catalogs return
 immediately. This adds no cache, allocation, invalidation rule, or input parsing.
 The 32-behavior threshold is empirical, not a guarantee for every string mix or
@@ -195,8 +196,10 @@ misses improve 9.298–10.519×. Run 2 has substantial shared-host variation, so
 high end of these ranges should not be treated as stable device performance.
 
 There is still no universal improvement: the 1-behavior/64-stale-binding stress
-case is 0.933–0.991×, about 0.9–7.2% slower, and other tiny/no-binding controls
-include slower runs. The unchanged 32-entry threshold is an empirical tradeoff.
+case is 0.933–0.991×, about 0.9–7.2% slower (6.60–37.01 ns/event), and other
+tiny/no-binding controls include slower runs. The extra guard decision per
+binding remains, and the benchmark dispatcher frame is still larger than the
+baseline; the data does not isolate each residual effect. The unchanged 32-entry threshold is an empirical tradeoff.
 These are component results, not whole-app or individual-event latency gains.
 No cached-version samples are mixed into the final data files.
 
