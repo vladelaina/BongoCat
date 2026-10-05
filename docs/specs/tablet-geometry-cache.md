@@ -3,14 +3,14 @@
 ## Status and scope
 
 Baseline: upstream `4283de1599c7da914138f82a99405d67c2c861ec`.
-Initial requirements frozen on 2026-10-05 before the spec reviewer inspected
-this candidate implementation or its added tests. Implementation existed before
-the user's new spec-driven requirement; this is an explicit reconciliation,
-not a claim that the earlier implementation was written from this document.
-The requirements below derive from baseline `src/core/mver_pointer.c`,
-`src/render/mver_pointer_overlay{,_draw,_internal}.c/.h`, and the user's
-preservation/maintainability goals. No repository-specific SDD framework,
-AGENTS.md, or relevant local skill was found; use plain Markdown.
+The candidate implementation already existed when this contract was written.
+The requirements were derived from baseline `src/core/mver_pointer.c`, the
+Mver overlay draw/lifecycle sources and private layout, together with the
+behavior-preservation and maintainability goals, and frozen on 2026-10-05
+before the reconciliation changes. Candidate code and evidence were then
+checked against that contract. This does not imply the earlier implementation
+was written from this document. Plain Markdown follows the project's existing
+documentation style.
 
 Goal: reuse an exact successful tablet geometry result on the owning overlay
 instance when all geometry inputs are unchanged. Preserve application behavior,
@@ -114,16 +114,67 @@ inputs whose effective horizontal ratio is equivalent, which TG-01 permits.
 | TG-08 | One 216-byte geometry, six 4-byte floats and two flags within existing overlay allocation; reference layout separately retained | Measured Linux x86-64 GCC size 360→600 bytes (**+240 bytes/instance**), no added heap allocations; **G-TG5:** explicitly mark stack usage unmeasured unless measured |
 | TG-09 | Separate exact baseline warning cleanups; prior strict full build and 7/7 CTests passed; shared warning source matches branch #101 exactly | Rerun final-source tests; macro-defined source syntax check is not a full licensed Cubism link/runtime build; native GPU/window and Windows/macOS validation remain untested |
 
-Initial evidence and reproduction are in
-[`MVER.md`](../../tests/performance/MVER.md) and
-[the current-base measurement directory](../../tests/performance/results/mver-20261005-main-4283de1/README.md).
-These are earlier candidate results, not pending gap-closing measurements.
-The recorded +2.269% geometry-only miss cost, +0.138% midframe tablet cost,
-and changing mouse +1.296% control remain visible alongside reuse gains.
-ASan/UBSan had passed focused tests; LeakSanitizer was disabled due to the
-execution environment and no leak-check result is claimed.
+The table above records the initial review, before the gaps were closed.
+Initial measurements are historical evidence retained in the earlier revision;
+the current linked samples below contain the final eleven-workload rerun.
 
 ### Final verification
 
-Pending gap-closing tests, final strict checks and updated measurements.
-The initial requirements above remain the acceptance basis.
+The TG requirements were not changed to fit the result. All five evidence gaps
+are closed; no additional production change was needed during reconciliation.
+
+- **G-TG1 / TG-02/06:** `phase_order_and_dimensions` in
+  [`test_mver_draw_trace.c`](../../tests/render/test_mver_draw_trace.c) checks
+  cold/repeated after-only and before-only calls and handedness changed
+  between real phases. Each case checks expected geometry evaluations,
+  baseline ordered payloads, and the uninstrumented production entry point.
+- **G-TG2 / TG-04/06:** the same test changes width and height independently
+  on device/left/right textures while geometry remains a cache hit, proving
+  immediate vertex updates against the unchanged baseline draw code.
+- **G-TG3 / TG-05/06:** `interleaved_lifecycle` runs distinct inputs on two
+  instances, warms both, and loads valid, repeated-valid, disabled, valid
+  and failing metadata into one. The other's key, cached geometry and
+  validity remain intact, its geometry evaluation count stays zero on hits,
+  and both instances' draw traces match baseline throughout.
+- **G-TG4 / TG-07:** [`bench_mver.c`](../../tests/performance/bench_mver.c)
+  has eleven workloads, adding stationary left-handed, mid-phase handedness,
+  after-only changing, and invalid/invalid/recovery/reuse controls. Before
+  timing, each workload runs at the requested operation count and block
+  boundaries. Ordinary baseline/candidate subjects plus separate counted
+  copies must agree exactly; an independent fixture-state oracle checks
+  evaluations per phase. Instrumented counters must remain zero during
+  timing. Partial final blocks advance by the actual bounded block amount.
+- **G-TG5 / TG-08:** [`MVER.md`](../../tests/performance/MVER.md) explicitly
+  says stack usage and process RSS are unmeasured. The Linux x86-64 GCC
+  layout remains **360→600 bytes, +240 bytes per instance**, with no added
+  heap allocation and no input-dependent growth.
+
+Final strict Release build and **7/7 CTests** passed. Current-source
+ASan/UBSan passed **41,066** byte-exact geometry comparisons and **8,378**
+ordered draw-phase comparisons covering **44,997,376** bytes. The targeted
+phase/lifecycle cases performed **8** candidate geometry evaluations versus
+**33** baseline evaluations. Full **2,000-operation/100-block** and uneven
+**13-operation/3-block** preflights passed, including under sanitizers. The
+line policy passed. The unchanged warning-cleanup source passed the diagnostic
+build and strict Cubism-defined syntax check.
+
+Final raw runs, preflight metadata and aggregate results are in
+[`run-1.csv`](../../tests/performance/results/mver-20261005-main-4283de1/run-1.csv),
+[`run-2.csv`](../../tests/performance/results/mver-20261005-main-4283de1/run-2.csv),
+[`run-3.csv`](../../tests/performance/results/mver-20261005-main-4283de1/run-3.csv),
+[`run-1.meta`](../../tests/performance/results/mver-20261005-main-4283de1/run-1.meta)
+and [`summary.csv`](../../tests/performance/results/mver-20261005-main-4283de1/summary.csv).
+Three runs contain 45 paired trials per workload. The full-count preflight
+records baseline/candidate evaluations of 4,000/0 for warm stationary tablet,
+4,000/2,000 for moving tablet, 4,000/4,000 for mid-phase pointer changes,
+2,000/2,000 for after-only changing input, and 4,000/2,500 for the invalid/
+recovery cycle. These counts explain reuse and misses; they are not timings.
+Miss paths and unchanged mouse controls remain in the reported measurements.
+Publication summaries must use the final dataset and matching binary identity.
+
+Creation/destruction ownership is source-reviewed, not a live-GL resource
+lifecycle test. Licensed Cubism link/runtime, native GPU/window output,
+Windows/macOS runtime behavior, process RSS and stack changes remain untested
+or unmeasured. LeakSanitizer was disabled due to the execution environment.
+Timing measures CPU preparation with GL stubs, not GPU rendering, displayed
+FPS, capture-to-frame latency or a universal device-level improvement.
