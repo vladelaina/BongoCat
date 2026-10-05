@@ -9,5 +9,6 @@ void shortcut_reset(size_t behaviors, size_t bindings);
 void shortcut_check(BongoCatInputKind kind, const char *name, float value,
     const char *expected);
 void shortcut_random_cases(void);
+void shortcut_live_edit_cases(void);
 
 #endif

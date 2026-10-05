@@ -179,6 +179,7 @@ int main(void) {
         empty_sound_and_failed_expression();
     }
     minimum_behaviors = 0;
+    shortcut_live_edit_cases();
     shortcut_random_cases();
     printf("Shortcut differential: %u ordered-action/state comparisons, %d failures\n",
         events_checked, bongo_cat_test_failures);

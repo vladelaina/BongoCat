@@ -7,7 +7,8 @@ if(BUILD_TESTING)
   add_executable(bongo_cat_shortcut_dispatch_tests
     ${BONGO_CAT_SHORTCUT_TEST_SOURCES}
     tests/runtime/test_shortcut_dispatch.c
-    tests/runtime/test_shortcut_random.c)
+    tests/runtime/test_shortcut_random.c
+    tests/runtime/test_shortcut_live_edits.c)
   target_include_directories(bongo_cat_shortcut_dispatch_tests PRIVATE
     include tests tests/runtime src/runtime)
   target_link_libraries(bongo_cat_shortcut_dispatch_tests PRIVATE
@@ -33,6 +34,7 @@ if(BUILD_TESTING)
   if(MSVC)
     set_property(SOURCE ${BONGO_CAT_SHORTCUT_TEST_SOURCES}
       tests/runtime/test_shortcut_dispatch.c tests/runtime/test_shortcut_random.c
+      tests/runtime/test_shortcut_live_edits.c
       tests/runtime/benchmark_shortcut_dispatch.c APPEND PROPERTY
       COMPILE_OPTIONS "/experimental:c11atomics")
   endif()

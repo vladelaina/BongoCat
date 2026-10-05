@@ -52,14 +52,25 @@ pairs and 31 measured pairs, alternating which implementation runs first.
 Medians and nearest-rank p95s describe distributions of batch-average ns/event,
 not individual input latency. Raw paired samples are written to the optional
 output path. Wall time uses SDL's monotonic performance counter; process CPU time
-uses `clock()` on POSIX and `GetProcessTimes` on Windows.
+uses `clock()` on POSIX and `GetProcessTimes` on Windows. A failed CPU timer
+read exits with an explicit error instead of recording invalid statistics;
+these checks are outside the timed dispatch loop.
 
 Keyboard cases alternate down/up; mixed cases have half their event pairs hit a
-configured shortcut. Gamepad cases alternate press/release. The 20 scenarios
-cover empty/tiny catalogs, 8/4 and 32/16 catalog/binding sizes, 128/8 and the current
-128/128 capacity, label-only overrides, stale bindings, gamepad and non-key
-inputs. Every fixture passes the real current configuration validator without
-changing binding IDs, shortcuts, labels or count. Stale-binding cases use IDs
+configured shortcut. Gamepad cases alternate press/release. The 26 scenarios
+cover empty/tiny catalogs, 8/4 and adjacent 31/16, 32/16, 33/16 catalog/binding
+sizes, 128/8 and the current
+128/128 capacity, label-only overrides, long-stale bindings at 31/32/33 behaviors,
+Alt fallback at 31/32/33 behaviors, gamepad and non-key inputs. Alt fixtures hold
+Alt and alternate Num1/Num0 press-release pairs; their Control-prefixed bindings
+miss, so the real fallback dispatches motion and expression actions. Every
+fixture passes the real current configuration validator without
+changing binding IDs, shortcuts, labels or count. Before calibration and timing,
+`benchmark_outputs_match` dispatches two complete eight-event cycles through the
+frozen baseline and candidate with separate traces, comparing every app byte and
+the ordered action trace after each event. Recording is then disabled and timing
+fixtures are reset. Thus each run checks 416 untimed event pairs across all 26
+fixtures, in addition to configuration validation. Stale-binding cases use IDs
 absent from the active catalog and long modifier sequences. Synthetic `F1`…`F128`
 tokens are parser stress accepted by configuration validation, not a claim about
 ordinary physical keyboard usage.
@@ -84,6 +95,13 @@ at tiny sizes and 31/32/33 behaviors. Deterministic random differential traces
 include malformed shortcuts, both strategies and the current
 128-behavior/128-binding limit.
 
+`shortcut_live_edit_cases` adds 33 differential events in one uninterrupted
+stream: 31→32→33→32→31 growth/shrink with a held modifier and primary key,
+repeated downs, in-place binding/ID/action edits, left/right modifier changes,
+release after modifier release, shrink-to-zero/regrowth and Alt fallback. It
+never resets shortcut state at the strategy transitions. Explicit expected
+traces and held-state assertions supplement the oracle comparisons.
+
 ## Separate baseline build cleanups
 
 Two minimal cleanups let the full diagnostic build pass strict GCC 14 warnings
@@ -107,41 +125,60 @@ Release `-O3 -DNDEBUG -std=c11`, followed by the project's effective `-Os`,
 `-ffunction-sections -fdata-sections`, `-flto=auto -fno-fat-lto-objects`, and
 `-Wall -Wextra -Werror`. The final strict benchmark binary is byte-identical to
 the binary used for timing. Other project builds/tests/benchmarks were paused
-for all three runs (14:46:12–14:46:44 UTC), but this is a shared host without
-exclusive CPU access or affinity isolation.
+for all three runs (15:44:15–15:44:52 UTC), but this is a shared host without
+exclusive CPU access or affinity isolation. Each run first passed all 26
+fixture parity checks (416 event pairs); these checks are outside timing.
 
 The table shows medians of three run-level medians and p95s; speedup ranges retain
-all three run-level median ratios. All 20 scenarios × 3 summaries and CPU timing
+all three run-level median ratios. All 26 scenarios × 3 summaries and CPU timing
 are in [shortcut-results-20261005.csv](shortcut-results-20261005.csv), with all
-1,860 paired samples in
+2,418 paired samples in
 [shortcut-measurements-20261005.csv](shortcut-measurements-20261005.csv).
 
 | Scenario | Baseline median µs/event | Candidate median µs/event | Baseline p95 µs/event | Candidate p95 µs/event | Median speedup range |
 |---|---:|---:|---:|---:|---:|
-| no-bindings | 0.660 | 0.648 | 0.790 | 0.988 | 0.95–1.03× |
-| single-valid-miss | 0.220 | 0.220 | 0.327 | 0.298 | 0.94–1.02× |
-| single-stale-binding | 0.159 | 0.153 | 0.227 | 0.228 | 1.01–1.08× |
-| small-key-miss | 1.039 | 1.032 | 1.899 | 1.517 | 0.79–1.03× |
-| small-mixed-keys | 0.844 | 0.858 | 1.325 | 1.166 | 0.94–0.98× |
-| medium-key-miss | 3.908 | 1.795 | 5.534 | 2.609 | 2.07–2.24× |
-| stale-long-32 | 9.842 | 8.506 | 14.379 | 11.761 | 0.97–1.20× |
-| stale-long-64 | 18.385 | 8.237 | 24.512 | 12.826 | 2.10–2.23× |
-| large-key-miss | 86.811 | 9.500 | 123.254 | 18.433 | 9.14–9.77× |
-| large-mixed-keys | 87.920 | 10.766 | 128.614 | 15.309 | 7.97–8.17× |
-| large-few-bindings | 5.570 | 1.375 | 7.436 | 1.814 | 4.05–4.15× |
-| large-label-overrides | 75.382 | 1.877 | 108.564 | 4.612 | 37.91–42.90× |
-| capacity-stale-long | 74.272 | 16.176 | 113.802 | 35.677 | 4.53–4.73× |
+| empty-catalog | 0.128 | 0.072 | 0.198 | 0.122 | 1.71–1.97× |
+| no-bindings | 0.697 | 0.717 | 1.004 | 0.972 | 0.97–1.04× |
+| single-valid-miss | 0.227 | 0.225 | 0.325 | 0.285 | 0.99–1.02× |
+| single-stale-binding | 0.164 | 0.164 | 0.231 | 0.233 | 0.98–1.01× |
+| small-key-miss | 1.042 | 1.052 | 1.377 | 1.446 | 0.91–1.01× |
+| small-mixed-keys | 0.933 | 0.852 | 1.138 | 1.176 | 0.95–2.11× |
+| lower-boundary-key-miss | 3.813 | 3.973 | 5.798 | 8.946 | 0.94–0.96× |
+| medium-key-miss | 4.031 | 1.710 | 5.835 | 2.947 | 2.26–2.38× |
+| upper-boundary-key-miss | 4.126 | 1.670 | 5.330 | 2.412 | 2.40–2.47× |
+| stale-long-16 | 5.179 | 5.696 | 6.364 | 7.421 | 0.84–0.91× |
+| stale-long-31 | 9.069 | 10.093 | 12.779 | 12.267 | 0.87–0.91× |
+| stale-long-32 | 9.566 | 7.982 | 14.910 | 11.978 | 1.19–1.23× |
+| stale-long-33 | 9.757 | 7.931 | 12.645 | 10.442 | 1.14–1.26× |
+| stale-long-64 | 18.452 | 8.182 | 31.096 | 13.463 | 2.25–2.41× |
+| large-key-miss | 82.794 | 8.560 | 96.237 | 11.329 | 9.36–9.67× |
+| large-mixed-keys | 87.171 | 10.696 | 114.093 | 14.122 | 7.86–8.50× |
+| large-few-bindings | 5.584 | 1.457 | 6.946 | 1.862 | 3.77–3.97× |
+| large-label-overrides | 72.285 | 1.823 | 91.262 | 3.252 | 33.90–39.65× |
+| capacity-stale-long | 67.840 | 15.496 | 92.857 | 31.167 | 4.38–4.64× |
+| small-stale-long | 0.509 | 0.681 | 0.614 | 0.961 | 0.75–0.77× |
+| gamepad-miss | 75.206 | 1.407 | 112.919 | 3.005 | 52.41–56.73× |
+| gamepad-mixed | 78.622 | 1.908 | 117.572 | 4.548 | 36.10–43.95× |
+| non-key-event | 72.968 | 0.923 | 127.128 | 1.471 | 77.41–79.32× |
+| alt-fallback-31 | 3.571 | 3.901 | 4.899 | 6.240 | 0.89–1.01× |
+| alt-fallback-32 | 3.742 | 1.524 | 5.108 | 2.372 | 2.46–2.61× |
+| alt-fallback-33 | 4.039 | 1.598 | 5.994 | 2.631 | 2.50–2.84× |
 
-The 128-behavior/eight-binding mixed fixture reduced isolated dispatch time by
-75.3–75.9% across repeats. This is not a whole-app or input-to-frame improvement.
-The stale-long-32 boundary fixture ranged from 0.975× to 1.197×: two runs improved,
-while the third was 2.6% slower. This reinforces that 32 is a conservative empirical
-strategy choice rather than a universal crossover. Tiny cases also show slower
-runs; neither tiny-case gains nor stable per-event tail latency are established.
-No prior-base measurements are used in these results.
+The 128-behavior/eight-binding mixed fixture improved 3.770–3.971× across repeats.
+At 32/33 behaviors, the adjacent key-miss, long-stale and fallback controls
+improved in all three runs. This does not make the optimization free: the
+31-entry long-stale control was consistently 10.0–15.5% slower, and the 31-entry
+key-miss/fallback controls also include slower runs. Tiny workloads retain
+regressions/noise. The 32-entry threshold remains an empirical strategy choice,
+not a universal crossover or a device-level speed guarantee. These component
+results establish neither whole-app improvements nor stable per-event tail
+latency. No earlier-harness or prior-base samples are used here.
 
-Verification: strict warnings-as-errors focused targets and 16,557 differential
-ordered-action/app-state comparisons passed. The complete diagnostic build and
-all 6 CTests passed with warnings-as-errors and no warning exemptions. Focused AddressSanitizer + UndefinedBehaviorSanitizer passed;
-LeakSanitizer was disabled because this execution environment cannot run it under
-ptrace. The existing line-policy check passed.
+Verification: the final strict Release build and all 6 CTests passed, including
+16,590 ordered-action/app-state comparisons. Focused AddressSanitizer +
+UndefinedBehaviorSanitizer passed with zero failures. LeakSanitizer was disabled
+because this execution environment cannot run it under ptrace. The existing
+line-policy check passed, and `model_import.c` passed a strict syntax check with
+`BONGO_CAT_HAS_CUBISM` defined as well as the diagnostic build without it.
+A POSIX failure-injection check made `clock()` return `(clock_t)-1`; the final
+benchmark exited with code 2 and an explicit error, emitting no measurement rows.

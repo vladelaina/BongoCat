@@ -25,10 +25,13 @@ static const Scenario scenarios[] = {
     {"single-stale-binding", 1, 1, 2},
     {"small-key-miss", 8, 4, 0},
     {"small-mixed-keys", 8, 4, 1},
+    {"lower-boundary-key-miss", 31, 16, 0},
     {"medium-key-miss", 32, 16, 0},
+    {"upper-boundary-key-miss", 33, 16, 0},
     {"stale-long-16", 16, 64, 2},
     {"stale-long-31", 31, 64, 2},
     {"stale-long-32", 32, 64, 2},
+    {"stale-long-33", 33, 64, 2},
     {"stale-long-64", 64, 64, 2},
     {"large-key-miss", 128, 128, 0},
     {"large-mixed-keys", 128, 128, 1},
@@ -38,7 +41,10 @@ static const Scenario scenarios[] = {
     {"small-stale-long", 1, 64, 2},
     {"gamepad-miss", 128, 128, 3},
     {"gamepad-mixed", 128, 128, 4},
-    {"non-key-event", 128, 128, 5}
+    {"non-key-event", 128, 128, 5},
+    {"alt-fallback-31", 31, 16, 7},
+    {"alt-fallback-32", 32, 16, 7},
+    {"alt-fallback-33", 33, 16, 7}
 };
 
 static BongoCatInputEvent events[8];
@@ -48,13 +54,20 @@ static volatile unsigned checksum;
 static double process_cpu_ns(void) {
 #ifdef _WIN32
     FILETIME created, exited, kernel, user;
-    if (!GetProcessTimes(GetCurrentProcess(), &created, &exited, &kernel, &user))
-        return 0;
+    if (!GetProcessTimes(GetCurrentProcess(), &created, &exited, &kernel, &user)) {
+        fputs("Cannot read process CPU time: GetProcessTimes failed\n", stderr);
+        exit(2);
+    }
     uint64_t ticks = ((uint64_t)kernel.dwHighDateTime << 32) | kernel.dwLowDateTime;
     ticks += ((uint64_t)user.dwHighDateTime << 32) | user.dwLowDateTime;
     return (double)ticks * 100.0;
 #else
-    return (double)clock() * 1e9 / (double)CLOCKS_PER_SEC;
+    clock_t ticks = clock();
+    if (ticks == (clock_t)-1) {
+        fputs("Cannot read process CPU time: clock failed\n", stderr);
+        exit(2);
+    }
+    return (double)ticks * 1e9 / (double)CLOCKS_PER_SEC;
 #endif
 }
 
@@ -65,7 +78,8 @@ static void prepare(BongoCatApp *app, const Scenario *scenario) {
         "Control+Shift+Super+", "Control+Alt+Super+", "Shift+Alt+"
     };
     shortcut_fixture(app, scenario->behaviors, scenario->bindings);
-    app->shortcut_state.control = 1;
+    app->shortcut_state.control = scenario->mode == 7 ? 0 : 1;
+    app->shortcut_state.alt = scenario->mode == 7 ? 1 : 0;
     for (size_t i = 0; i < scenario->bindings; ++i) {
         BongoCatBehaviorShortcut *binding = &app->config.behavior_shortcuts[i];
         /* Unique bindings, including different-model overrides at capacity. */
@@ -87,6 +101,7 @@ static void prepare(BongoCatApp *app, const Scenario *scenario) {
     for (size_t i = 0; i < 8; ++i) {
         const char *name = (scenario->mode == 1 || scenario->mode == 6) &&
             i % 4 < 2 ? "F1" : "KeyZ";
+        if (scenario->mode == 7) name = i % 4 < 2 ? "Num1" : "Num0";
         events[i] = shortcut_event(i % 2 ? BONGO_CAT_INPUT_KEY_UP :
             BONGO_CAT_INPUT_KEY_DOWN, name, i % 2 ? 0 : 1);
         if (scenario->mode == 3 || scenario->mode == 4)
@@ -98,6 +113,35 @@ static void prepare(BongoCatApp *app, const Scenario *scenario) {
     memset(&trace, 0, sizeof(trace));
     trace.expression = -1;
     shortcut_trace = &trace;
+}
+
+static bool benchmark_outputs_match(BongoCatApp *before, BongoCatApp *after,
+    const Scenario *scenario) {
+    static ShortcutTrace baseline_trace, candidate_trace;
+    prepare(before, scenario);
+    prepare(after, scenario);
+    memset(&baseline_trace, 0, sizeof(baseline_trace));
+    baseline_trace.expression = -1;
+    candidate_trace = baseline_trace;
+    shortcut_record_actions = true;
+    bool equal = true;
+    /* Two complete cycles verify stateful dispatch before any timed batch. */
+    for (size_t i = 0; equal && i < 16; ++i) {
+        baseline_trace.count = candidate_trace.count = 0;
+        memset(baseline_trace.actions, 0, sizeof(baseline_trace.actions));
+        memset(candidate_trace.actions, 0, sizeof(candidate_trace.actions));
+        shortcut_trace = &baseline_trace;
+        reference_app_shortcuts(before, &events[i % 8]);
+        shortcut_trace = &candidate_trace;
+        bongo_cat_app_shortcuts(after, &events[i % 8]);
+        equal = memcmp(before, after, sizeof(*before)) == 0 &&
+            memcmp(&baseline_trace, &candidate_trace, sizeof(baseline_trace)) == 0;
+        if (!equal) fprintf(stderr, "Benchmark parity mismatch: %s event %zu\n",
+            scenario->name, i);
+    }
+    shortcut_record_actions = false;
+    prepare(before, scenario);
+    return equal;
 }
 
 static Timing batch(Dispatch dispatch, BongoCatApp *app, size_t count) {
@@ -127,7 +171,7 @@ int main(int argc, char **argv) {
     if (raw) fputs("scenario,sample,baseline_first,events,baseline_wall_ns,candidate_wall_ns,"
         "baseline_cpu_ns,candidate_cpu_ns\n", raw);
     shortcut_record_actions = false;
-    puts("# Dispatch microbenchmark only; audio/render/persistence are stubs.");
+    puts("# Dispatch microbenchmark only; audio/render/window are stubs.");
     puts("# 3 warmup pairs; 31 measured pairs; alternating order; ~8ms baseline batches.");
     puts("scenario,behaviors,bindings,events_per_batch,baseline_wall_median_ns,candidate_wall_median_ns,"
         "baseline_wall_p95_ns,candidate_wall_p95_ns,wall_median_speedup,"
@@ -148,6 +192,7 @@ int main(int argc, char **argv) {
             fprintf(stderr, "Invalid benchmark bindings: %s\n", scenario->name);
             return 2;
         }
+        if (!benchmark_outputs_match(before, after, scenario)) return 2;
         double estimate = batch(reference_app_shortcuts, before, 512).wall;
         size_t count = estimate > 0 ? (size_t)(8e6 / estimate) : 32768;
         if (count < 128) count = 128;
@@ -186,6 +231,8 @@ int main(int argc, char **argv) {
             old_cpu[15], new_cpu[15], old_cpu[29], new_cpu[29]);
         fflush(stdout);
     }
+    printf("# output parity: %zu fixtures, 16 events each\n",
+        sizeof(scenarios) / sizeof(scenarios[0]));
     free(after);
     free(before);
     free(validated);
