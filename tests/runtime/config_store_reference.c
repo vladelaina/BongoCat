@@ -1,3 +1,5 @@
+/* Frozen baseline from 666999650f8afb405fa34dbf1ee0b98cd7145117.
+ * Keep independent from the production eligibility optimization. */
 #include "runtime.h"
 #include "bongo_cat/path.h"
 
@@ -188,8 +190,9 @@ static bool save_session(BongoCatApp *app) {
 
 void bongo_cat_config_store_update(BongoCatApp *app, uint64_t now) {
     if (!app || app->smoke || !app->settings_path[0] || !app->session_path[0]) return;
+    uint64_t settings = settings_hash(&app->settings);
+    uint64_t session = session_hash(&app->session);
     if (!app->secondary_pet && !app->settings_store_blocked) {
-        uint64_t settings = settings_hash(&app->settings);
         if (settings != app->settings_observed_hash) {
             app->settings_observed_hash = settings;
             app->settings_save_due_ns = now + SAVE_DELAY_NS;
@@ -198,7 +201,6 @@ void bongo_cat_config_store_update(BongoCatApp *app, uint64_t now) {
             app->settings_save_due_ns = now + SAVE_DELAY_NS;
     }
     if (!app->session_store_blocked) {
-        uint64_t session = session_hash(&app->session);
         if (session != app->session_observed_hash) {
             app->session_observed_hash = session;
             app->session_save_due_ns = now + SAVE_DELAY_NS;
