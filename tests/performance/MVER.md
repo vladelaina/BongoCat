@@ -17,23 +17,17 @@ With the project's pinned dependencies available:
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
   -DBONGO_CAT_WARNINGS_AS_ERRORS=ON -DBONGO_CAT_BUILD_MVER_BENCHMARK=ON
-cmake --build build --parallel 2 --target \
-  bongo_cat_mver_cache_tests bongo_cat_mver_draw_tests
-ctest --test-dir build --output-on-failure -R '^mver-'
-```
-
-At this upstream base, the full GCC 14 `-Werror` build also encounters unrelated
-existing warnings in `src/runtime/live2d_audit.c:121` (misleading indentation)
-and `src/runtime/model_import.c:207` (unused function). These files are unchanged.
-For a diagnostic full build, retain all other warnings as errors and allow those
-two categories explicitly:
-
-```sh
-cmake -S . -B build \
-  -DCMAKE_C_FLAGS="-Wno-error=misleading-indentation -Wno-error=unused-function"
 cmake --build build --parallel 2
 ctest --test-dir build --output-on-failure
 ```
+
+Two small baseline warning cleanups are separate from the geometry optimization:
+`src/runtime/live2d_audit.c` puts two independent pointer-audit conditions on
+separate lines, and `src/runtime/model_import.c` compiles the unchanged
+`remove_receipt` helper only with Cubism, matching its existing sole caller.
+Neither changes a call path or behavior. The full Release build uses strict
+warnings-as-errors without warning downgrades. Neither file is linked into the
+component benchmark.
 
 `mver-geometry-cache` compares complete geometry object bytes with the original
 function. It covers a dense grid, out-of-range inputs, both hands, all key

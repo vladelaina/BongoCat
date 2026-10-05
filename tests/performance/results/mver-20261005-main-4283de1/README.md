@@ -51,12 +51,10 @@ done
 python3 tests/performance/analyze_mver.py run-1.csv run-2.csv run-3.csv
 ```
 
-The changed runtime sources and focused test/benchmark targets compiled with
-strict warnings-as-errors. All six non-runtime CTests passed in that build.
-The full diagnostic build and all seven CTests also passed after explicitly
-allowing two existing upstream warning categories with
-`-Wno-error=misleading-indentation -Wno-error=unused-function`; the affected
-unrelated source files remain unchanged. See MVER.md for exact locations.
+The full Release build and all seven CTests passed with strict warnings-as-errors.
+Two behavior-preserving baseline warning cleanups are described separately in
+MVER.md. Neither source is linked into this benchmark; the final strict
+benchmark executable is byte-identical to the timed executable above.
 
 Current-source ASan/UBSan runs also passed both focused tests: 41,066 byte-exact
 geometry comparisons and 8,308 ordered GL phases (44,765,568 exact bytes).
