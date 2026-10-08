@@ -53,5 +53,6 @@ BongoCatResult bongo_cat_app_locate_assets(BongoCatApp *app,
             "Application locale assets are missing");
         return BONGO_CAT_ERROR_IO;
     }
+    bongo_cat_window_set_icon(app, app->window);
     return BONGO_CAT_OK;
 }

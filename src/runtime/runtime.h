@@ -6,6 +6,7 @@
 #include <SDL3/SDL.h>
 
 BongoCatResult bongo_cat_window_create(BongoCatApp *app, BongoCatError *error);
+void bongo_cat_window_set_icon(BongoCatApp *app, SDL_Window *window);
 BongoCatResult bongo_cat_app_locate_assets(BongoCatApp *app, BongoCatError *error);
 bool bongo_cat_startup_prepare(BongoCatApp *app, int argc, char **argv,
     BongoCatError *error);

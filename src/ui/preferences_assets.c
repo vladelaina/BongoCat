@@ -1,4 +1,5 @@
 #include "preferences_state.h"
+#include "../runtime/runtime.h"
 #include "ui_icons.h"
 #include "bongo_cat/image.h"
 #include "bongo_cat/path.h"
@@ -36,6 +37,7 @@ static int raster_size(const BongoCatPreferences *value, int logical) {
 }
 
 void bongo_cat_preferences_assets_load(BongoCatPreferences *value) {
+    bongo_cat_window_set_icon(value->app, value->window);
     value->logo_texture = load(value, "logo.png", raster_size(value, 192),
         &value->logo_width, &value->logo_height);
     int width = 0, height = 0;

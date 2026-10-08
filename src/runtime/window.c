@@ -2,9 +2,26 @@
 #include "window_menu.h"
 #include "bongo_cat/i18n.h"
 #include "bongo_cat/preferences.h"
+#include "bongo_cat/image.h"
+#include "bongo_cat/path.h"
 
 #include <SDL3/SDL_opengl.h>
 #include <stdio.h>
+
+void bongo_cat_window_set_icon(BongoCatApp *app, SDL_Window *window) {
+    char path[BONGO_CAT_PATH_CAP];
+    BongoCatImage icon = {0};
+    BongoCatError error = {0};
+    if (!window || !bongo_cat_path_join(path, sizeof(path), app->asset_root,
+        "logo.png")) return;
+    if (bongo_cat_image_load(path, &icon, &error) != BONGO_CAT_OK) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "%s", error.message);
+        return;
+    }
+    if (!SDL_SetWindowIcon(window, icon.surface))
+        SDL_LogWarn(SDL_LOG_CATEGORY_VIDEO, "Window icon failed: %s", SDL_GetError());
+    bongo_cat_image_free(&icon);
+}
 
 static bool set_gl_attributes(bool multisampling) {
     SDL_GL_ResetAttributes();

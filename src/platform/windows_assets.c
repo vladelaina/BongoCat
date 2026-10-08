@@ -53,6 +53,7 @@ static bool write_file(const char *path, const unsigned char *data, size_t size,
 static bool verify_contents(const char *name) {
     const char *model = "assets/models/standard/";
     return strcmp(name, "assets/locales/en-US.json") == 0 ||
+        strcmp(name, "assets/logo.png") == 0 ||
         strcmp(name, "assets/tray.png") == 0 ||
         (strncmp(name, model, strlen(model)) == 0 && !strstr(name, "/resources/"));
 }

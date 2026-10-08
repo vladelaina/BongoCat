@@ -1,6 +1,6 @@
 <div align="center">
   <a href="https://bongocat.pet" target="_blank">
-    <img src="https://github.com/user-attachments/assets/dd693432-8342-440b-8a92-c9f57a96ffb4" alt="BongoCat" width="249">
+    <img src="../resources/icons/icon.png" alt="BongoCat" width="249">
   </a>
   <h1><a href="https://bongocat.pet" target="_blank">BongoCat</a></h1>
 </div>
