@@ -1,3 +1,9 @@
+/* Frozen unmodified dispatch source from upstream
+ * 4283de1599c7da914138f82a99405d67c2c861ec. Keep this oracle unchanged.
+ * Only exported symbol names differ, allowing both versions in one test. */
+#define bongo_cat_app_shortcuts reference_app_shortcuts
+#define bongo_cat_app_run_behavior reference_app_run_behavior
+#define bongo_cat_app_shortcuts_self_test reference_app_shortcuts_self_test
 #include "runtime.h"
 #include "bongo_cat/audio.h"
 #include "bongo_cat/overlay.h"
@@ -38,16 +44,8 @@ bool bongo_cat_app_run_behavior(BongoCatApp *app,
 
 static bool behavior_shortcut(BongoCatApp *app, const BongoCatInputEvent *event) {
     bool handled = false;
-    if (!app->behaviors.count) return false;
-    /* Parsing stale bindings can cost more than scanning a tiny catalog. */
-    bool prefilter = app->behaviors.count >= 32;
     for (size_t i = 0; i < app->config.behavior_shortcut_count; ++i) {
         BongoCatBehaviorShortcut *shortcut = &app->config.behavior_shortcuts[i];
-        /* Keep the ID-first action path unchanged, including matcher rechecks. */
-        if (prefilter &&
-            !bongo_cat_shortcut_release_matches(event, shortcut->shortcut) &&
-            !bongo_cat_shortcut_matches(&app->shortcut_state,
-                event, shortcut->shortcut)) continue;
         for (size_t j = 0; j < app->behaviors.count; ++j) {
             BongoCatBehaviorEntry *behavior = &app->behaviors.entries[j];
             if (strcmp(shortcut->id, behavior->id) != 0) continue;
