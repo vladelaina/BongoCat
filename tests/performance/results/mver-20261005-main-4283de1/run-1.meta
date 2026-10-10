@@ -1,0 +1,13 @@
+overlay_size_before=360 overlay_size_after=600 delta=240; no additional heap allocations; block=100
+preflight=geometry-stationary iterations=2000 block=100 baseline_geometry_calls=2000 cached_geometry_calls=0 phases=2000 exact_bytes=1296000
+preflight=geometry-changing iterations=2000 block=100 baseline_geometry_calls=2000 cached_geometry_calls=2000 phases=2000 exact_bytes=1296000
+preflight=mouse-stationary iterations=2000 block=100 baseline_geometry_calls=2000 cached_geometry_calls=2000 phases=4000 exact_bytes=74112000
+preflight=mouse-changing iterations=2000 block=100 baseline_geometry_calls=2000 cached_geometry_calls=2000 phases=4000 exact_bytes=74112000
+preflight=tablet-stationary iterations=2000 block=100 baseline_geometry_calls=4000 cached_geometry_calls=0 phases=4000 exact_bytes=66048000
+preflight=tablet-changing iterations=2000 block=100 baseline_geometry_calls=4000 cached_geometry_calls=2000 phases=4000 exact_bytes=66048000
+preflight=tablet-midframe-changing iterations=2000 block=100 baseline_geometry_calls=4000 cached_geometry_calls=4000 phases=4000 exact_bytes=66048000
+preflight=tablet-left-handed iterations=2000 block=100 baseline_geometry_calls=4000 cached_geometry_calls=0 phases=4000 exact_bytes=66048000
+preflight=tablet-handedness-midframe iterations=2000 block=100 baseline_geometry_calls=4000 cached_geometry_calls=2000 phases=4000 exact_bytes=66048000
+preflight=tablet-after-only-changing iterations=2000 block=100 baseline_geometry_calls=2000 cached_geometry_calls=2000 phases=2000 exact_bytes=2688000
+preflight=tablet-invalid-recovery iterations=2000 block=100 baseline_geometry_calls=4000 cached_geometry_calls=2500 phases=4000 exact_bytes=33024000
+payload_sink=17200947778332572

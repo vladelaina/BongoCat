@@ -1,3 +1,13 @@
+/* Frozen upstream draw implementation from
+   4283de1599c7da914138f82a99405d67c2c861ec. Only test symbol remapping
+   below differs; keep the renderer body unchanged for differential tests. */
+#include "mver_probe.h"
+#define glDisable mver_probe_disable
+#define glEnable mver_probe_enable
+#define glBindTexture mver_probe_bind_texture
+#define glDrawArrays mver_probe_draw_arrays
+#define bongo_cat_mver_pointer_overlay_draw_before_keys mver_reference_before
+#define bongo_cat_mver_pointer_overlay_draw_after_keys mver_reference_after
 #include "mver_pointer_overlay_internal.h"
 
 #include <SDL3/SDL_opengl.h>
@@ -151,6 +161,13 @@ static void draw_line_layer(BongoCatMverPointerOverlay *value,
         value->line_blue, alpha);
 }
 
+static bool geometry(BongoCatMverPointerOverlay *value,
+    BongoCatMverPointerGeometry *output) {
+    float x = value->left_handed ? 1.0f - value->x_ratio : value->x_ratio;
+    return bongo_cat_mver_pointer_geometry(x, value->y_ratio,
+        &value->geometry, output);
+}
+
 static void draw_arm(BongoCatMverPointerOverlay *value,
     const BongoCatMverPointerGeometry *geometry) {
     draw_arm_fill(value, geometry);
@@ -161,15 +178,8 @@ static void draw_arm(BongoCatMverPointerOverlay *value,
 void bongo_cat_mver_pointer_overlay_draw_before_keys(
     BongoCatMverPointerOverlay *value) {
     BongoCatMverPointerGeometry current;
-    if (!value || !value->enabled) return;
-    if (value->mouse) {
-        /* Mouse has no second draw phase. Keep its original computation path
-           so continuously moving pointers do not pay for cache misses. */
-        float x = value->left_handed ? 1.0f - value->x_ratio : value->x_ratio;
-        if (!bongo_cat_mver_pointer_geometry(x, value->y_ratio,
-            &value->geometry, &current)) return;
-        draw_device(value, &current);
-    } else if (!bongo_cat_mver_pointer_overlay_geometry(value, &current)) return;
+    if (!value || !value->enabled || !geometry(value, &current)) return;
+    if (value->mouse) draw_device(value, &current);
     draw_arm(value, &current);
 }
 
@@ -177,6 +187,6 @@ void bongo_cat_mver_pointer_overlay_draw_after_keys(
     BongoCatMverPointerOverlay *value) {
     BongoCatMverPointerGeometry current;
     if (!value || !value->enabled || value->mouse ||
-        !bongo_cat_mver_pointer_overlay_geometry(value, &current)) return;
+        !geometry(value, &current)) return;
     draw_device(value, &current);
 }

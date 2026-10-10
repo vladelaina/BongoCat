@@ -204,6 +204,7 @@ BongoCatResult bongo_cat_import_install(const char *source, const char *data_roo
     return BONGO_CAT_OK;
 }
 
+#ifdef BONGO_CAT_HAS_CUBISM
 static void remove_receipt(const char *data_root,
     const BongoCatImportReceipt *receipt) {
     char root[BONGO_CAT_PATH_CAP], path[BONGO_CAT_PATH_CAP];
@@ -212,6 +213,7 @@ static void remove_receipt(const char *data_root,
         if (bongo_cat_path_join(path, sizeof(path), root, receipt->ids[i]))
             bongo_cat_model_remove_tree(path, NULL);
 }
+#endif
 
 BongoCatResult bongo_cat_app_import_model(BongoCatApp *app, const char *source,
     BongoCatError *error) {
