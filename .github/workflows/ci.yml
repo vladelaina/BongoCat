@@ -6,6 +6,11 @@ on:
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
+    inputs:
+      sign_windows:
+        description: Sign the Windows diagnostic package with the SignPath test certificate
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -183,6 +188,110 @@ jobs:
         with:
           name: diagnostic-no-cubism-${{ steps.package.outputs.name }}
           path: build/dist/*
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+  sign-windows-test:
+    name: signing / Windows test certificate
+    needs: build
+    if: >-
+      github.repository == 'vladelaina/BongoCat' &&
+      ((github.event_name == 'workflow_dispatch' && inputs.sign_windows) ||
+       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') &&
+        vars.SIGNPATH_TEST_SIGNING_ENABLED == 'true'))
+    runs-on: windows-latest
+    timeout-minutes: 30
+    permissions:
+      actions: read
+      contents: read
+    env:
+      SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+      SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+      SIGNPATH_ARTIFACT_CONFIGURATION_SLUG: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
+      SIGNPATH_TEST_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_TEST_SIGNING_POLICY_SLUG }}
+      SIGNPATH_TEST_CERTIFICATE_THUMBPRINT: ${{ vars.SIGNPATH_TEST_CERTIFICATE_THUMBPRINT }}
+    steps:
+      - name: Checkout signing scripts
+        uses: actions/checkout@v5
+
+      - name: Validate SignPath settings
+        shell: pwsh
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+        run: |
+          $required = @(
+            'SIGNPATH_API_TOKEN', 'SIGNPATH_ORGANIZATION_ID',
+            'SIGNPATH_PROJECT_SLUG', 'SIGNPATH_ARTIFACT_CONFIGURATION_SLUG',
+            'SIGNPATH_TEST_SIGNING_POLICY_SLUG', 'SIGNPATH_TEST_CERTIFICATE_THUMBPRINT'
+          )
+          foreach ($name in $required) {
+            if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
+              throw "Missing GitHub Actions setting: $name. See docs/signpath.zh-CN.md."
+            }
+          }
+          if ($env:SIGNPATH_TEST_CERTIFICATE_THUMBPRINT -notmatch '^[a-fA-F0-9]{40}$') {
+            throw 'SIGNPATH_TEST_CERTIFICATE_THUMBPRINT must contain 40 hexadecimal characters.'
+          }
+
+      - name: Download Windows diagnostic package
+        uses: actions/download-artifact@v8
+        with:
+          pattern: diagnostic-no-cubism-BongoCat-*-windows-x64
+          path: build/signpath/unsigned
+          merge-multiple: true
+
+      - name: Validate unsigned package
+        shell: pwsh
+        run: |
+          $archives = @(Get-ChildItem build/signpath/unsigned -Filter *.zip -File)
+          if ($archives.Count -ne 1) { throw 'Expected exactly one Windows ZIP package.' }
+          $archive = $archives[0]
+          $expected = (Get-Content -LiteralPath "$($archive.FullName).sha256" -Raw).Trim()
+          $actual = (Get-FileHash -LiteralPath $archive.FullName -Algorithm SHA256).Hash
+          if ($expected -ne $actual) { throw 'Unsigned ZIP checksum mismatch.' }
+          if (-not (Test-Path build/signpath/unsigned/DIAGNOSTIC-NO-CUBISM.txt)) {
+            throw 'The diagnostic package notice is missing.'
+          }
+
+      # Upload only the release ZIP: GitHub wraps it in the outer ZIP expected by SignPath.
+      - name: Upload unsigned signing input
+        id: unsigned
+        uses: actions/upload-artifact@v7
+        with:
+          name: signpath-unsigned-windows-test
+          path: build/signpath/unsigned/*.zip
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+      - name: Submit SignPath test signing request
+        id: signpath
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_TEST_SIGNING_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 1200
+          output-artifact-directory: build/signpath/signed
+
+      - name: Verify signature and regenerate checksum
+        shell: pwsh
+        run: |
+          & ./.github/scripts/verify-signpath-package.ps1 `
+            -SignedDirectory build/signpath/signed `
+            -UnsignedDirectory build/signpath/unsigned `
+            -ExpectedThumbprint $env:SIGNPATH_TEST_CERTIFICATE_THUMBPRINT
+
+      - name: Upload signed test package
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-signed-diagnostic-no-cubism-windows-x64
+          path: build/signpath/signed/*
           if-no-files-found: error
           retention-days: 30
           compression-level: 0

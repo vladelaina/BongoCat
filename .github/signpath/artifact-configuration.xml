@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <!-- GitHub upload-artifact ZIP -> CPack release ZIP -> application. -->
+  <zip-file>
+    <zip-file path="BongoCat-*-windows-x64.zip">
+      <pe-file path="BongoCat-*-windows-x64/BongoCat.exe"
+               product-name="BongoCat" company-name="BongoCat"
+               original-filename="BongoCat.exe">
+        <authenticode-sign />
+      </pe-file>
+    </zip-file>
+  </zip-file>
+</artifact-configuration>
