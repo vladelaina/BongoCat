@@ -118,7 +118,10 @@ static bool apply(BongoCatApp *app, const char *scenario) {
         return bongo_cat_live2d_visual_audit_run(app);
     if (strcmp(scenario, "viewer-sequence") == 0)
         return bongo_cat_live2d_viewer_audit_run(app);
-    if (strcmp(scenario, "mouse-screen") == 0) return bongo_cat_app_audit_screen_pointer(app); if (strcmp(scenario, "mouse-hand-screen") == 0) return bongo_cat_app_audit_display_pointer(app);
+    if (strcmp(scenario, "mouse-screen") == 0)
+        return bongo_cat_app_audit_screen_pointer(app);
+    if (strcmp(scenario, "mouse-hand-screen") == 0)
+        return bongo_cat_app_audit_display_pointer(app);
     if (strcmp(scenario, "mirror") == 0) app->config.model.mirror = true;
     else if (strcmp(scenario, "mouse-move") == 0) return pointer(app, false);
     else if (strcmp(scenario, "mouse-move-mirror") == 0) return pointer(app, true);
