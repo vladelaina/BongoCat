@@ -51,6 +51,7 @@ static void read_window(yyjson_val *obj, BongoCatWindowOptions *value) {
     value->pass_through = get_bool(obj, "passThrough", value->pass_through);
     value->always_on_top = get_bool(obj, "alwaysOnTop", value->always_on_top);
     value->hide_on_hover = get_bool(obj, "hideOnHover", value->hide_on_hover);
+    value->edge_snap = get_bool(obj, "edgeSnap", value->edge_snap);
     value->keep_in_screen = get_bool(obj, "keepInScreen", value->keep_in_screen);
     value->hide_delay_seconds = get_float(obj, "hideOnHoverDelay", value->hide_delay_seconds);
 }
@@ -123,6 +124,7 @@ static void write_window(yyjson_mut_doc *doc, yyjson_mut_val *obj,
     yyjson_mut_obj_add_bool(doc, obj, "alwaysOnTop", v->always_on_top);
     yyjson_mut_obj_add_bool(doc, obj, "hideOnHover", v->hide_on_hover);
     yyjson_mut_obj_add_bool(doc, obj, "keepInScreen", v->keep_in_screen);
+    yyjson_mut_obj_add_bool(doc, obj, "edgeSnap", v->edge_snap);
     yyjson_mut_obj_add_real(doc, obj, "hideOnHoverDelay", v->hide_delay_seconds);
 }
 static void write_app(yyjson_mut_doc *doc, yyjson_mut_val *obj,

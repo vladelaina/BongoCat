@@ -19,6 +19,7 @@
           "windowSettings": "ウィンドウ設定",
           "passThrough": "クリックを透過",
           "alwaysOnTop": "常に手前に表示",
+          "edgeSnap": "Edge Snap",
           "keepInScreen": "画面内に保持",
           "windowSize": "ウィンドウサイズ",
           "opacity": "不透明度",

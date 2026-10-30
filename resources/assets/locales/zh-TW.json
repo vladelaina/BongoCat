@@ -19,6 +19,7 @@
           "windowSettings": "視窗設定",
           "passThrough": "視窗穿透",
           "alwaysOnTop": "視窗置頂",
+          "edgeSnap": "邊緣吸附",
           "keepInScreen": "保持在螢幕內",
           "windowSize": "視窗尺寸",
           "opacity": "不透明度",

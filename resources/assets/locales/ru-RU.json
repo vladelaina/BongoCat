@@ -19,6 +19,7 @@
           "windowSettings": "Настройки окна",
           "passThrough": "Пропускать щелчки",
           "alwaysOnTop": "Поверх всех окон",
+          "edgeSnap": "Edge Snap",
           "keepInScreen": "Удерживать на экране",
           "windowSize": "Размер окна",
           "opacity": "Непрозрачность",

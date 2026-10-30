@@ -33,7 +33,7 @@ void bongo_cat_window_drag_motion(BongoCatApp *app,
         bongo_cat_window_drag_end(app); return;
     }
     if (app->window_drag_active) {
-        if (app->config.window.keep_in_screen)
+        if (app->config.window.keep_in_screen || app->config.window.edge_snap)
             move_with_pointer(app, pointer_x, pointer_y);
         return;
     }
@@ -42,7 +42,7 @@ void bongo_cat_window_drag_motion(BongoCatApp *app,
     if (x * x + y * y < 9.0f) return;
     app->drag_candidate = false;
     app->window_drag_active = true;
-    if (app->config.window.keep_in_screen) {
+    if (app->config.window.keep_in_screen || app->config.window.edge_snap) {
         bongo_cat_window_drag_bounds_refresh(app);
         if (!SDL_CaptureMouse(true)) SDL_LogWarn(SDL_LOG_CATEGORY_VIDEO,
             "Mouse capture is unavailable during constrained window drag: %s",

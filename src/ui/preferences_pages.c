@@ -41,6 +41,9 @@ void bongo_cat_preferences_page_cat(BongoCatApp *app, struct nk_context *context
         "pages.preference.cat.labels.keepInScreen", "Keep on Screen"), "",
         &window->keep_in_screen) && window->keep_in_screen)
         bongo_cat_window_clamp_to_display(app);
+    bongo_cat_pref_toggle(context, "edge-snap", tr(app,
+        "pages.preference.cat.labels.edgeSnap", "Edge Snap"), "",
+        &window->edge_snap);
     float old_scale = window->scale_percent;
     bongo_cat_pref_float(context, "window-size", tr(app,
         "pages.preference.cat.labels.windowSize", "Window Size"), tr(app,
