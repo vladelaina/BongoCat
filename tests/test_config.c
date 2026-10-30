@@ -30,6 +30,7 @@ void test_config(void) {
     CHECK(value.window.width == 612 && value.window.height == 354);
     CHECK(value.window.visible && value.window.always_on_top);
     CHECK(!value.window.keep_in_screen);
+    CHECK(!value.window.edge_snap);
     CHECK(value.model.mouse_centered);
 
     value.model.max_fps = 900;
@@ -66,6 +67,7 @@ void test_config(void) {
     value.model.mirror = true;
     value.model.mouse_centered = false;
     value.window.pass_through = true;
+    value.window.edge_snap = true;
     value.window.x = -321;
     value.window.opacity_percent = 75.0f;
     value.app.language = BONGO_CAT_LANG_ZH_CN;
@@ -94,6 +96,7 @@ void test_config(void) {
     CHECK(loaded.model.max_fps == 30 && loaded.model.mirror);
     CHECK(!loaded.model.mouse_centered);
     CHECK(loaded.window.pass_through);
+    CHECK(loaded.window.edge_snap);
     CHECK(loaded.window.x == 0);
     CHECK(loaded.window.opacity_percent == 100.0f);
     CHECK(loaded.app.language == BONGO_CAT_LANG_ZH_CN);

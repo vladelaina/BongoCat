@@ -1,3 +1,5 @@
+cmake_policy(SET CMP0007 OLD)
+
 if(NOT DEFINED ROOT)
   message(FATAL_ERROR "ROOT is required")
 endif()

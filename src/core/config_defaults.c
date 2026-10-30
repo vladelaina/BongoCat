@@ -64,6 +64,7 @@ void bongo_cat_config_defaults(BongoCatConfig *config) {
     config->window.visible = true;
     config->window.always_on_top = true;
     config->window.keep_in_screen = false;
+    config->window.edge_snap = false;
     config->window.scale_percent = BONGO_CAT_DEFAULT_WINDOW_SCALE_PERCENT;
     config->window.opacity_percent =
         BONGO_CAT_DEFAULT_WINDOW_OPACITY_PERCENT;

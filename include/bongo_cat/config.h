@@ -43,6 +43,7 @@ typedef struct BongoCatWindowOptions {
     bool always_on_top;
     bool hide_on_hover;
     bool keep_in_screen;
+    bool edge_snap;
     float scale_percent;
     float opacity_percent;
     float hide_delay_seconds;

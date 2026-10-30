@@ -189,6 +189,21 @@ void bongo_cat_window_drag_to(BongoCatApp *app, int x, int y) {
         width <= 0 || height <= 0) return;
     SDL_Rect requested = {x, y, width, height};
     SDL_Point next = {x, y};
+    if (app->config.window.edge_snap) {
+        SDL_Rect bounds;
+        SDL_DisplayID display = SDL_GetDisplayForRect(&requested);
+        if (display && (SDL_GetDisplayUsableBounds(display, &bounds) ||
+            SDL_GetDisplayBounds(display, &bounds))) {
+            const int threshold = 20;
+            int right = bounds.x + bounds.w - width;
+            int bottom = bounds.y + bounds.h - height;
+            if (SDL_abs(x - bounds.x) <= threshold) next.x = bounds.x;
+            else if (SDL_abs(x - right) <= threshold) next.x = right;
+            if (SDL_abs(y - bounds.y) <= threshold) next.y = bounds.y;
+            else if (SDL_abs(y - bottom) <= threshold) next.y = bottom;
+        }
+    }
+    requested.x = next.x; requested.y = next.y;
     if (app->config.window.keep_in_screen &&
         !available_displays_cover(app, &requested)) {
         SDL_Rect bounds; SDL_DisplayID display = target_display(app, &requested);

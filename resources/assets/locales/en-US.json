@@ -19,6 +19,7 @@
           "windowSettings": "Window Settings",
           "passThrough": "Pass Through",
           "alwaysOnTop": "Always on Top",
+          "edgeSnap": "Edge Snap",
           "keepInScreen": "Keep on Screen",
           "windowSize": "Window Size",
           "opacity": "Opacity",
