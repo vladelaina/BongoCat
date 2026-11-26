@@ -12,6 +12,7 @@ extern int bongo_cat_test_failures;
 void test_config(void);
 void test_input(void);
 void test_models(void);
+void test_modifier_state(void);
 void test_mver_pointer(void);
 void test_shortcut(void);
 

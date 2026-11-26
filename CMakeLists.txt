@@ -60,7 +60,7 @@ add_library(bongo_cat_core STATIC
   src/core/config_file.c src/core/config_session_io.c
   src/core/error.c
   src/core/file.c src/core/i18n.c
-  src/core/input_state.c src/core/mver_pointer.c
+  src/core/input_state.c src/core/modifier_state.c src/core/mver_pointer.c
   src/core/mouse_tracking.c src/core/sha256.c src/core/utf8.c
   src/core/model_catalog.c
   src/core/model_behavior.c
@@ -297,7 +297,7 @@ add_custom_target(check-lines ALL
     -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckLines.cmake
   VERBATIM)
 if(BUILD_TESTING)
-  add_executable(bongo_cat_core_tests tests/test_main.c tests/test_config.c tests/test_input.c tests/test_models.c tests/test_mver_pointer.c tests/test_shortcut.c src/platform/windows_keys.c)
+  add_executable(bongo_cat_core_tests tests/test_main.c tests/test_config.c tests/test_input.c tests/test_models.c tests/test_modifier_state.c tests/test_mver_pointer.c tests/test_shortcut.c src/platform/windows_keys.c)
   target_link_libraries(bongo_cat_core_tests PRIVATE bongo_cat_core bongo_cat_warnings $<$<PLATFORM_ID:Windows>:user32>)
   target_compile_definitions(bongo_cat_core_tests PRIVATE BONGO_CAT_NATIVE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
   add_test(NAME core COMMAND bongo_cat_core_tests)
