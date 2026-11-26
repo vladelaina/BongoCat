@@ -1,8 +1,10 @@
 #include "macos_internal.h"
 #include "macos_keys.h"
+#include "bongo_cat/modifier_state.h"
 
 #ifdef __APPLE__
 #include <ApplicationServices/ApplicationServices.h>
+#include <IOKit/hidsystem/IOLLEvent.h>
 #include <SDL3/SDL.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,13 +37,54 @@ static void push(MacInputState *state, BongoCatInputKind kind,
     }
 }
 
-static CGEventFlags modifier_flag(CGKeyCode code) {
-    if (code == 56 || code == 60) return kCGEventFlagMaskShift;
-    if (code == 59 || code == 62) return kCGEventFlagMaskControl;
-    if (code == 58 || code == 61) return kCGEventFlagMaskAlternate;
-    if (code == 54 || code == 55) return kCGEventFlagMaskCommand;
-    if (code == 57) return kCGEventFlagMaskAlphaShift;
-    return 0;
+static BongoCatModifierMasks modifier_masks(CGKeyCode code) {
+    switch (code) {
+    case 56: return (BongoCatModifierMasks){kCGEventFlagMaskShift,
+        NX_DEVICELSHIFTKEYMASK, NX_DEVICERSHIFTKEYMASK};
+    case 60: return (BongoCatModifierMasks){kCGEventFlagMaskShift,
+        NX_DEVICELSHIFTKEYMASK, NX_DEVICERSHIFTKEYMASK};
+    case 59: return (BongoCatModifierMasks){kCGEventFlagMaskControl,
+        NX_DEVICELCTLKEYMASK, NX_DEVICERCTLKEYMASK};
+    case 62: return (BongoCatModifierMasks){kCGEventFlagMaskControl,
+        NX_DEVICELCTLKEYMASK, NX_DEVICERCTLKEYMASK};
+    case 58: return (BongoCatModifierMasks){kCGEventFlagMaskAlternate,
+        NX_DEVICELALTKEYMASK, NX_DEVICERALTKEYMASK};
+    case 61: return (BongoCatModifierMasks){kCGEventFlagMaskAlternate,
+        NX_DEVICELALTKEYMASK, NX_DEVICERALTKEYMASK};
+    case 55: return (BongoCatModifierMasks){kCGEventFlagMaskCommand,
+        NX_DEVICELCMDKEYMASK, NX_DEVICERCMDKEYMASK};
+    case 54: return (BongoCatModifierMasks){kCGEventFlagMaskCommand,
+        NX_DEVICELCMDKEYMASK, NX_DEVICERCMDKEYMASK};
+    default: return (BongoCatModifierMasks){0, 0, 0};
+    }
+}
+
+static bool right_modifier(CGKeyCode code) {
+    return code == 60 || code == 62 || code == 61 || code == 54;
+}
+
+static bool modifier_is_down(CGKeyCode code, CGEventFlags flags) {
+    BongoCatModifierMasks masks = modifier_masks(code);
+    if (!masks.combined) return flags & kCGEventFlagMaskAlphaShift;
+    return bongo_cat_modifier_is_down(flags, masks, right_modifier(code));
+}
+
+/* A shortcut in another app may consume a modifier's key-up. Reconcile the
+ * tracked modifier keys with the physical HID state before every key event,
+ * and synthesize the missing releases so shortcut state cannot stay latched. */
+static void reconcile_modifier_keys(MacInputState *state, CGEventFlags flags) {
+    static const CGKeyCode codes[] = {56, 59, 58, 55, 60, 62, 61, 54};
+    for (size_t i = 0; i < sizeof(codes) / sizeof(codes[0]); ++i) {
+        CGKeyCode code = codes[i];
+        if (!state->key_down[code]) continue;
+        BongoCatModifierMasks masks = modifier_masks(code);
+        if (!bongo_cat_modifier_is_released(flags, masks, right_modifier(code)))
+            continue;
+        char buffer[16];
+        const char *name = bongo_cat_macos_key_name(code, buffer);
+        if (name && bongo_cat_input_edge(state->key_down, code, false))
+            push(state, BONGO_CAT_INPUT_KEY_UP, name, 0.0f);
+    }
 }
 
 static CGEventRef event_tap(CGEventTapProxy proxy, CGEventType type,
@@ -64,14 +107,14 @@ static CGEventRef event_tap(CGEventTapProxy proxy, CGEventType type,
         return event;
     }
     if (type == kCGEventKeyDown || type == kCGEventKeyUp || type == kCGEventFlagsChanged) {
+        CGEventFlags flags = CGEventGetFlags(event);
+        reconcile_modifier_keys(state,
+            CGEventSourceFlagsState(kCGEventSourceStateHIDSystemState));
         CGKeyCode code = (CGKeyCode)CGEventGetIntegerValueField(event,
             kCGKeyboardEventKeycode);
         char buffer[16]; const char *name = bongo_cat_macos_key_name(code, buffer);
         bool down = type == kCGEventKeyDown;
-        if (type == kCGEventFlagsChanged) {
-            CGEventFlags flag = modifier_flag(code);
-            down = flag && (CGEventGetFlags(event) & flag) != 0;
-        }
+        if (type == kCGEventFlagsChanged) down = modifier_is_down(code, flags);
         if (name && bongo_cat_input_edge(state->key_down, code, down))
             push(state, down ? BONGO_CAT_INPUT_KEY_DOWN :
                 BONGO_CAT_INPUT_KEY_UP, name, down ? 1.0f : 0.0f);

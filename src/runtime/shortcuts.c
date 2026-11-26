@@ -56,15 +56,10 @@ static bool behavior_shortcut(BongoCatApp *app, const BongoCatInputEvent *event)
                     bongo_cat_app_run_behavior(app, behavior) || handled;
         }
     }
-    if (handled) return true;
-    size_t limit = app->behaviors.count < 10 ? app->behaviors.count : 10;
-    for (size_t i = 0; i < limit; ++i) {
-        char alias[8];
-        snprintf(alias, sizeof(alias), "Alt+%c", i == 9 ? '0' : (char)('1' + i));
-        if (bongo_cat_shortcut_matches(&app->shortcut_state, event, alias))
-            return bongo_cat_app_run_behavior(app, &app->behaviors.entries[i]);
-    }
-    return false;
+    /* Behavior shortcuts come only from Preferences. Hidden Alt+number
+     * aliases turn a stale modifier from another app into an accidental
+     * behavior (and motion sound), and users cannot disable or rebind them. */
+    return handled;
 }
 
 void bongo_cat_app_shortcuts(BongoCatApp *app, const BongoCatInputEvent *event) {
