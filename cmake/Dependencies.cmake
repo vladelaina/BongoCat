@@ -46,8 +46,8 @@ if(BONGO_CAT_FETCH_DEPS)
   set(MINIAUDIO_NO_WAV OFF CACHE BOOL "" FORCE)
   set(MINIAUDIO_NO_MP3 OFF CACHE BOOL "" FORCE)
   set(MINIAUDIO_NO_GENERATION ON CACHE BOOL "" FORCE)
-  FetchContent_Declare(SDL3 URL https://github.com/libsdl-org/SDL/archive/402fc52af4e731184ad6a704068b5ccd27d8f1b8.tar.gz
-    URL_HASH SHA256=e413151af71c23d316b6076a96a999342142afa792394eaf8a542a03503fc491)
+  FetchContent_Declare(SDL3 URL https://github.com/libsdl-org/SDL/archive/f00dc919ca35b9756316e86c4777392de442f9b2.tar.gz
+    URL_HASH SHA256=e6a9c4e75de8fe719f922dddc208627f77754a502909f457a1355981f20c21e0)
   FetchContent_Declare(yyjson URL https://github.com/ibireme/yyjson/archive/ac8f6074e1fbc43ec496aa1404b460d08b55d7a5.tar.gz
     URL_HASH SHA256=bfc16e407ddb303c98e333920d5e01386afa42a15e0a750251342e04b074e736)
   FetchContent_Declare(stb URL https://github.com/nothings/stb/archive/31c1ad37456438565541f4919958214b6e762fb4.tar.gz
